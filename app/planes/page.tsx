@@ -5,7 +5,8 @@ import { Check } from 'lucide-react';
 
 export const metadata = {
   title: 'Planes y Precios - Tacoplan',
-  description: 'Elige el plan de Tacoplan que mejor se adapte a tus necesidades como conductor profesional. Planes básico y pro para control de jornada de camioneros.',
+  description:
+    'Elige el plan de Tacoplan que mejor se adapte a tus necesidades como conductor profesional.',
 };
 
 export default function PlanesPage() {
@@ -44,11 +45,11 @@ export default function PlanesPage() {
                 </li>
                 <li className="flex items-start">
                   <Check className="h-6 w-6 text-green-500 mr-3 flex-shrink-0" />
-                  <span className="text-gray-700">Registro de descansos</span>
+                  <span className="text-gray-700">Registro de descansos automatico</span>
                 </li>
                 <li className="flex items-start">
                   <Check className="h-6 w-6 text-green-500 mr-3 flex-shrink-0" />
-                  <span className="text-gray-700">Gestión básica de viajes</span>
+                  <span className="text-gray-700">Registro básico de viajes</span>
                 </li>
                 <li className="flex items-start">
                   <Check className="h-6 w-6 text-green-500 mr-3 flex-shrink-0" />
