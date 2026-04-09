@@ -26,7 +26,10 @@ function formatRegistroError(message: string): string {
     return 'Has alcanzado el límite de envío de emails. Espera unos minutos y vuelve a intentarlo. Si ya te llegó el correo, no hace falta repetir el registro: confirma el email y listo.';
   }
 
-  if (normalized.includes('redirect') && normalized.includes('not allowed')) {
+  if (
+    normalized.includes('redirect') &&
+    (normalized.includes('not allowed') || normalized.includes('not permitted') || normalized.includes('invalid'))
+  ) {
     return 'Supabase está bloqueando el redirect de confirmación. En Supabase → Authentication → URL Configuration, añade https://tacoplan.es/auth/callback (y tu dominio) en Redirect URLs.';
   }
 
@@ -67,6 +70,8 @@ export default function RegistroPage() {
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<'form' | 'email_sent' | 'success'>('form');
   const [returnTo, setReturnTo] = useState<string | null>(null);
+  const [debug, setDebug] = useState(false);
+  const [debugErrorRaw, setDebugErrorRaw] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     nombre: '',
     email: '',
@@ -77,6 +82,7 @@ export default function RegistroPage() {
     const params = new URLSearchParams(window.location.search);
     const rt = params.get('return_to') ?? params.get('redirect_to') ?? params.get('redirect');
     setReturnTo(rt);
+    setDebug(params.get('debug') === '1');
   }, []);
 
   const getEmailRedirectTo = () => {
@@ -92,6 +98,7 @@ export default function RegistroPage() {
 
     setLoading(true);
     setError(null);
+    setDebugErrorRaw(null);
 
     try {
       const emailRedirectTo = getEmailRedirectTo();
@@ -144,6 +151,16 @@ export default function RegistroPage() {
       console.error('Registro error:', err);
       const message = getErrorMessage(err);
       setError(formatRegistroError(message));
+      setDebugErrorRaw(
+        (() => {
+          try {
+            if (err instanceof Error) return `${err.name}: ${err.message}`;
+            return JSON.stringify(err);
+          } catch {
+            return String(err);
+          }
+        })(),
+      );
     } finally {
       setLoading(false);
     }
@@ -273,6 +290,14 @@ export default function RegistroPage() {
                 </Button>
               </div>
             )}
+
+            {debug ? (
+              <div className="mt-4 text-xs text-gray-500">
+                <div>Supabase ref: {getSupabaseProjectRef() ?? 'desconocido'}</div>
+                <div>emailRedirectTo: https://tacoplan.es/auth/callback</div>
+                {debugErrorRaw ? <div>Error raw: {debugErrorRaw}</div> : null}
+              </div>
+            ) : null}
 
             <div className="mt-6">
               <div className="relative">
