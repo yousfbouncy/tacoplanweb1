@@ -67,7 +67,6 @@ export default function RegistroPage() {
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<'form' | 'email_sent' | 'success'>('form');
   const [returnTo, setReturnTo] = useState<string | null>(null);
-  const [debug, setDebug] = useState(false);
   const [formData, setFormData] = useState({
     nombre: '',
     email: '',
@@ -76,13 +75,12 @@ export default function RegistroPage() {
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    setReturnTo(params.get('return_to') ?? params.get('redirect_to') ?? params.get('redirect'));
-    setDebug(params.get('debug') === '1');
+    const rt = params.get('return_to') ?? params.get('redirect_to') ?? params.get('redirect');
+    setReturnTo(rt);
   }, []);
 
   const getEmailRedirectTo = () => {
-    const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-    const baseUrl = isLocalhost ? window.location.origin : 'https://tacoplan.es';
+    const baseUrl = 'https://tacoplan.es';
     const redirectParams = new URLSearchParams();
     if (returnTo) redirectParams.set('return_to', returnTo);
     return `${baseUrl}/auth/callback${redirectParams.size ? `?${redirectParams.toString()}` : ''}`;
@@ -159,7 +157,7 @@ export default function RegistroPage() {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}/`,
+          redirectTo: 'https://tacoplan.es/',
         },
       });
 
@@ -275,12 +273,6 @@ export default function RegistroPage() {
                 </Button>
               </div>
             )}
-
-            {debug ? (
-              <div className="mt-4 text-xs text-gray-500">
-                Supabase ref: {getSupabaseProjectRef() ?? 'desconocido'}
-              </div>
-            ) : null}
 
             <div className="mt-6">
               <div className="relative">
