@@ -27,7 +27,7 @@ function formatRegistroError(message: string): string {
   }
 
   if (normalized.includes('redirect') && normalized.includes('not allowed')) {
-    return 'Supabase está bloqueando el redirect de confirmación. En Supabase → Authentication → URL Configuration, añade https://tacoplan.es/auth/confirm (y tu dominio) en Redirect URLs.';
+    return 'Supabase está bloqueando el redirect de confirmación. En Supabase → Authentication → URL Configuration, añade https://tacoplan.es/auth/callback (y tu dominio) en Redirect URLs.';
   }
 
   if (normalized.includes('captcha') && (normalized.includes('required') || normalized.includes('missing'))) {
@@ -81,6 +81,14 @@ export default function RegistroPage() {
     setDebug(params.get('debug') === '1');
   }, []);
 
+  const getEmailRedirectTo = () => {
+    const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    const baseUrl = isLocalhost ? window.location.origin : 'https://tacoplan.es';
+    const redirectParams = new URLSearchParams();
+    if (returnTo) redirectParams.set('return_to', returnTo);
+    return `${baseUrl}/auth/callback${redirectParams.size ? `?${redirectParams.toString()}` : ''}`;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (loading) return;
@@ -97,9 +105,7 @@ export default function RegistroPage() {
 
     try {
       setCooldownUntilMs(Date.now() + 10_000);
-      const redirectParams = new URLSearchParams();
-      if (returnTo) redirectParams.set('return_to', returnTo);
-      const emailRedirectTo = `${window.location.origin}/auth/confirm${redirectParams.size ? `?${redirectParams.toString()}` : ''}`;
+      const emailRedirectTo = getEmailRedirectTo();
 
       const { data, error: signUpError } = await supabase.auth.signUp({
         email: formData.email.trim(),
