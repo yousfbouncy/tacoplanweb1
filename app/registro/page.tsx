@@ -67,7 +67,6 @@ export default function RegistroPage() {
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<'form' | 'email_sent' | 'success'>('form');
   const [returnTo, setReturnTo] = useState<string | null>(null);
-  const [cooldownUntilMs, setCooldownUntilMs] = useState(0);
   const [debug, setDebug] = useState(false);
   const [formData, setFormData] = useState({
     nombre: '',
@@ -93,18 +92,10 @@ export default function RegistroPage() {
     e.preventDefault();
     if (loading) return;
 
-    const now = Date.now();
-    if (now < cooldownUntilMs) {
-      const seconds = Math.ceil((cooldownUntilMs - now) / 1000);
-      setError(`Espera ${seconds}s antes de volver a intentarlo.`);
-      return;
-    }
-
     setLoading(true);
     setError(null);
 
     try {
-      setCooldownUntilMs(Date.now() + 10_000);
       const emailRedirectTo = getEmailRedirectTo();
 
       const { data, error: signUpError } = await supabase.auth.signUp({
@@ -155,10 +146,6 @@ export default function RegistroPage() {
       console.error('Registro error:', err);
       const message = getErrorMessage(err);
       setError(formatRegistroError(message));
-
-      if (message.toLowerCase().includes('rate limit')) {
-        setCooldownUntilMs(Date.now() + 60_000);
-      }
     } finally {
       setLoading(false);
     }
