@@ -27,6 +27,15 @@ function formatRegistroError(message: string): string {
   }
 
   if (
+    normalized.includes('already registered') ||
+    normalized.includes('already exists') ||
+    normalized.includes('user already') ||
+    normalized.includes('already been registered')
+  ) {
+    return 'Este correo ya está registrado. Si no confirmaste tu cuenta todavía, puedes reenviar el email de confirmación.';
+  }
+
+  if (
     normalized.includes('redirect') &&
     (normalized.includes('not allowed') || normalized.includes('not permitted') || normalized.includes('invalid'))
   ) {
@@ -69,6 +78,7 @@ const EMAIL_REDIRECT_TO = 'https://tacoplan.es/auth/confirm';
 export default function RegistroPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const [resending, setResending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<'form' | 'email_sent' | 'success'>('form');
   const [returnTo, setReturnTo] = useState<string | null>(null);
@@ -89,6 +99,53 @@ export default function RegistroPage() {
 
   const getEmailRedirectTo = () => {
     return EMAIL_REDIRECT_TO;
+  };
+
+  const handleResendConfirmationEmail = async () => {
+    if (resending || loading) return;
+    setResending(true);
+    setError(null);
+    setDebugErrorRaw(null);
+
+    try {
+      const email = formData.email.trim();
+      if (!email) {
+        setError('Introduce tu email para reenviar el correo de confirmación.');
+        return;
+      }
+
+      const emailRedirectTo = getEmailRedirectTo();
+      const resend = (supabase.auth as unknown as { resend?: (args: unknown) => Promise<{ error: unknown }> }).resend;
+
+      if (!resend) {
+        throw new Error('Tu versión de Supabase JS no soporta reenviar correos de confirmación');
+      }
+
+      const { error: resendError } = await resend({
+        type: 'signup',
+        email,
+        options: { emailRedirectTo },
+      });
+
+      if (resendError) throw resendError;
+      setStatus('email_sent');
+    } catch (err: unknown) {
+      console.error('Resend confirm email error:', err);
+      const message = getErrorMessage(err);
+      setError(formatRegistroError(message));
+      setDebugErrorRaw(
+        (() => {
+          try {
+            if (err instanceof Error) return `${err.name}: ${err.message}`;
+            return JSON.stringify(err);
+          } catch {
+            return String(err);
+          }
+        })(),
+      );
+    } finally {
+      setResending(false);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -113,7 +170,22 @@ export default function RegistroPage() {
         },
       });
 
-      if (signUpError) throw signUpError;
+      if (signUpError) {
+        const msg = signUpError.message ?? String(signUpError);
+        const normalized = msg.toLowerCase();
+        if (
+          normalized.includes('already registered') ||
+          normalized.includes('already exists') ||
+          normalized.includes('user already') ||
+          normalized.includes('already been registered')
+        ) {
+          setStatus('email_sent');
+          setError('Este correo ya está registrado. Si no confirmaste tu cuenta todavía, puedes reenviar el email de confirmación.');
+          return;
+        }
+
+        throw signUpError;
+      }
 
       if (data.session?.user) {
         const userId = data.session.user.id;
@@ -259,12 +331,31 @@ export default function RegistroPage() {
                 <Button type="submit" className="w-full" disabled={loading}>
                   {loading ? 'Creando cuenta...' : 'Crear Cuenta'}
                 </Button>
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full"
+                  onClick={handleResendConfirmationEmail}
+                  disabled={loading || resending || !formData.email.trim()}
+                >
+                  {resending ? 'Reenviando email...' : 'Reenviar email de confirmación'}
+                </Button>
               </form>
             ) : status === 'email_sent' ? (
               <div className="space-y-4">
                 <div className="bg-blue-50 border border-blue-200 text-blue-800 px-4 py-3 rounded">
                   Te hemos enviado un correo de confirmación. Confirma tu cuenta y luego vuelve a la app Tacoplan para iniciar sesión. Revisa spam/promociones si no lo ves.
                 </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full"
+                  onClick={handleResendConfirmationEmail}
+                  disabled={loading || resending || !formData.email.trim()}
+                >
+                  {resending ? 'Reenviando email...' : 'Reenviar email de confirmación'}
+                </Button>
                 {returnTo ? (
                   <a href={returnTo} className="block">
                     <Button className="w-full">Volver a la app Tacoplan</Button>
