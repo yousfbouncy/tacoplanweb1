@@ -117,6 +117,41 @@ export default function RegistroPage() {
       }
 
       const emailRedirectTo = getEmailRedirectTo();
+      const password = formData.password;
+      if (!password) {
+        setError('Introduce tu contraseña para enviar o reenviar el correo de confirmación.');
+        return;
+      }
+
+      const { error: signUpError } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            nombre: formData.nombre,
+          },
+          emailRedirectTo,
+        },
+      });
+
+      if (!signUpError) {
+        setStatus('email_sent');
+        setInfo(`Te hemos enviado un correo de confirmación a ${email}. Revisa spam/promociones si no lo ves.`);
+        return;
+      }
+
+      const msg = signUpError.message ?? String(signUpError);
+      const normalized = msg.toLowerCase();
+      const isAlreadyRegistered =
+        normalized.includes('already registered') ||
+        normalized.includes('already exists') ||
+        normalized.includes('user already') ||
+        normalized.includes('already been registered');
+
+      if (!isAlreadyRegistered) {
+        throw signUpError;
+      }
+
       const auth = supabase.auth as unknown as {
         resend?: (args: {
           type: 'signup';
@@ -129,13 +164,9 @@ export default function RegistroPage() {
         throw new Error('Tu versión de Supabase JS no soporta reenviar correos de confirmación');
       }
 
-      const { error: resendError } = await auth.resend({
-        type: 'signup',
-        email,
-        options: { emailRedirectTo },
-      });
-
+      const { error: resendError } = await auth.resend({ type: 'signup', email, options: { emailRedirectTo } });
       if (resendError) throw resendError;
+
       setStatus('email_sent');
       setInfo(`Hemos reenviado el email de confirmación a ${email}. Revisa spam/promociones si no lo ves.`);
     } catch (err: unknown) {
