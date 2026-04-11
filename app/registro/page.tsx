@@ -86,10 +86,7 @@ export default function RegistroPage() {
   }, []);
 
   const getEmailRedirectTo = () => {
-    const baseUrl = 'https://tacoplan.es';
-    const redirectParams = new URLSearchParams();
-    if (returnTo) redirectParams.set('return_to', returnTo);
-    return `${baseUrl}/auth/callback${redirectParams.size ? `?${redirectParams.toString()}` : ''}`;
+    return 'https://tacoplan.es/auth/confirm';
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
