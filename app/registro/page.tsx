@@ -80,6 +80,7 @@ export default function RegistroPage() {
   const [loading, setLoading] = useState(false);
   const [resending, setResending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [info, setInfo] = useState<string | null>(null);
   const [status, setStatus] = useState<'form' | 'email_sent' | 'success'>('form');
   const [returnTo, setReturnTo] = useState<string | null>(null);
   const [debug, setDebug] = useState(false);
@@ -105,6 +106,7 @@ export default function RegistroPage() {
     if (resending || loading) return;
     setResending(true);
     setError(null);
+    setInfo(null);
     setDebugErrorRaw(null);
 
     try {
@@ -129,6 +131,7 @@ export default function RegistroPage() {
 
       if (resendError) throw resendError;
       setStatus('email_sent');
+      setInfo(`Hemos reenviado el email de confirmación a ${email}. Revisa spam/promociones si no lo ves.`);
     } catch (err: unknown) {
       console.error('Resend confirm email error:', err);
       const message = getErrorMessage(err);
@@ -154,6 +157,7 @@ export default function RegistroPage() {
 
     setLoading(true);
     setError(null);
+    setInfo(null);
     setDebugErrorRaw(null);
 
     try {
@@ -218,6 +222,7 @@ export default function RegistroPage() {
       }
 
       setStatus('email_sent');
+      setInfo('Te hemos enviado un correo de confirmación. Confirma tu cuenta y luego vuelve a la app Tacoplan para iniciar sesión. Revisa spam/promociones si no lo ves.');
     } catch (err: unknown) {
       console.error('Registro error:', err);
       const message = getErrorMessage(err);
@@ -282,6 +287,13 @@ export default function RegistroPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
+            {info ? (
+              <div className="bg-blue-50 border border-blue-200 text-blue-800 px-4 py-3 rounded mb-4">{info}</div>
+            ) : null}
+            {error ? (
+              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-4">{error}</div>
+            ) : null}
+
             {status === 'form' ? (
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
@@ -324,10 +336,6 @@ export default function RegistroPage() {
                   />
                 </div>
 
-                {error && (
-                  <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">{error}</div>
-                )}
-
                 <Button type="submit" className="w-full" disabled={loading}>
                   {loading ? 'Creando cuenta...' : 'Crear Cuenta'}
                 </Button>
@@ -344,9 +352,6 @@ export default function RegistroPage() {
               </form>
             ) : status === 'email_sent' ? (
               <div className="space-y-4">
-                <div className="bg-blue-50 border border-blue-200 text-blue-800 px-4 py-3 rounded">
-                  Te hemos enviado un correo de confirmación. Confirma tu cuenta y luego vuelve a la app Tacoplan para iniciar sesión. Revisa spam/promociones si no lo ves.
-                </div>
                 <Button
                   type="button"
                   variant="outline"
