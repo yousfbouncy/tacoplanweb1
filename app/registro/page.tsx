@@ -64,6 +64,8 @@ function getSupabaseProjectRef(): string | null {
   }
 }
 
+const EMAIL_REDIRECT_TO = 'https://tacoplan.es/auth/confirm';
+
 export default function RegistroPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
@@ -86,7 +88,7 @@ export default function RegistroPage() {
   }, []);
 
   const getEmailRedirectTo = () => {
-    return 'https://tacoplan.es/auth/confirm';
+    return EMAIL_REDIRECT_TO;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -291,7 +293,7 @@ export default function RegistroPage() {
             {debug ? (
               <div className="mt-4 text-xs text-gray-500">
                 <div>Supabase ref: {getSupabaseProjectRef() ?? 'desconocido'}</div>
-                <div>emailRedirectTo: https://tacoplan.es/auth/callback</div>
+                <div>emailRedirectTo: {EMAIL_REDIRECT_TO}</div>
                 {debugErrorRaw ? <div>Error raw: {debugErrorRaw}</div> : null}
               </div>
             ) : null}
