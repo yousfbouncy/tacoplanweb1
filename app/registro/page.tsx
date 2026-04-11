@@ -117,13 +117,19 @@ export default function RegistroPage() {
       }
 
       const emailRedirectTo = getEmailRedirectTo();
-      const resend = (supabase.auth as unknown as { resend?: (args: unknown) => Promise<{ error: unknown }> }).resend;
+      const auth = supabase.auth as unknown as {
+        resend?: (args: {
+          type: 'signup';
+          email: string;
+          options?: { emailRedirectTo?: string };
+        }) => Promise<{ error: unknown }>;
+      };
 
-      if (!resend) {
+      if (!auth.resend) {
         throw new Error('Tu versión de Supabase JS no soporta reenviar correos de confirmación');
       }
 
-      const { error: resendError } = await resend({
+      const { error: resendError } = await auth.resend({
         type: 'signup',
         email,
         options: { emailRedirectTo },
