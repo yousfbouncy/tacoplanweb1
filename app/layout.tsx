@@ -5,6 +5,8 @@ import { AuthProvider } from '@/lib/auth-context';
 import { Navbar } from '@/components/navbar';
 import { Footer } from '@/components/footer';
 
+export const dynamic = 'force-dynamic';
+
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
