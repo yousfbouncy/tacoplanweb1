@@ -34,9 +34,14 @@ export function Navbar() {
             </Link>
 
             {user ? (
-              <Button onClick={signOut} variant="outline">
-                Cerrar Sesión
-              </Button>
+              <div className="flex items-center space-x-4">
+                <Link href="/perfil" className="text-gray-700 hover:text-blue-600 transition">
+                  Perfil
+                </Link>
+                <Button onClick={signOut} variant="outline">
+                  Cerrar Sesión
+                </Button>
+              </div>
             ) : (
               <div className="flex items-center space-x-4">
                 <Link href="/login">
@@ -92,9 +97,18 @@ export function Navbar() {
               Soporte
             </Link>
             {user ? (
-              <Button onClick={signOut} variant="outline" className="w-full">
-                Cerrar Sesión
-              </Button>
+              <>
+                <Link
+                  href="/perfil"
+                  className="block text-gray-700 hover:text-blue-600"
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  Perfil
+                </Link>
+                <Button onClick={signOut} variant="outline" className="w-full">
+                  Cerrar Sesión
+                </Button>
+              </>
             ) : (
               <div className="space-y-2">
                 <Link href="/login" className="block">
