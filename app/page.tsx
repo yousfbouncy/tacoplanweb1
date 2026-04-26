@@ -1,6 +1,5 @@
-import Link from 'next/link';
-import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { HomeFinalCtaButton, HomeHeroActions } from '@/components/home-hero-actions';
 import { 
   Truck, 
   Clock, 
@@ -38,18 +37,7 @@ export default function Home() {
               <p className="text-xl md:text-2xl text-blue-100 max-w-2xl mx-auto lg:mx-0 leading-relaxed">
                 Registra tu jornada, conducción, descansos, viajes y dietas sin libreta ni cálculos manuales.
               </p>
-              <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start pt-4">
-                <Link href="/registro">
-                  <Button size="lg" className="bg-white text-blue-800 hover:bg-blue-50 text-lg px-8 py-7 rounded-2xl shadow-xl transition-all hover:scale-105 active:scale-95">
-                    Registrarse Gratis
-                  </Button>
-                </Link>
-                <Link href="/planes">
-                  <Button size="lg" variant="outline" className="border-blue-400 text-white hover:bg-blue-700/50 text-lg px-8 py-7 rounded-2xl backdrop-blur-sm">
-                    Ver planes
-                  </Button>
-                </Link>
-              </div>
+              <HomeHeroActions />
             </div>
             <div className="hidden lg:flex justify-center items-center relative animate-float">
                <div className="relative w-[320px] h-[640px] bg-slate-800 rounded-[3rem] border-[8px] border-slate-700 shadow-2xl overflow-hidden">
@@ -204,11 +192,7 @@ export default function Home() {
           <h2 className="text-4xl md:text-5xl font-bold leading-tight">
             Empieza a controlar tu jornada <br className="hidden md:block" /> sin libreta hoy mismo
           </h2>
-          <Link href="/registro" className="inline-block">
-            <Button size="lg" className="bg-white text-blue-600 hover:bg-blue-50 text-xl px-12 py-8 rounded-2xl shadow-2xl transition-all hover:scale-105">
-              Crear cuenta ahora
-            </Button>
-          </Link>
+          <HomeFinalCtaButton />
         </div>
         <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -mr-32 -mt-32"></div>
         <div className="absolute bottom-0 left-0 w-64 h-64 bg-black/10 rounded-full -ml-32 -mb-32"></div>

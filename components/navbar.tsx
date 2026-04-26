@@ -7,7 +7,7 @@ import { Truck, Menu, X } from 'lucide-react';
 import { useState } from 'react';
 
 export function Navbar() {
-  const { user, signOut } = useAuth();
+  const { user, loading, signOut } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   return (
@@ -33,7 +33,9 @@ export function Navbar() {
               Soporte
             </Link>
 
-            {user ? (
+            {loading ? (
+              <div className="w-[240px] h-10" />
+            ) : user ? (
               <div className="flex items-center space-x-4">
                 <Link href="/perfil" className="text-gray-700 hover:text-blue-600 transition">
                   Perfil
@@ -47,9 +49,11 @@ export function Navbar() {
                 <Link href="/login">
                   <Button variant="outline">Iniciar Sesión</Button>
                 </Link>
-                <Link href="/registro">
-                  <Button>Registrarse</Button>
-                </Link>
+                <Button asChild>
+                  <a href="/tacoplan.apk" download>
+                    Descargar APK
+                  </a>
+                </Button>
               </div>
             )}
           </div>
@@ -96,7 +100,7 @@ export function Navbar() {
             >
               Soporte
             </Link>
-            {user ? (
+            {loading ? null : user ? (
               <>
                 <Link
                   href="/perfil"
@@ -116,9 +120,11 @@ export function Navbar() {
                     Iniciar Sesión
                   </Button>
                 </Link>
-                <Link href="/registro" className="block">
-                  <Button className="w-full">Registrarse</Button>
-                </Link>
+                <Button asChild className="w-full">
+                  <a href="/tacoplan.apk" download>
+                    Descargar APK
+                  </a>
+                </Button>
               </div>
             )}
           </div>
