@@ -11,6 +11,9 @@ import { supabase } from '@/lib/supabase';
 import { Truck, Mail } from 'lucide-react';
 
 function getErrorMessage(err: unknown): string {
+  if (err && typeof err === 'object' && 'name' in err && err.name === 'TypeError' && 'message' in err && typeof err.message === 'string' && err.message.toLowerCase().includes('failed to fetch')) {
+    return 'Failed to fetch: Error de conexión. Es probable que un bloqueador de anuncios (Brave Shields, AdBlock) o un firewall esté bloqueando la conexión con Supabase.';
+  }
   if (err instanceof Error) return err.message;
   if (typeof err === 'string') return err;
   if (err && typeof err === 'object' && 'message' in err && typeof (err as { message: unknown }).message === 'string') {
@@ -59,7 +62,7 @@ function formatRegistroError(message: string): string {
   }
 
   if (normalized.includes('failed to fetch')) {
-    return 'Error de conexión (Failed to fetch). Esto suele pasar si un bloqueador de anuncios (o el modo Shields de Brave) está bloqueando la conexión con Supabase, o si no tienes internet. Prueba a desactivar los bloqueadores para tacoplan.es.';
+    return 'Failed to fetch: Error de conexión con Supabase. Esto sucede si: 1) Tienes un bloqueador (Brave Shields, AdBlock) activado. 2) No hay conexión a internet. 3) Faltan las variables de entorno NEXT_PUBLIC en el servidor de despliegue (Vercel). Revisa la consola del navegador para más detalles.';
   }
 
   return message;
@@ -427,13 +430,22 @@ export default function RegistroPage() {
               </div>
             )}
 
-            {debug ? (
-              <div className="mt-4 text-xs text-gray-500">
-                <div>Supabase ref: {getSupabaseProjectRef() ?? 'desconocido'}</div>
-                <div>emailRedirectTo: {EMAIL_REDIRECT_TO}</div>
-                {debugErrorRaw ? <div>Error raw: {debugErrorRaw}</div> : null}
+            {debug && (
+              <div className="mt-8 p-4 bg-gray-100 rounded text-xs font-mono break-all">
+                <p className="font-bold mb-2">DEBUG INFO:</p>
+                <p>Supabase ref: {getSupabaseProjectRef() || 'Unknown'}</p>
+                <p>Origin: {typeof window !== 'undefined' ? window.location.origin : 'Server'}</p>
+                <p>emailRedirectTo: {getEmailRedirectTo()}</p>
+                <p>URL Env: {process.env.NEXT_PUBLIC_SUPABASE_URL ? 'Defined' : 'MISSING'}</p>
+                <p>Key Env: {process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ? 'Defined' : 'MISSING'}</p>
+                {debugErrorRaw && (
+                  <div className="mt-2 text-red-600">
+                    <p className="font-bold">Error raw:</p>
+                    <pre className="whitespace-pre-wrap">{debugErrorRaw}</pre>
+                  </div>
+                )}
               </div>
-            ) : null}
+            )}
 
             <div className="mt-6">
               <div className="relative">
