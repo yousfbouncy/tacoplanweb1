@@ -9,6 +9,10 @@ function getClient(): SupabaseClient {
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
   if (!supabaseUrl || !supabaseAnonKey) {
+    console.error('Supabase env vars are missing!', {
+      url: supabaseUrl ? 'defined' : 'MISSING',
+      key: supabaseAnonKey ? 'defined' : 'MISSING',
+    });
     throw new Error('Missing Supabase env vars: NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY');
   }
 

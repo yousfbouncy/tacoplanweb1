@@ -58,6 +58,10 @@ function formatRegistroError(message: string): string {
     }
   }
 
+  if (normalized.includes('failed to fetch')) {
+    return 'Error de conexión (Failed to fetch). Esto suele pasar si un bloqueador de anuncios (o el modo Shields de Brave) está bloqueando la conexión con Supabase, o si no tienes internet. Prueba a desactivar los bloqueadores para tacoplan.es.';
+  }
+
   return message;
 }
 
