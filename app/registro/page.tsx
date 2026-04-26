@@ -136,6 +136,7 @@ export default function RegistroPage() {
         options: {
           data: {
             nombre: formData.nombre,
+            full_name: formData.nombre,
           },
           emailRedirectTo,
         },
@@ -213,6 +214,7 @@ export default function RegistroPage() {
         options: {
           data: {
             nombre: formData.nombre,
+            full_name: formData.nombre,
           },
           emailRedirectTo,
         },
