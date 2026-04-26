@@ -3,7 +3,7 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 let cachedClient: SupabaseClient | null = null;
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://dutgxjwfjtqxmqonnjlp.supabase.co';
-const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR1dGd4andmanRxeG1xb25uamxwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzEyMTczNDIsImV4cCI6MjA4Njc5MzM0Mn0.-ZMc99z9_OBsvDgszIZ8c_y4RfS8B79D7c7hpGio7HA';
 
 function getClient(): SupabaseClient {
   if (cachedClient) return cachedClient;
@@ -14,18 +14,17 @@ function getClient(): SupabaseClient {
   console.log('Supabase Client initialization:', {
     url: url ? `Using ${url.substring(0, 30)}...` : 'MISSING',
     key: key ? 'Present' : 'MISSING',
-    source: process.env.NEXT_PUBLIC_SUPABASE_URL ? 'env' : 'fallback',
+    source: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ? 'env' : 'hardcoded-fallback',
   });
 
   if (!url || !key) {
     console.error('Supabase env vars are missing!', { url, key });
-    // En cliente (browser), si falta la key, el error Failed to fetch suele ser por esto
     if (typeof window !== 'undefined') {
-      console.warn('ALERTA: Faltan variables de entorno NEXT_PUBLIC en el navegador. El registro fallará.');
+      console.warn('ALERTA: No se detectaron variables de entorno ni fallback. El registro fallará.');
     }
   }
 
-  cachedClient = createClient(url, key || 'placeholder_key');
+  cachedClient = createClient(url, key);
   return cachedClient;
 }
 
