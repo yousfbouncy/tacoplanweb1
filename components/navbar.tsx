@@ -3,8 +3,62 @@
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
 import { Button } from '@/components/ui/button';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import { Truck, Menu, X } from 'lucide-react';
 import { useState } from 'react';
+
+function DownloadApkDialogButton({ className }: { className?: string }) {
+  const apkHref = process.env.NEXT_PUBLIC_APK_URL || '/tacoplan.apk';
+
+  return (
+    <AlertDialog>
+      <AlertDialogTrigger asChild>
+        <Button className={className}>Descargar APK</Button>
+      </AlertDialogTrigger>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Descargar Tacoplan</AlertDialogTitle>
+          <AlertDialogDescription asChild>
+            <div className="space-y-3">
+              <p>
+                La app de momento es gratuita, en prueba, pero funcional. REGISTRARSE DIRECTAMENTE DANDOLE AL BOTON GOOGLE, REGISTRO CON GOOGLE.
+              </p>
+              <p>
+                Si encuentras cualquier error o tienes alguna mejora/recomendación, escríbenos a{' '}
+                <a className="underline" href="mailto:soporte@tacoplan.es">
+                  soporte@tacoplan.es
+                </a>{' '}
+                o por WhatsApp al{' '}
+                <a className="underline" href="https://wa.me/34614314054" target="_blank" rel="noreferrer">
+                  +34 614 314 054
+                </a>
+                .
+              </p>
+            </div>
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancelar</AlertDialogCancel>
+          <AlertDialogAction asChild>
+            <a href={apkHref} download>
+              Descargar
+            </a>
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+}
 
 export function Navbar() {
   const { user, loading, signOut } = useAuth();
@@ -49,11 +103,7 @@ export function Navbar() {
                 <Link href="/login">
                   <Button variant="outline">Iniciar Sesión</Button>
                 </Link>
-                <Button asChild>
-                  <a href="/tacoplan.apk" download>
-                    Descargar APK
-                  </a>
-                </Button>
+                <DownloadApkDialogButton />
               </div>
             )}
           </div>
@@ -120,11 +170,7 @@ export function Navbar() {
                     Iniciar Sesión
                   </Button>
                 </Link>
-                <Button asChild className="w-full">
-                  <a href="/tacoplan.apk" download>
-                    Descargar APK
-                  </a>
-                </Button>
+                <DownloadApkDialogButton className="w-full" />
               </div>
             )}
           </div>
