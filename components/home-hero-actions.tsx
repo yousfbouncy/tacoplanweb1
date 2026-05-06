@@ -32,21 +32,49 @@ export function HomeHeroActions() {
           <AlertDialogHeader>
             <AlertDialogTitle>Descargar Tacoplan</AlertDialogTitle>
             <AlertDialogDescription asChild>
-              <div className="space-y-3">
-                <p>
-                  La app de momento es gratuita, en prueba, pero funcional. REGISTRARSE DIRECTAMENTE DANDOLE AL BOTON GOOGLE, REGISTRO CON GOOGLE.
-                </p>
-                <p>
-                  Si encuentras cualquier error o tienes alguna mejora/recomendación, escríbenos a{' '}
-                  <a className="underline" href="mailto:soporte@tacoplan.es">
-                    soporte@tacoplan.es
-                  </a>{' '}
-                  o por WhatsApp al{' '}
-                  <a className="underline" href="https://wa.me/34614314054" target="_blank" rel="noreferrer">
-                    +34 614 314 054
-                  </a>
-                  .
-                </p>
+              <div className="space-y-5">
+                <div className="space-y-2">
+                  <p className="text-sm">
+                    Tacoplan todavía no está en Google Play. Descargas el APK oficial desde nuestro enlace.
+                  </p>
+                  <p className="text-sm">
+                    Es normal que Android muestre avisos al instalar apps fuera de Google Play.
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <div className="font-semibold text-foreground">📲 Cómo instalar en Android</div>
+                  <ol className="list-decimal pl-5 space-y-1 text-sm">
+                    <li>Pulsa en “Descargar APK”.</li>
+                    <li>Si aparece un aviso del navegador, pulsa “Descargar de todos modos”.</li>
+                    <li>Abre el archivo descargado.</li>
+                    <li>Si te lo pide, permite “instalar apps desconocidas”.</li>
+                    <li>Instala la app.</li>
+                  </ol>
+                </div>
+
+                <div className="space-y-2">
+                  <div className="font-semibold text-foreground">🔐 Dentro de la app</div>
+                  <ul className="list-disc pl-5 space-y-1 text-sm">
+                    <li>Pulsa “Registrarse con Google”.</li>
+                    <li>Tu cuenta se crea automáticamente.</li>
+                  </ul>
+                </div>
+
+                <div className="text-sm">
+                  App en prueba pero funcional. Tus datos se guardan de forma segura.
+                </div>
+
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <Button asChild variant="outline" className="w-full sm:w-auto">
+                    <a href="mailto:soporte@tacoplan.es">Email soporte</a>
+                  </Button>
+                  <Button asChild variant="outline" className="w-full sm:w-auto">
+                    <a href="https://wa.me/34614314054" target="_blank" rel="noreferrer">
+                      WhatsApp soporte
+                    </a>
+                  </Button>
+                </div>
               </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -54,10 +82,13 @@ export function HomeHeroActions() {
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction asChild>
               <a href={apkHref} download>
-                Descargar
+                📲 Descargar APK para Android
               </a>
             </AlertDialogAction>
           </AlertDialogFooter>
+          <div className="pt-2 text-center text-xs text-muted-foreground">
+            Disponible para Android. Próximamente en Google Play.
+          </div>
         </AlertDialogContent>
       </AlertDialog>
       <Link href="/planes">
@@ -90,21 +121,49 @@ export function HomeFinalCtaButton() {
         <AlertDialogHeader>
           <AlertDialogTitle>Descargar Tacoplan</AlertDialogTitle>
           <AlertDialogDescription asChild>
-            <div className="space-y-3">
-              <p>
-                La app de momento es gratuita, en prueba, pero funcional. REGISTRARSE DIRECTAMENTE DANDOLE AL BOTON GOOGLE, REGISTRO CON GOOGLE.
-              </p>
-              <p>
-                Si encuentras cualquier error o tienes alguna mejora/recomendación, escríbenos a{' '}
-                <a className="underline" href="mailto:soporte@tacoplan.es">
-                  soporte@tacoplan.es
-                </a>{' '}
-                o por WhatsApp al{' '}
-                <a className="underline" href="https://wa.me/34614314054" target="_blank" rel="noreferrer">
-                  +34 614 314 054
-                </a>
-                .
-              </p>
+            <div className="space-y-5">
+              <div className="space-y-2">
+                <p className="text-sm">
+                  Tacoplan todavía no está en Google Play. Descargas el APK oficial desde nuestro enlace.
+                </p>
+                <p className="text-sm">
+                  Es normal que Android muestre avisos al instalar apps fuera de Google Play.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <div className="font-semibold text-foreground">📲 Cómo instalar en Android</div>
+                <ol className="list-decimal pl-5 space-y-1 text-sm">
+                  <li>Pulsa en “Descargar APK”.</li>
+                  <li>Si aparece un aviso del navegador, pulsa “Descargar de todos modos”.</li>
+                  <li>Abre el archivo descargado.</li>
+                  <li>Si te lo pide, permite “instalar apps desconocidas”.</li>
+                  <li>Instala la app.</li>
+                </ol>
+              </div>
+
+              <div className="space-y-2">
+                <div className="font-semibold text-foreground">🔐 Dentro de la app</div>
+                <ul className="list-disc pl-5 space-y-1 text-sm">
+                  <li>Pulsa “Registrarse con Google”.</li>
+                  <li>Tu cuenta se crea automáticamente.</li>
+                </ul>
+              </div>
+
+              <div className="text-sm">
+                App en prueba pero funcional. Tus datos se guardan de forma segura.
+              </div>
+
+              <div className="flex flex-col sm:flex-row gap-2">
+                <Button asChild variant="outline" className="w-full sm:w-auto">
+                  <a href="mailto:soporte@tacoplan.es">Email soporte</a>
+                </Button>
+                <Button asChild variant="outline" className="w-full sm:w-auto">
+                  <a href="https://wa.me/34614314054" target="_blank" rel="noreferrer">
+                    WhatsApp soporte
+                  </a>
+                </Button>
+              </div>
             </div>
           </AlertDialogDescription>
         </AlertDialogHeader>
@@ -112,10 +171,13 @@ export function HomeFinalCtaButton() {
           <AlertDialogCancel>Cancelar</AlertDialogCancel>
           <AlertDialogAction asChild>
             <a href={apkHref} download>
-              Descargar
+              📲 Descargar APK para Android
             </a>
           </AlertDialogAction>
         </AlertDialogFooter>
+        <div className="pt-2 text-center text-xs text-muted-foreground">
+          Disponible para Android. Próximamente en Google Play.
+        </div>
       </AlertDialogContent>
     </AlertDialog>
   );
