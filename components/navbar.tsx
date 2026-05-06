@@ -125,6 +125,7 @@ export function Navbar() {
                 <Link href="/perfil" className="text-gray-700 hover:text-blue-600 transition">
                   Perfil
                 </Link>
+                <DownloadApkDialogButton />
                 <Button onClick={signOut} variant="outline">
                   Cerrar Sesión
                 </Button>
@@ -190,6 +191,7 @@ export function Navbar() {
                 >
                   Perfil
                 </Link>
+                <DownloadApkDialogButton className="w-full" />
                 <Button onClick={signOut} variant="outline" className="w-full">
                   Cerrar Sesión
                 </Button>
