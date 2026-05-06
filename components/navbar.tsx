@@ -59,7 +59,7 @@ function DownloadApkDialogButton({ className }: { className?: string }) {
               </div>
 
               <div className="text-sm">
-                App en prueba pero funcional. Tus datos se guardan de forma segura.
+                App en prueba pero funcional. Tus datos se guardan de forma segura. CUALQUIER ERROR, O COSAS A MEJORAR Y CORREGIR, HAGAMELO SABER CONTACTADOME.
               </div>
 
               <div className="flex flex-col sm:flex-row gap-2">
