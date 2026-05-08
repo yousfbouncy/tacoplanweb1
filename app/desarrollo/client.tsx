@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { HomePageView } from '@/components/home-page-view';
 
 type SiteContentRow = {
   key: string;
@@ -110,7 +111,8 @@ export function SiteContentEditor() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/admin/site-content?keys=${encodeURIComponent(keys.join(','))}`, {
+      const search = new URLSearchParams({ keys: keys.join(',') });
+      const res = await fetch(`/api/admin/site-content?${search.toString()}`, {
         cache: 'no-store',
       });
       const json = (await res.json()) as { ok?: boolean; data?: SiteContentRow[]; error?: string };
@@ -135,8 +137,7 @@ export function SiteContentEditor() {
 
   useEffect(() => {
     fetchContent();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [keys]);
 
   const logout = async () => {
     await fetch('/api/admin/logout', { method: 'POST' });
@@ -260,42 +261,17 @@ export function SiteContentEditor() {
               {preview ? 'Así quedaría si publicas el borrador.' : 'Esto es lo que está publicado ahora.'}
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="rounded-2xl border bg-white p-4">
-              <div className="text-xs uppercase tracking-wide text-slate-500">Hero</div>
-              <div className="mt-2 text-2xl font-extrabold text-slate-900">
-                {preview ? draft.home_title : rows.home_title?.published_value || ''}
-              </div>
-              <div className="mt-2 text-sm text-slate-600">
-                {preview ? draft.home_subtitle : rows.home_subtitle?.published_value || ''}
-              </div>
-              <div className="mt-2 text-xs text-slate-500">
-                {preview ? draft.home_beta_notice : rows.home_beta_notice?.published_value || ''}
-              </div>
-            </div>
-
-            <div className="rounded-2xl border bg-white p-4">
-              <div className="text-xs uppercase tracking-wide text-slate-500">¿Qué es Tacoplan?</div>
-              <div className="mt-2 text-sm text-slate-700 whitespace-pre-wrap">
-                {preview ? draft.home_about : rows.home_about?.published_value || ''}
-              </div>
-            </div>
-
-            <div className="rounded-2xl border bg-white p-4">
-              <div className="text-xs uppercase tracking-wide text-slate-500">Beneficios</div>
-              <div className="mt-2 text-lg font-bold text-slate-900">
-                {preview ? draft.home_benefits_title : rows.home_benefits_title?.published_value || ''}
-              </div>
-              <div className="mt-2 text-sm text-slate-600 whitespace-pre-wrap">
-                {preview ? draft.home_benefits_subtitle : rows.home_benefits_subtitle?.published_value || ''}
-              </div>
-            </div>
-
-            <div className="rounded-2xl border bg-white p-4">
-              <div className="text-xs uppercase tracking-wide text-slate-500">CTA final</div>
-              <div className="mt-2 text-sm text-slate-700 whitespace-pre-wrap">
-                {preview ? draft.home_final_cta_title : rows.home_final_cta_title?.published_value || ''}
-              </div>
+          <CardContent className="overflow-hidden rounded-2xl border bg-white p-0">
+            <div className="max-h-[75vh] overflow-auto">
+              <HomePageView
+                heroTitle={preview ? (draft.home_title ?? '') : (rows.home_title?.published_value ?? '')}
+                heroSubtitle={preview ? (draft.home_subtitle ?? '') : (rows.home_subtitle?.published_value ?? '')}
+                betaNotice={preview ? (draft.home_beta_notice ?? '') : (rows.home_beta_notice?.published_value ?? '')}
+                aboutText={preview ? (draft.home_about ?? '') : (rows.home_about?.published_value ?? '')}
+                benefitsTitle={preview ? (draft.home_benefits_title ?? '') : (rows.home_benefits_title?.published_value ?? '')}
+                benefitsSubtitle={preview ? (draft.home_benefits_subtitle ?? '') : (rows.home_benefits_subtitle?.published_value ?? '')}
+                finalCtaTitle={preview ? (draft.home_final_cta_title ?? '') : (rows.home_final_cta_title?.published_value ?? '')}
+              />
             </div>
           </CardContent>
         </Card>
@@ -303,4 +279,3 @@ export function SiteContentEditor() {
     </div>
   );
 }
-
