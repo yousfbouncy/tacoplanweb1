@@ -94,6 +94,7 @@ function DownloadApkDialogButton({ className }: { className?: string }) {
 export function Navbar() {
   const { user, loading, signOut } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const showPlanes = false;
 
   return (
     <nav className="bg-white border-b sticky top-0 z-50">
@@ -108,9 +109,11 @@ export function Navbar() {
             <Link href="/" className="text-gray-700 hover:text-blue-600 transition">
               Inicio
             </Link>
-            <Link href="/planes" className="text-gray-700 hover:text-blue-600 transition">
-              Planes
-            </Link>
+            {showPlanes ? (
+              <Link href="/planes" className="text-gray-700 hover:text-blue-600 transition">
+                Planes
+              </Link>
+            ) : null}
             <Link href="/contacto" className="text-gray-700 hover:text-blue-600 transition">
               Contacto
             </Link>
@@ -161,13 +164,15 @@ export function Navbar() {
             >
               Inicio
             </Link>
-            <Link
-              href="/planes"
-              className="block text-gray-700 hover:text-blue-600"
-              onClick={() => setMobileMenuOpen(false)}
-            >
-              Planes
-            </Link>
+            {showPlanes ? (
+              <Link
+                href="/planes"
+                className="block text-gray-700 hover:text-blue-600"
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                Planes
+              </Link>
+            ) : null}
             <Link
               href="/contacto"
               className="block text-gray-700 hover:text-blue-600"

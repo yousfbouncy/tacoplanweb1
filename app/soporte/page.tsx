@@ -137,7 +137,7 @@ export default function SoportePage() {
                 ¿Puedo exportar mis datos?
               </AccordionTrigger>
               <AccordionContent className="text-gray-600">
-                Sí, con el Plan Pro puedes exportar todos tus datos en formato PDF y Excel. Esto es útil para presentar informes a tu empresa, llevar tu propia contabilidad o tener un respaldo de tu actividad laboral. El Plan Básico permite visualizar todos los datos pero no exportarlos.
+                Tacoplan está actualmente gratuita en fase beta. La exportación de datos se irá incorporando en futuras versiones. Mientras tanto, puedes consultar y gestionar tus registros directamente en la app.
               </AccordionContent>
             </AccordionItem>
 
@@ -152,10 +152,10 @@ export default function SoportePage() {
 
             <AccordionItem value="item-9">
               <AccordionTrigger className="text-lg font-semibold">
-                ¿Cómo cancelo mi suscripción Pro?
+                ¿Tacoplan es gratuita?
               </AccordionTrigger>
               <AccordionContent className="text-gray-600">
-                Puedes cancelar tu suscripción en cualquier momento desde la configuración de tu cuenta en la app. No hay penalizaciones ni cargos adicionales. Una vez cancelada, seguirás teniendo acceso al Plan Pro hasta el final del periodo de facturación actual, momento en el cual pasarás automáticamente al Plan Básico.
+                Sí. Tacoplan está actualmente gratuita en fase beta.
               </AccordionContent>
             </AccordionItem>
 

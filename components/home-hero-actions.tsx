@@ -1,6 +1,5 @@
 'use client';
 
-import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import {
   AlertDialog,
@@ -91,15 +90,6 @@ export function HomeHeroActions() {
           </div>
         </AlertDialogContent>
       </AlertDialog>
-      <Link href="/planes">
-        <Button
-          size="lg"
-          variant="outline"
-          className="border-blue-400 bg-transparent text-white hover:bg-white/10 hover:text-white text-lg px-8 py-7 rounded-2xl backdrop-blur-sm"
-        >
-          Ver planes
-        </Button>
-      </Link>
     </div>
   );
 }

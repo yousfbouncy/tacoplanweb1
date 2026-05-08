@@ -164,7 +164,7 @@ export default function PerfilPage() {
                 <h3 className="font-bold text-slate-900 text-lg">{formData.nombre || 'Conductor'}</h3>
                 <p className="text-slate-500 text-xs mb-4">{formData.email}</p>
                 <div className="inline-flex items-center px-3 py-1 bg-blue-50 text-blue-700 rounded-full text-[10px] font-bold uppercase tracking-wider">
-                  Plan Básico
+                  Actualmente gratuita en fase beta
                 </div>
               </div>
             </Card>

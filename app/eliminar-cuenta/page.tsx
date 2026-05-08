@@ -88,10 +88,8 @@ export default function EliminarCuentaPage() {
               </div>
 
               <div>
-                <h3 className="font-semibold text-gray-900 mb-2">Suscripciones activas</h3>
-                <p className="text-gray-700">
-                  Si tienes una suscripción al Plan Pro activa, asegúrate de cancelarla antes de eliminar tu cuenta para evitar cargos futuros.
-                </p>
+                <h3 className="font-semibold text-gray-900 mb-2">Fase beta</h3>
+                <p className="text-gray-700">Tacoplan está actualmente gratuita en fase beta.</p>
               </div>
             </CardContent>
           </Card>

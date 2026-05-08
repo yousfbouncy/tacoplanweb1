@@ -4,12 +4,31 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Check } from 'lucide-react';
 
 export const metadata = {
-  title: 'Planes y Precios - Tacoplan',
-  description:
-    'Elige el plan de Tacoplan que mejor se adapte a tus necesidades como conductor profesional.',
+  title: 'Planes próximamente - Tacoplan',
+  description: 'Tacoplan está actualmente en fase beta gratuita.',
 };
 
 export default function PlanesPage() {
+  const showPlanes = false;
+
+  if (!showPlanes) {
+    return (
+      <div className="bg-white py-16">
+        <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+          <h1 className="text-4xl md:text-5xl font-bold text-gray-900 mb-4">Planes próximamente</h1>
+          <p className="text-lg text-gray-600">
+            Tacoplan está actualmente gratuita en fase beta.
+          </p>
+          <div className="mt-8">
+            <Link href="/">
+              <Button size="lg">Volver al inicio</Button>
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="bg-white py-16">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">

@@ -37,6 +37,9 @@ export default function Home() {
               <p className="text-xl md:text-2xl text-blue-100 max-w-2xl mx-auto lg:mx-0 leading-relaxed">
                 Registra tu jornada, conducción, descansos, viajes y dietas sin libreta ni cálculos manuales.
               </p>
+              <p className="text-sm text-blue-200">
+                Tacoplan está actualmente en fase beta gratuita.
+              </p>
               <HomeHeroActions />
             </div>
             <div className="hidden lg:flex justify-center items-center relative animate-float">

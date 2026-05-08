@@ -76,30 +76,12 @@ export default function TerminosCondicionesPage() {
           </section>
 
           <section>
-            <h2 className="text-2xl font-bold text-gray-900 mb-4">5. Planes y Pagos</h2>
-            <h3 className="text-xl font-semibold text-gray-900 mt-4 mb-2">5.1. Plan Básico</h3>
+            <h2 className="text-2xl font-bold text-gray-900 mb-4">5. Estado del Servicio</h2>
             <p>
-              El Plan Básico es gratuito e incluye funcionalidades esenciales de la aplicación. Este plan está disponible de forma indefinida sin costo alguno.
+              Tacoplan está actualmente gratuita en fase beta. El servicio puede evolucionar y mejorar sin previo aviso.
             </p>
-
-            <h3 className="text-xl font-semibold text-gray-900 mt-4 mb-2">5.2. Plan Pro</h3>
             <p>
-              El Plan Pro es un servicio de suscripción de pago que ofrece funcionalidades adicionales. Los detalles de precios se especifican en la aplicación y pueden estar sujetos a cambios con previo aviso.
-            </p>
-
-            <h3 className="text-xl font-semibold text-gray-900 mt-4 mb-2">5.3. Facturación</h3>
-            <p>
-              Las suscripciones al Plan Pro se facturan mensualmente. Los cargos se realizarán automáticamente al inicio de cada período de facturación hasta que canceles tu suscripción.
-            </p>
-
-            <h3 className="text-xl font-semibold text-gray-900 mt-4 mb-2">5.4. Cancelación</h3>
-            <p>
-              Puedes cancelar tu suscripción al Plan Pro en cualquier momento desde la configuración de tu cuenta. La cancelación será efectiva al final del período de facturación actual.
-            </p>
-
-            <h3 className="text-xl font-semibold text-gray-900 mt-4 mb-2">5.5. Reembolsos</h3>
-            <p>
-              No ofrecemos reembolsos por períodos de suscripción parcialmente utilizados, salvo que la ley aplicable lo requiera.
+              Si detectas cualquier error o tienes sugerencias para mejorar, puedes contactar con nuestro equipo de soporte.
             </p>
           </section>
 
