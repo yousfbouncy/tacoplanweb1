@@ -1,5 +1,6 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { HomeFinalCtaButton, HomeHeroActions } from '@/components/home-hero-actions';
+import { getPublishedSiteContent } from '@/lib/site-content';
 import { 
   Truck, 
   Clock, 
@@ -19,7 +20,36 @@ export const metadata = {
   keywords: 'app para camioneros, agenda camionero, registro jornada conductor, control tacógrafo, tiempos de conducción, descansos camión, dietas camioneros, gestión viajes camión, app transporte, app transportistas, rutas camión, jornada laboral conductor, control horas conducción, tacógrafo digital, logística transporte, app para chóferes, app para tráiler'
 };
 
-export default function Home() {
+export default async function Home() {
+  const content = await getPublishedSiteContent([
+    'home_title',
+    'home_subtitle',
+    'home_beta_notice',
+    'home_about',
+    'home_benefits_title',
+    'home_benefits_subtitle',
+    'home_final_cta_title',
+  ]);
+
+  const heroTitle = content.home_title || 'La agenda inteligente para camioneros';
+  const heroSubtitle =
+    content.home_subtitle ||
+    'Registra tu jornada, conducción, descansos, viajes y dietas sin libreta ni cálculos manuales.';
+  const betaNotice = content.home_beta_notice || 'Tacoplan está actualmente en fase beta gratuita.';
+  const aboutText =
+    content.home_about ||
+    'Tacoplan es la herramienta definitiva diseñada por y para transportistas profesionales. Sustituye la agenda o libreta tradicional del conductor por una solución digital sincronizada que hace los cálculos pesados por ti, permitiéndote centrarte en lo que importa: la carretera.';
+  const benefitsTitle = content.home_benefits_title || 'Diseñado para tu día a día';
+  const benefitsSubtitle =
+    content.home_benefits_subtitle || 'Todo lo que necesitas para gestionar tu jornada profesional';
+  const finalCtaTitle =
+    content.home_final_cta_title ||
+    'Empieza a controlar tu jornada\nsin libreta hoy mismo';
+
+  const highlightIndex = heroTitle.toLowerCase().indexOf('para ');
+  const heroTitleBefore = highlightIndex >= 0 ? heroTitle.slice(0, highlightIndex) : heroTitle;
+  const heroTitleAfter = highlightIndex >= 0 ? heroTitle.slice(highlightIndex) : null;
+
   return (
     <div className="flex flex-col min-h-screen">
       {/* Hero Section */}
@@ -32,14 +62,19 @@ export default function Home() {
                 Sustituye tu libreta tradicional hoy
               </div>
               <h1 className="text-5xl md:text-7xl font-extrabold tracking-tight leading-tight">
-                La agenda inteligente <span className="text-blue-400">para camioneros</span>
+                {heroTitleAfter ? (
+                  <>
+                    {heroTitleBefore}
+                    <span className="text-blue-400">{heroTitleAfter}</span>
+                  </>
+                ) : (
+                  heroTitle
+                )}
               </h1>
               <p className="text-xl md:text-2xl text-blue-100 max-w-2xl mx-auto lg:mx-0 leading-relaxed">
-                Registra tu jornada, conducción, descansos, viajes y dietas sin libreta ni cálculos manuales.
+                {heroSubtitle}
               </p>
-              <p className="text-sm text-blue-200">
-                Tacoplan está actualmente en fase beta gratuita.
-              </p>
+              <p className="text-sm text-blue-200">{betaNotice}</p>
               <HomeHeroActions />
             </div>
             <div className="hidden lg:flex justify-center items-center relative animate-float">
@@ -71,7 +106,7 @@ export default function Home() {
           <h2 className="text-3xl md:text-4xl font-bold text-slate-900">¿Qué es Tacoplan?</h2>
           <div className="w-20 h-1.5 bg-blue-600 mx-auto rounded-full"></div>
           <p className="text-lg md:text-xl text-slate-600 leading-relaxed">
-            Tacoplan es la herramienta definitiva diseñada por y para transportistas profesionales. Sustituye la agenda o libreta tradicional del conductor por una solución digital sincronizada que hace los cálculos pesados por ti, permitiéndote centrarte en lo que importa: la carretera.
+            {aboutText}
           </p>
         </div>
       </section>
@@ -80,8 +115,8 @@ export default function Home() {
       <section className="py-20 bg-slate-50 px-6">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-16">
-            <h2 className="text-3xl md:text-5xl font-bold text-slate-900 mb-4">Diseñado para tu día a día</h2>
-            <p className="text-slate-600 text-lg">Todo lo que necesitas para gestionar tu jornada profesional</p>
+            <h2 className="text-3xl md:text-5xl font-bold text-slate-900 mb-4">{benefitsTitle}</h2>
+            <p className="text-slate-600 text-lg">{benefitsSubtitle}</p>
           </div>
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
             <BenefitCard 
@@ -128,7 +163,7 @@ export default function Home() {
                 <StepItem 
                   number="1" 
                   title="Registra el inicio de jornada" 
-                  description="Comienza tu día activando tu jornada con un botón. y descansos diarios es automatico." 
+                  description="Comienza tu día activando tu jornada con un botón.   y descansos diarios es automatico." 
                 />
                 <StepItem 
                   number="2" 
@@ -192,8 +227,8 @@ export default function Home() {
       {/* CTA Final */}
       <section className="py-24 bg-blue-600 px-6 relative overflow-hidden text-white">
         <div className="max-w-4xl mx-auto text-center relative z-10 space-y-8">
-          <h2 className="text-4xl md:text-5xl font-bold leading-tight">
-            Empieza a controlar tu jornada <br className="hidden md:block" /> sin libreta hoy mismo
+          <h2 className="text-4xl md:text-5xl font-bold leading-tight whitespace-pre-line">
+            {finalCtaTitle}
           </h2>
           <HomeFinalCtaButton />
         </div>
