@@ -128,22 +128,22 @@ export default function Home() {
                 <StepItem 
                   number="1" 
                   title="Registra el inicio de jornada" 
-                  description="Comienza tu día activando tu jornada con un botón." 
+                  description="Comienza tu día activando tu jornada con un botón. y descansos diarios es automatico." 
                 />
                 <StepItem 
                   number="2" 
-                  title="Añade tu actividad" 
-                  description="Registra conducción, pausas, otros trabajos y descansos diarios." 
+                  title="fin de jornada, Añade tu actividad" 
+                  description="Registra lugar fin, hora automatico editable, conducción, selecciona tipo de ruta y deita." 
                 />
                 <StepItem 
                   number="3" 
                   title="Guarda viajes y paradas" 
-                  description="Anota tus rutas y paradas importantes durante el trayecto." 
+                  description="Anota tus rutas" 
                 />
                 <StepItem 
                   number="4" 
                   title="Consulta estadísticas" 
-                  description="Visualiza tu historial de dietas, kilómetros y tiempos totales." 
+                  description="Visualiza tu historial de dietas, y tiempos totales." 
                 />
               </div>
             </div>
