@@ -60,23 +60,6 @@ function AuthCallbackContent() {
         const tokenHash = searchParams.get('token_hash');
         const type = searchParams.get('type');
 
-        const appDeepLink = process.env.NEXT_PUBLIC_APP_DEEPLINK || 'tacoplan://auth/callback';
-        const isAppReturnTo = returnTo ? returnTo.startsWith('tacoplan://') : false;
-        const shouldHandOffToApp = (isAppReturnTo || Boolean(searchParams.get('handoff'))) && (Boolean(code) || (Boolean(tokenHash) && Boolean(type)));
-
-        if (shouldHandOffToApp) {
-          const params = new URLSearchParams(searchParams.toString());
-          params.delete('return_to');
-          params.delete('redirect_to');
-          params.delete('redirect');
-          params.delete('handoff');
-
-          const targetBase = isAppReturnTo ? returnTo! : appDeepLink;
-          const joiner = targetBase.includes('?') ? '&' : '?';
-          window.location.href = `${targetBase}${joiner}${params.toString()}`;
-          return;
-        }
-
         const queryError = searchParams.get('error');
         const queryErrorDescription = searchParams.get('error_description');
         const queryErrorCode = searchParams.get('error_code');
