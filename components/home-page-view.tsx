@@ -34,6 +34,11 @@ export function HomePageView({
   benefitsSubtitle,
   finalCtaTitle,
 }: HomePageViewProps) {
+  const appStoreHref = 'https://apps.apple.com/es/app/tacoplan/id6767099789';
+  const apkHref =
+    process.env.NEXT_PUBLIC_APK_URL ||
+    'https://dutgxjwfjtqxmqonnjlp.supabase.co/storage/v1/object/public/apk/tacoplan%20version%202.2.2.apk';
+
   const highlightIndex = heroTitle.toLowerCase().indexOf('para ');
   const heroTitleBefore = highlightIndex >= 0 ? heroTitle.slice(0, highlightIndex) : heroTitle;
   const heroTitleAfter = highlightIndex >= 0 ? heroTitle.slice(highlightIndex) : null;
@@ -103,23 +108,23 @@ export function HomePageView({
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
             <BenefitCard
               icon={<CalendarDays className="w-8 h-8 text-blue-600" />}
-              title="Registro de jornada"
-              description="Controla el inicio y fin de tu jornada laboral con un solo toque."
+              title="Registro de jornadas"
+              description="Inicia y cierra tu jornada en segundos, sin libreta."
             />
             <BenefitCard
               icon={<Clock className="w-8 h-8 text-blue-600" />}
-              title="Conducción y descansos"
-              description="Monitoriza tus tiempos para cumplir con el tacógrafo sin errores."
+              title="Tiempos y descansos"
+              description="Control de conducción, disponibilidad y descansos diarios/semanales."
             />
             <BenefitCard
               icon={<MapPin className="w-8 h-8 text-blue-600" />}
-              title="Gestión de viajes"
-              description="Organiza tus rutas nacionales e internacionales de forma eficiente."
+              title="Rutas y base"
+              description="Registra viajes y base (nacional/internacional) de forma rápida."
             />
             <BenefitCard
               icon={<Calculator className="w-8 h-8 text-blue-600" />}
-              title="Cálculo de dietas"
-              description="Cálculos automáticos según tus rutas y convenios sin esfuerzo manual."
+              title="Dietas en un clic"
+              description="Resumen de dietas en tiempo real, sin cálculos manuales."
             />
             <BenefitCard
               icon={<WifiOff className="w-8 h-8 text-blue-600" />}
@@ -128,8 +133,8 @@ export function HomePageView({
             />
             <BenefitCard
               icon={<Cloud className="w-8 h-8 text-blue-600" />}
-              title="Sincronización total"
-              description="Accede a tus datos desde cualquier dispositivo de forma segura."
+              title="Resumen e informes"
+              description="Resumen semanal y bisemanal, exportación e histórico siempre a mano."
             />
           </div>
         </div>
@@ -187,14 +192,31 @@ export function HomePageView({
           <p className="text-xl md:text-2xl font-light leading-relaxed italic text-slate-300">
             “Tacoplan no sustituye al tacógrafo oficial ni al asesoramiento profesional. Es una herramienta de apoyo avanzada para registrar y organizar la información del conductor profesional.”
           </p>
-          <div className="flex flex-wrap justify-center gap-6 pt-4 opacity-70 grayscale hover:grayscale-0 transition-all">
-            <div className="bg-slate-800 px-6 py-3 rounded-xl border border-slate-700 flex items-center space-x-3 cursor-pointer">
+          <div className="flex flex-wrap justify-center gap-6 pt-4 opacity-80 grayscale hover:grayscale-0 transition-all">
+            <a
+              href={appStoreHref}
+              target="_blank"
+              rel="noreferrer"
+              className="bg-slate-800 px-6 py-3 rounded-xl border border-slate-700 flex items-center space-x-3 hover:border-slate-600 transition"
+            >
               <Smartphone className="w-6 h-6" />
               <div className="text-left">
                 <p className="text-[10px] uppercase font-bold text-slate-400 leading-none">Disponible en</p>
-                <p className="text-sm font-bold">Google Play</p>
+                <p className="text-sm font-bold">App Store</p>
               </div>
-            </div>
+            </a>
+            <a
+              href={apkHref}
+              target="_blank"
+              rel="noreferrer"
+              className="bg-slate-800 px-6 py-3 rounded-xl border border-slate-700 flex items-center space-x-3 hover:border-slate-600 transition"
+            >
+              <Smartphone className="w-6 h-6" />
+              <div className="text-left">
+                <p className="text-[10px] uppercase font-bold text-slate-400 leading-none">Android</p>
+                <p className="text-sm font-bold">Descarga APK</p>
+              </div>
+            </a>
           </div>
         </div>
       </section>
@@ -246,4 +268,3 @@ function StepItem({ number, title, description }: { number: string; title: strin
     </div>
   );
 }
-

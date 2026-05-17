@@ -10,18 +10,21 @@ export const dynamic = 'force-dynamic';
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: 'Tacoplan - App para Camioneros | Control de Jornada y Tacógrafo',
-  description: 'Tacoplan es la app profesional para conductores de camión y tráiler. Control de jornada laboral, registro de conducción, gestión de rutas, cálculo de dietas y control de tacógrafo digital.',
-  keywords: 'app camioneros, control tacógrafo, registro jornada conductor, tiempos de conducción, descansos camion, app transporte, gestión rutas camión, dietas camioneros, control horas conducción, logística transporte, app para transportistas, tacógrafo digital, registro viajes camión',
+  title: 'Tacoplan - App agenda para conductores | Jornada, conducción, descansos y dietas',
+  description:
+    'Tacoplan es la agenda para conductores profesionales. Registro de jornadas, tiempos de conducción y disponibilidad, descansos diarios y semanales, resumen semanal/bisemanal y dietas en un clic, sin cálculos manuales.',
+  keywords:
+    'app conductores, agenda conductor, registro jornadas, tiempos de conducción, disponibilidad, descansos diarios, descansos semanales, descanso reducido, extensión de conducción, dietas en un clic, resumen dietas, resumen semanal, resumen bisemanal, avisos infracciones, informe tacógrafo, app camioneros, chófer, tráiler',
   openGraph: {
-    title: 'Tacoplan - App para Camioneros',
-    description: 'Control profesional de jornada laboral para conductores de camión. Registro de conducción, descansos, rutas y dietas.',
+    title: 'Tacoplan - Agenda para conductores',
+    description:
+      'Registro de jornadas, tiempos de conducción, descansos y dietas. Resumen semanal/bisemanal y avisos para cumplir normativa.',
     type: 'website',
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Tacoplan - App para Camioneros',
-    description: 'Control profesional de jornada laboral para conductores de camión',
+    title: 'Tacoplan - Agenda para conductores',
+    description: 'Registro de jornadas, conducción, descansos y dietas. Resumen semanal/bisemanal.',
   },
 };
 

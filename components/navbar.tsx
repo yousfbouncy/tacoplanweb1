@@ -18,12 +18,15 @@ import { Truck, Menu, X } from 'lucide-react';
 import { useState } from 'react';
 
 function DownloadApkDialogButton({ className }: { className?: string }) {
-  const apkHref = process.env.NEXT_PUBLIC_APK_URL || '/tacoplan.apk';
+  const appStoreHref = 'https://apps.apple.com/es/app/tacoplan/id6767099789';
+  const apkHref =
+    process.env.NEXT_PUBLIC_APK_URL ||
+    'https://dutgxjwfjtqxmqonnjlp.supabase.co/storage/v1/object/public/apk/tacoplan%20version%202.2.2.apk';
 
   return (
     <AlertDialog>
       <AlertDialogTrigger asChild>
-        <Button className={className}>Descargar APK</Button>
+        <Button className={className}>Descargar app</Button>
       </AlertDialogTrigger>
       <AlertDialogContent>
         <AlertDialogHeader>
@@ -31,18 +34,27 @@ function DownloadApkDialogButton({ className }: { className?: string }) {
           <AlertDialogDescription asChild>
             <div className="space-y-5">
               <div className="space-y-2">
-                <p className="text-sm">
-                  Tacoplan todavía no está en Google Play. Descargas el APK oficial desde nuestro enlace.
-                </p>
-                <p className="text-sm">
-                  Es normal que Android muestre avisos al instalar apps fuera de Google Play.
-                </p>
+                <p className="text-sm">Tacoplan está disponible en App Store. En Android se descarga como APK.</p>
+                <p className="text-sm">En Android es normal ver un aviso de seguridad al descargar/instalar.</p>
+              </div>
+
+              <div className="flex flex-col sm:flex-row gap-2">
+                <Button asChild className="w-full sm:w-auto">
+                  <a href={appStoreHref} target="_blank" rel="noreferrer">
+                    Descargar en App Store
+                  </a>
+                </Button>
+                <Button asChild variant="outline" className="w-full sm:w-auto">
+                  <a href={apkHref} target="_blank" rel="noreferrer">
+                    Descargar APK (Android)
+                  </a>
+                </Button>
               </div>
 
               <div className="space-y-2">
                 <div className="font-semibold text-foreground">📲 Cómo instalar en Android</div>
                 <ol className="list-decimal pl-5 space-y-1 text-sm">
-                  <li>Pulsa en “Descargar APK”.</li>
+                  <li>Pulsa en “Descargar APK (Android)”.</li>
                   <li>Si aparece un aviso del navegador, pulsa “Descargar de todos modos”.</li>
                   <li>Abre el archivo descargado.</li>
                   <li>Si te lo pide, permite “instalar apps desconocidas”.</li>
@@ -77,14 +89,9 @@ function DownloadApkDialogButton({ className }: { className?: string }) {
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel>Cancelar</AlertDialogCancel>
-          <AlertDialogAction asChild>
-            <a href={apkHref} download>
-              📲 Descargar APK para Android
-            </a>
-          </AlertDialogAction>
         </AlertDialogFooter>
         <div className="pt-2 text-center text-xs text-muted-foreground">
-          Disponible para Android. Próximamente en Google Play.
+          Disponible en App Store. Android disponible por APK (próximamente en Google Play).
         </div>
       </AlertDialogContent>
     </AlertDialog>
