@@ -132,6 +132,9 @@ export function Navbar() {
               <div className="w-[240px] h-10" />
             ) : user ? (
               <div className="flex items-center space-x-4">
+                <Link href="/mi-negocio" className="text-gray-700 hover:text-blue-600 transition">
+                  Mi negocio
+                </Link>
                 <Link href="/perfil" className="text-gray-700 hover:text-blue-600 transition">
                   Perfil
                 </Link>
@@ -196,6 +199,13 @@ export function Navbar() {
             </Link>
             {loading ? null : user ? (
               <>
+                <Link
+                  href="/mi-negocio"
+                  className="block text-gray-700 hover:text-blue-600"
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  Mi negocio
+                </Link>
                 <Link
                   href="/perfil"
                   className="block text-gray-700 hover:text-blue-600"
