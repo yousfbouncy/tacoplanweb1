@@ -163,11 +163,14 @@ export function BusinessModule() {
 
   useEffect(() => {
     if (!user) {
+      if (!loading) {
+        setDataLoading(false);
+      }
       return;
     }
 
     void refreshData(user.id);
-  }, [user]);
+  }, [user, loading]);
 
   useEffect(() => {
     if (!businessProfile?.onboarding_completed) {

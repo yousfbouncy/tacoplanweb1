@@ -1,13 +1,9 @@
 import { z } from 'zod';
 
-const optionalTrimmedString = z
-  .string()
-  .trim()
-  .optional()
-  .transform((value) => {
-    if (!value) return null;
-    return value;
-  });
+const optionalTrimmedString = z.union([z.string().trim(), z.null(), z.undefined()]).transform((value) => {
+  if (!value) return null;
+  return value;
+});
 
 export const businessProfileSchema = z.object({
   business_name: z.string().trim().min(2, 'Indica el nombre comercial'),
@@ -25,13 +21,17 @@ export const businessProfileSchema = z.object({
   fiscal_identifier: optionalTrimmedString,
   autoentrepreneur_identifier: optionalTrimmedString,
   phone: optionalTrimmedString,
-  email: z.string().trim().email('Introduce un correo válido').or(z.literal('')).transform((value) => value || null),
+  email: z
+    .union([z.string().trim().email('Introduce un correo válido'), z.literal(''), z.null(), z.undefined()])
+    .transform((value) => value || null),
   address: optionalTrimmedString,
   city: optionalTrimmedString,
   country: z.string().trim().min(2).default('Marruecos'),
   currency: z.string().trim().min(3).default('MAD'),
   invoice_language: z.enum(['Francés', 'Árabe', 'Español']),
-  logo_url: z.string().trim().url('Introduce una URL válida para el logo').or(z.literal('')).transform((value) => value || null),
+  logo_url: z
+    .union([z.string().trim().url('Introduce una URL válida para el logo'), z.literal(''), z.null(), z.undefined()])
+    .transform((value) => value || null),
   invoice_prefix: z.string().trim().min(1, 'Indica un prefijo de factura').max(10),
   next_invoice_number: z.coerce.number().int().min(1, 'El número inicial debe ser mayor que 0'),
   declaration_frequency: z.enum(['Mensual', 'Trimestral', 'Sin configurar']),
@@ -49,7 +49,9 @@ export const businessClientSchema = z.object({
   client_type: z.enum(['Particular', 'Empresa']),
   fiscal_identifier: optionalTrimmedString,
   phone: optionalTrimmedString,
-  email: z.string().trim().email('Introduce un correo válido').or(z.literal('')).transform((value) => value || null),
+  email: z
+    .union([z.string().trim().email('Introduce un correo válido'), z.literal(''), z.null(), z.undefined()])
+    .transform((value) => value || null),
   address: optionalTrimmedString,
   city: optionalTrimmedString,
   country: optionalTrimmedString,

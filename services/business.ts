@@ -44,6 +44,7 @@ export async function getBusinessProfile(userId: string) {
 export async function saveBusinessProfile(userId: string, input: BusinessProfileInput) {
   const payload = {
     user_id: userId,
+    created_by: userId,
     business_name: input.business_name,
     legal_name: input.legal_name,
     activity_type: input.activity_type,
@@ -107,6 +108,7 @@ export async function saveBusinessClient(userId: string, businessProfileId: stri
   const payload = {
     id: clientId ?? undefined,
     user_id: userId,
+    created_by: userId,
     business_profile_id: businessProfileId,
     name: input.name,
     client_type: input.client_type,
@@ -189,6 +191,7 @@ export async function ensureDefaultExpenseCategories(userId: string, businessPro
 
   const rows = defaultExpenseCategories.map((name, index) => ({
     user_id: userId,
+    created_by: userId,
     business_profile_id: businessProfileId,
     name,
     description: null,
@@ -213,6 +216,7 @@ export async function saveExpenseCategory(
   const payload = {
     id: categoryId ?? undefined,
     user_id: userId,
+    created_by: userId,
     business_profile_id: businessProfileId,
     name: input.name,
     description: input.description,
@@ -285,6 +289,7 @@ export async function saveFinancialAccount(
   const payload = {
     id: accountId ?? undefined,
     user_id: userId,
+    created_by: userId,
     business_profile_id: businessProfileId,
     name: input.name,
     account_type: input.account_type,
