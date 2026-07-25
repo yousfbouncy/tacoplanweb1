@@ -37,7 +37,7 @@ export const businessNavigation: BusinessNavGroup[] = [
     label: 'Ventas',
     icon: FileText,
     items: [
-      { label: 'Facturas', href: '/mi-negocio/facturas', phase: 'Fase 2', available: false },
+      { label: 'Facturas', href: '/mi-negocio/facturas', phase: 'Disponible', available: true },
       { label: 'Presupuestos', href: '/mi-negocio/presupuestos', phase: 'Fase 4', available: false },
       { label: 'Clientes', href: '/mi-negocio/clientes', phase: 'Disponible', available: true },
       { label: 'Productos y servicios', href: '/mi-negocio/productos-servicios', phase: 'Fase 2', available: false },

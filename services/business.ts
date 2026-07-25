@@ -5,12 +5,18 @@ import type {
   BusinessClient,
   BusinessExpenseCategory,
   BusinessFinancialAccount,
+  BusinessInvoiceDetail,
+  BusinessInvoiceListItem,
+  BusinessProductService,
   BusinessProfile,
+  BusinessTaxRate,
 } from '@/types/business';
 import type {
   BusinessClientInput,
   BusinessExpenseCategoryInput,
   BusinessFinancialAccountInput,
+  BusinessInvoiceInput,
+  BusinessInvoicePaymentInput,
   BusinessProfileInput,
 } from '@/validations/business';
 
@@ -278,6 +284,182 @@ export async function listFinancialAccounts(userId: string) {
   }
 
   return (data ?? []) as BusinessFinancialAccount[];
+}
+
+export async function listBusinessTaxRates(userId: string) {
+  const { data, error } = await supabase
+    .from('business_tax_rates')
+    .select('*')
+    .eq('user_id', userId)
+    .is('deleted_at', null)
+    .eq('status', 'active')
+    .order('is_default', { ascending: false })
+    .order('name', { ascending: true });
+
+  if (error) {
+    throw error;
+  }
+
+  return (data ?? []) as BusinessTaxRate[];
+}
+
+export async function listBusinessProductsServices(userId: string) {
+  const { data, error } = await supabase
+    .from('business_products_services')
+    .select('*')
+    .eq('user_id', userId)
+    .is('deleted_at', null)
+    .eq('status', 'active')
+    .order('name', { ascending: true });
+
+  if (error) {
+    throw error;
+  }
+
+  return (data ?? []) as BusinessProductService[];
+}
+
+export async function listBusinessInvoices(
+  userId: string,
+  filters?: {
+    status?: string;
+    search?: string;
+    issueDateFrom?: string | null;
+    issueDateTo?: string | null;
+  }
+) {
+  let query = supabase
+    .from('business_invoices')
+    .select(
+      `
+      *,
+      client:business_clients (
+        id,
+        name,
+        email,
+        fiscal_identifier
+      )
+    `
+    )
+    .eq('user_id', userId)
+    .is('deleted_at', null)
+    .order('issue_date', { ascending: false })
+    .order('created_at', { ascending: false });
+
+  if (filters?.status && filters.status !== 'all') {
+    query = query.eq('status', filters.status);
+  }
+
+  if (filters?.issueDateFrom) {
+    query = query.gte('issue_date', filters.issueDateFrom);
+  }
+
+  if (filters?.issueDateTo) {
+    query = query.lte('issue_date', filters.issueDateTo);
+  }
+
+  const { data, error } = await query;
+
+  if (error) {
+    throw error;
+  }
+
+  const invoices = ((data ?? []) as BusinessInvoiceListItem[]).filter((invoice) => {
+    if (!filters?.search) return true;
+
+    const term = filters.search.toLowerCase();
+    return (
+      (invoice.invoice_number ?? '').toLowerCase().includes(term) ||
+      (invoice.reference ?? '').toLowerCase().includes(term) ||
+      (invoice.client?.name ?? '').toLowerCase().includes(term) ||
+      (invoice.client?.email ?? '').toLowerCase().includes(term) ||
+      (invoice.client?.fiscal_identifier ?? '').toLowerCase().includes(term)
+    );
+  });
+
+  return invoices;
+}
+
+export async function getBusinessInvoice(userId: string, invoiceId: string) {
+  const { data, error } = await supabase
+    .from('business_invoices')
+    .select(
+      `
+      *,
+      client:business_clients (*),
+      account:business_financial_accounts (*),
+      items:business_invoice_items (*),
+      payments:business_invoice_payments (*)
+    `
+    )
+    .eq('user_id', userId)
+    .eq('id', invoiceId)
+    .is('deleted_at', null)
+    .single();
+
+  if (error && !isNotFound(error)) {
+    throw error;
+  }
+
+  return (data as BusinessInvoiceDetail | null) ?? null;
+}
+
+export async function createBusinessInvoice(userId: string, input: BusinessInvoiceInput) {
+  const { data, error } = await supabase.rpc('business_create_invoice', {
+    p_business_profile_id: input.business_profile_id,
+    p_client_id: input.client_id,
+    p_issue_date: input.issue_date,
+    p_due_date: input.due_date,
+    p_currency: input.currency,
+    p_invoice_language: input.invoice_language,
+    p_series: input.sequence_series,
+    p_payment_method: input.payment_method,
+    p_financial_account_id: input.financial_account_id,
+    p_reference: input.reference,
+    p_notes: input.notes,
+    p_payment_terms: input.payment_terms,
+    p_internal_notes: input.internal_notes,
+    p_footer_text: input.footer_text,
+    p_save_mode: input.save_mode,
+    p_items: input.items,
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  const invoiceId = String(data);
+
+  await createAuditLog(userId, 'business_invoice', invoiceId, input.save_mode === 'draft' ? 'create_draft_ui' : 'create_issue_ui', {
+    client_id: input.client_id,
+  });
+
+  return invoiceId;
+}
+
+export async function registerBusinessInvoicePayment(userId: string, input: BusinessInvoicePaymentInput) {
+  const { data, error } = await supabase.rpc('business_register_invoice_payment', {
+    p_invoice_id: input.invoice_id,
+    p_payment_date: input.payment_date,
+    p_amount: input.amount,
+    p_financial_account_id: input.financial_account_id,
+    p_payment_method: input.payment_method,
+    p_reference: input.reference,
+    p_notes: input.notes,
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  const paymentId = String(data);
+
+  await createAuditLog(userId, 'business_invoice_payment', paymentId, 'create_ui', {
+    invoice_id: input.invoice_id,
+    amount: input.amount,
+  });
+
+  return paymentId;
 }
 
 export async function saveFinancialAccount(

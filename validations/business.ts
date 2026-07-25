@@ -75,7 +75,63 @@ export const businessFinancialAccountSchema = z.object({
   status: z.enum(['Activa', 'Archivada']),
 });
 
+export const businessInvoiceItemSchema = z.object({
+  id: z.string().trim().optional(),
+  product_service_id: z.union([z.string().trim().uuid(), z.literal(''), z.null(), z.undefined()]).transform((value) => value || null),
+  tax_rate_id: z.union([z.string().trim().uuid(), z.literal(''), z.null(), z.undefined()]).transform((value) => value || null),
+  description: z.string().trim().min(1, 'Cada línea debe tener una descripción'),
+  quantity: z.coerce.number().positive('La cantidad debe ser mayor que 0'),
+  unit: z.string().trim().min(1, 'Indica la unidad'),
+  unit_price: z.coerce.number().min(0, 'El precio unitario no puede ser negativo'),
+  discount_amount: z.coerce.number().min(0, 'El descuento no puede ser negativo').default(0),
+  discount_rate: z.coerce.number().min(0, 'El descuento no puede ser negativo').max(100, 'Máximo 100').default(0),
+  tax_rate: z.coerce.number().min(0, 'El impuesto no puede ser negativo').max(100, 'Máximo 100').default(0),
+  withholding_rate: z.coerce.number().min(0, 'La retención no puede ser negativa').max(100, 'Máximo 100').default(0),
+});
+
+export const businessInvoiceSchema = z
+  .object({
+    business_profile_id: z.string().trim().uuid('Perfil de negocio no válido'),
+    client_id: z.string().trim().uuid('Selecciona un cliente'),
+    financial_account_id: z.union([z.string().trim().uuid(), z.literal(''), z.null(), z.undefined()]).transform((value) => value || null),
+    issue_date: z.string().trim().min(8, 'Indica la fecha de emisión'),
+    due_date: z.string().trim().min(8, 'Indica la fecha de vencimiento'),
+    currency: z.string().trim().min(3, 'Indica una moneda válida'),
+    invoice_language: z.enum(['Español', 'Francés', 'Árabe', 'Inglés']),
+    sequence_series: z.string().trim().min(1, 'Indica una serie'),
+    payment_method: optionalTrimmedString,
+    reference: optionalTrimmedString,
+    notes: optionalTrimmedString,
+    payment_terms: optionalTrimmedString,
+    internal_notes: optionalTrimmedString,
+    footer_text: optionalTrimmedString,
+    save_mode: z.enum(['draft', 'issue']),
+    items: z.array(businessInvoiceItemSchema).min(1, 'Debes añadir al menos una línea'),
+  })
+  .superRefine((value, ctx) => {
+    if (value.due_date < value.issue_date) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['due_date'],
+        message: 'La fecha de vencimiento no puede ser anterior a la fecha de emisión',
+      });
+    }
+  });
+
+export const businessInvoicePaymentSchema = z.object({
+  invoice_id: z.string().trim().uuid('Factura no válida'),
+  financial_account_id: z.union([z.string().trim().uuid(), z.literal(''), z.null(), z.undefined()]).transform((value) => value || null),
+  payment_date: z.string().trim().min(8, 'Indica la fecha del cobro'),
+  amount: z.coerce.number().positive('El importe debe ser mayor que 0'),
+  payment_method: optionalTrimmedString,
+  reference: optionalTrimmedString,
+  notes: optionalTrimmedString,
+});
+
 export type BusinessProfileInput = z.infer<typeof businessProfileSchema>;
 export type BusinessClientInput = z.infer<typeof businessClientSchema>;
 export type BusinessExpenseCategoryInput = z.infer<typeof businessExpenseCategorySchema>;
 export type BusinessFinancialAccountInput = z.infer<typeof businessFinancialAccountSchema>;
+export type BusinessInvoiceItemInput = z.infer<typeof businessInvoiceItemSchema>;
+export type BusinessInvoiceInput = z.infer<typeof businessInvoiceSchema>;
+export type BusinessInvoicePaymentInput = z.infer<typeof businessInvoicePaymentSchema>;
