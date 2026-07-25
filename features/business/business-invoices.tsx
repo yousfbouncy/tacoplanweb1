@@ -60,6 +60,9 @@ import {
 
 const invoiceStatuses = ['draft', 'issued', 'pending', 'partially_paid', 'paid', 'overdue', 'cancelled'] as const;
 const invoiceLanguages = ['Español', 'Francés', 'Árabe', 'Inglés'] as const;
+const NO_ACCOUNT_VALUE = '__none_account__';
+const MANUAL_LINE_VALUE = '__manual_line__';
+const NO_TAX_VALUE = '__none_tax__';
 
 type InvoiceEditorProps = {
   mode: 'create' | 'edit';
@@ -507,12 +510,15 @@ export function BusinessInvoiceDetailPage({ invoiceId }: { invoiceId: string }) 
                 <Input type="number" step="0.01" value={paymentForm.amount} onChange={(e) => setPaymentForm((prev) => ({ ...prev, amount: e.target.value }))} />
               </Field>
               <Field label="Cuenta bancaria">
-                <Select value={paymentForm.financial_account_id} onValueChange={(value) => setPaymentForm((prev) => ({ ...prev, financial_account_id: value }))}>
+                <Select
+                  value={paymentForm.financial_account_id || NO_ACCOUNT_VALUE}
+                  onValueChange={(value) => setPaymentForm((prev) => ({ ...prev, financial_account_id: value === NO_ACCOUNT_VALUE ? '' : value }))}
+                >
                   <SelectTrigger>
                     <SelectValue placeholder="Sin cuenta" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Sin cuenta</SelectItem>
+                    <SelectItem value={NO_ACCOUNT_VALUE}>Sin cuenta</SelectItem>
                     {financialAccounts.map((account) => (
                       <SelectItem key={account.id} value={account.id}>
                         {account.name}
@@ -886,12 +892,15 @@ function BusinessInvoiceEditor({ mode, invoice }: InvoiceEditorProps) {
                     <Input value={invoiceState.payment_method} onChange={(e) => setInvoiceState((prev) => ({ ...prev, payment_method: e.target.value }))} />
                   </Field>
                   <Field label="Cuenta bancaria">
-                    <Select value={invoiceState.financial_account_id} onValueChange={(value) => setInvoiceState((prev) => ({ ...prev, financial_account_id: value }))}>
+                    <Select
+                      value={invoiceState.financial_account_id || NO_ACCOUNT_VALUE}
+                      onValueChange={(value) => setInvoiceState((prev) => ({ ...prev, financial_account_id: value === NO_ACCOUNT_VALUE ? '' : value }))}
+                    >
                       <SelectTrigger>
                         <SelectValue placeholder="Sin cuenta" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="">Sin cuenta</SelectItem>
+                        <SelectItem value={NO_ACCOUNT_VALUE}>Sin cuenta</SelectItem>
                         {financialAccounts.map((account) => (
                           <SelectItem key={account.id} value={account.id}>
                             {account.name}
@@ -928,12 +937,12 @@ function BusinessInvoiceEditor({ mode, invoice }: InvoiceEditorProps) {
                         return (
                           <tr key={item.id} className="border-b">
                             <td className="py-3 pr-3">
-                              <Select value={item.product_service_id} onValueChange={(value) => applyProduct(item.id, value)}>
+                              <Select value={item.product_service_id || MANUAL_LINE_VALUE} onValueChange={(value) => applyProduct(item.id, value === MANUAL_LINE_VALUE ? '' : value)}>
                                 <SelectTrigger>
                                   <SelectValue placeholder="Manual" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                  <SelectItem value="">Línea manual</SelectItem>
+                                  <SelectItem value={MANUAL_LINE_VALUE}>Línea manual</SelectItem>
                                   {products.map((product) => (
                                     <SelectItem key={product.id} value={product.id}>
                                       {product.name}
@@ -963,17 +972,18 @@ function BusinessInvoiceEditor({ mode, invoice }: InvoiceEditorProps) {
                             <td className="py-3 pr-3">
                               <div className="space-y-2">
                                 <Select
-                                  value={item.tax_rate_id}
+                                  value={item.tax_rate_id || NO_TAX_VALUE}
                                   onValueChange={(value) => {
-                                    const tax = taxRates.find((entry) => entry.id === value);
-                                    updateLine(item.id, { tax_rate_id: value, tax_rate: String(tax?.rate ?? (Number(item.tax_rate) || 0)) });
+                                    const nextValue = value === NO_TAX_VALUE ? '' : value;
+                                    const tax = taxRates.find((entry) => entry.id === nextValue);
+                                    updateLine(item.id, { tax_rate_id: nextValue, tax_rate: String(tax?.rate ?? (Number(item.tax_rate) || 0)) });
                                   }}
                                 >
                                   <SelectTrigger>
                                     <SelectValue placeholder="Sin impuesto" />
                                   </SelectTrigger>
                                   <SelectContent>
-                                    <SelectItem value="">Sin impuesto</SelectItem>
+                                    <SelectItem value={NO_TAX_VALUE}>Sin impuesto</SelectItem>
                                     {taxRates.map((tax) => (
                                       <SelectItem key={tax.id} value={tax.id}>
                                         {tax.name}
