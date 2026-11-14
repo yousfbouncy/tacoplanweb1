@@ -143,10 +143,16 @@ export function buildSelectedReportPdf(report:SharedReportData):Uint8Array {
   }
 
   // One compact row: conducción, disponibilidad real y descanso anterior.
-  const activityLines:string[]=[];
-  if(has('driving'))activityLines.push('Conducción: '+(r.driving===null?'Sin datos':hours(r.driving)));
-  if(has('availability'))activityLines.push('Disponibilidad: '+(r.availability===null?'Sin datos':hours(r.availability)));
-  if(has('rest'))activityLines.push('Descanso anterior: '+(r.rest===null?'Sin datos':hours(r.rest)));
+  // Fixed positions across every journey, even when a shared field is absent.
+  // Never fill unavailable tachograph data with the jornada duration.
+  const activityColumns:[
+   string|null,string|null,string|null
+  ]=[
+   has('driving')?'Conducción: '+(r.driving===null?'Sin datos':hours(r.driving)):null,
+   has('availability')?'Disponibilidad: '+(r.availability===null?'Sin datos':hours(r.availability)):null,
+   has('rest')?'Descanso anterior: '+(r.rest===null?'Sin datos':hours(r.rest)):null
+  ];
+  const hasActivities=activityColumns.some(value=>value!==null);
   const detailLines:string[]=[];
   // This PDF prioritises driving, actual availability and previous rest.
   // Never replace missing availability with the full jornada duration.
@@ -174,7 +180,7 @@ export function buildSelectedReportPdf(report:SharedReportData):Uint8Array {
   const details=detailLines.flatMap(value=>wrap(value,49));
   const headerHeight=10+blueRows.length*11;
   const detailRows=Math.ceil(details.length/2);
-  const activityHeight=activityLines.length?16:0;
+  const activityHeight=hasActivities?16:0;
   const detailHeight=activityHeight+(detailRows>0?7+detailRows*11:6);
   const height=headerHeight+detailHeight;
   if(y-height<55){
@@ -190,10 +196,12 @@ export function buildSelectedReportPdf(report:SharedReportData):Uint8Array {
    if(line.right)text(302,baseline,line.right,8.2,!!line.bold,'0.12 0.24 0.43');
    if(line.route)text(46+estimatedWidth(line.left)+16,baseline,line.route,8.2,true,'0.12 0.24 0.43');
   }
-  if(activityLines.length){
-   const width=508/activityLines.length;
-   for(let n=0;n<activityLines.length;n++){
-    text(46+n*width,top-headerHeight-13,activityLines[n],7.5,false,'0.24 0.33 0.49');
+  if(hasActivities){
+   // Left / middle / right: always the same X positions, never stacked.
+   const xPositions=[46,213,383];
+   for(let n=0;n<activityColumns.length;n++){
+    const label=activityColumns[n];
+    if(label!==null)text(xPositions[n],top-headerHeight-13,label,7.5,false,'0.24 0.33 0.49');
    }
   }
   for(let n=0;n<details.length;n++){
