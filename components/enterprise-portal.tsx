@@ -170,7 +170,14 @@ export function EnterprisePortal(){
     {inviteInfo&&user.email?.toLowerCase()!==inviteInfo.email.toLowerCase()?<>
      <p className="mt-2 text-sm text-red-700">Has iniciado sesión como {user.email}. Esta invitación corresponde a {inviteInfo.email}. Cierra sesión y utiliza el correo invitado.</p>
      <button type="button" className={button+' mt-3'} onClick={()=>void signOut()}>Cambiar de cuenta</button>
-    </>:<p className="mt-2 text-sm text-slate-600">{busy?'Asociando tu usuario con la empresa…':'Comprobando tu cuenta y la invitación…'}</p>}
+    </>:<div className="mt-3 space-y-3">
+     <p className="text-sm text-slate-600">{busy?'Asociando la cuenta con la empresa…':'Tu cuenta existe. Falta finalizar la incorporación a la empresa.'}</p>
+     <button type="button" disabled={busy||!inviteInfo||Boolean(inviteError)} className={button} onClick={async()=>{
+      const res=await action({action:'accept_invite',token:inviteToken});
+      if(res){setInviteToken('');setInviteInfo(null);window.history.replaceState({},'', '/empresas');setMessage('Incorporación completada. Ya perteneces a tu empresa.');}
+     }}>Finalizar mi incorporación</button>
+     <p className="text-xs text-slate-500">Si indica que falta configuración, pide a tu empresa que complete tu invitación pendiente y vuelve a pulsar el botón.</p>
+    </div>}
     {inviteError?<p role="alert" className="mt-2 text-sm text-red-700">{inviteError}</p>:null}
    </div>:null}
    {!inviteToken?<div className="rounded-2xl border bg-white p-5"><h2 className="text-lg font-bold">Paso 2 · Crear empresa</h2><p className="mt-1 text-sm text-slate-600">Una empresa, con usuarios independientes de Tráfico, RRHH y conductores.</p>
