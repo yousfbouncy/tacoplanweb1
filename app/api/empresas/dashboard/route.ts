@@ -1,5 +1,5 @@
 import {NextRequest} from 'next/server';
-import {membership,enterpriseJson,permitted} from '@/lib/tp-enterprise';
+import {membership,enterpriseJson,isPaidAccess} from '@/lib/tp-enterprise';
 export const dynamic='force-dynamic';
 
 export async function GET(req:NextRequest){
@@ -13,6 +13,7 @@ export async function GET(req:NextRequest){
   .eq('id',companyId).single();
  if(companyError||!company)return enterpriseJson({error:'Empresa no disponible'},404);
  const role=member.role;
+ if(role!=='owner'&&!isPaidAccess(company))return enterpriseJson({company,member,blocked:true,reason:'Prueba gratuita o suscripción no activa'});
  // HR does not receive route, location, individual jornada or traffic data.
  if(role==='hr'){
   const [reviews,closures,drivers]=await Promise.all([
