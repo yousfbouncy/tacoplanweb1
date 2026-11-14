@@ -47,7 +47,8 @@ export function normalizeEmployeeConfig(raw:unknown):InitialEmployeeConfig{
  const cfg=emptyEmployeeConfig();
  cfg.driver_profile=allowed(c.driver_profile,['standard','morocco','ferry'],'standard');
  cfg.operation_zone=allowed(c.operation_zone,['spain','europe','morocco','mixed'],'spain');
- cfg.payment_mode=allowed(c.payment_mode,['dietas','km','viaje'],'dietas');
+ if(!['dietas','km','viaje'].includes(String(c.payment_mode)))throw new Error('Selecciona cómo paga la empresa: dietas, kilómetros o viajes');
+ cfg.payment_mode=c.payment_mode as InitialEmployeeConfig['payment_mode'];
  cfg.diet_scheme=allowed(c.diet_scheme,['percentage','fixed'],'percentage');
  const types=c.trip_types&&typeof c.trip_types==='object'&&!Array.isArray(c.trip_types)?c.trip_types as Record<string,unknown>:{};
  cfg.trip_types={nacional:types.nacional===true,internacional:types.internacional===true,morocco:types.morocco===true,ferry:types.ferry===true};
