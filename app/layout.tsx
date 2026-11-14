@@ -4,6 +4,7 @@ import { Inter } from 'next/font/google';
 import { AuthProvider } from '@/lib/auth-context';
 import { Navbar } from '@/components/navbar';
 import { WebAnalyticsTracker } from '@/components/web-analytics-tracker';
+import { DriverPortalOAuthReturn } from '@/components/driver-portal-oauth-return';
 import { Footer } from '@/components/footer';
 
 export const dynamic = 'force-dynamic';
@@ -40,6 +41,7 @@ export default function RootLayout({
         <AuthProvider>
           <div className="flex flex-col min-h-screen">
             <WebAnalyticsTracker />
+            <DriverPortalOAuthReturn />
             <Navbar />
             <main className="flex-grow">{children}</main>
             <Footer />
