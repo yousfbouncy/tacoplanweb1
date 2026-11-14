@@ -27,7 +27,7 @@ export async function GET(req:NextRequest){
   return enterpriseJson({company,member,drivers:drivers.data||[],reviews:reviews.data||[],closures:closures.data||[]});
  }
  if(role==='traffic'){
-  const members=await db.from('tp_company_members').select('user_id,username,joined_at').eq('company_id',companyId).eq('active',true).eq('role','driver');
+  const members=await db.from('tp_company_members').select('user_id,username,employee_name,joined_at').eq('company_id',companyId).eq('active',true).eq('role','driver');
   if(members.error)throw members.error;
   const ids=(members.data||[]).map(x=>x.user_id);
   // Joining an employer never shares a conductor's prior personal history.
