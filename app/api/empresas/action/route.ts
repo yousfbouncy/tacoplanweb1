@@ -86,7 +86,7 @@ export async function POST(req:NextRequest){
   if(cfg){
    const stored=await db.from('tp_driver_settings').upsert({
     company_id:invite.company_id,driver_id:user.id,base_name:cfg.base_name,workplace:cfg.base_city,
-    agreement:plain(cfg.payroll_terms?.agreement,120)||null,
+    agreement:cfg.agreement||null,
     diet_rates:cfg.diet_rates,plus_rates:cfg.plus_rates,
     payroll_terms:{...cfg.payroll_terms,payment_mode:cfg.payment_mode,diet_scheme:cfg.diet_scheme},
     initial_config:cfg,updated_by:invite.invited_by,updated_at:new Date().toISOString()
@@ -176,7 +176,7 @@ export async function POST(req:NextRequest){
   if(prev.error)throw prev.error;
   const save=await db.from('tp_driver_settings').upsert({
    company_id:companyId,driver_id:body.driverId,base_name:cfg.base_name,workplace:cfg.base_city,
-   agreement:plain(body.agreement,120)||prev.data?.agreement||null,
+   agreement:cfg.agreement||prev.data?.agreement||null,
    diet_rates:cfg.diet_rates,plus_rates:cfg.plus_rates,
    payroll_terms:{...cfg.payroll_terms,payment_mode:cfg.payment_mode,diet_scheme:cfg.diet_scheme},
    initial_config:cfg,updated_by:user.id,updated_at:new Date().toISOString()
