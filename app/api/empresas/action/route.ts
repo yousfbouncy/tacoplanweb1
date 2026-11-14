@@ -145,17 +145,45 @@ export async function POST(req:NextRequest){
   await audit(db,companyId,user.id,'member.invited','invite',insert.data.id,null,{username,email,employee_name:employeeName,role:inviteRole,has_initial_config:Boolean(initialSettings)});
   return json({ok:true,url:'https://tacoplan.es/empresas?invite='+token},201);
  }
+ if(action==='update_pending_invite'){
+  if(!permitted(role,'owner'))return json({error:'Solo el administrador puede actualizar invitaciones'},403);
+  if(!uuid(body.inviteId))return json({error:'Invitación inválida'},400);
+  const old=await db.from('tp_company_invites').select('*').eq('id',body.inviteId).eq('company_id',companyId).is('accepted_at',null).is('revoked_at',null).maybeSingle();
+  if(old.error)throw old.error;
+  if(!old.data)return json({error:'Invitación ya aceptada o no disponible'},404);
+  const name=plain(body.employeeName,120);
+  if(name.length<2)return json({error:'Introduce el nombre y apellidos del empleado'},400);
+  let cfg=null;
+  if(old.data.role==='driver'){
+   try{cfg=normalizeEmployeeConfig(body.initialSettings);}catch(e){return json({error:e instanceof Error?e.message:'Completa la configuración inicial'},400);}
+  }
+  const changed=await db.from('tp_company_invites').update({employee_name:name,initial_settings:cfg||{}}).eq('id',old.data.id).eq('company_id',companyId);
+  if(changed.error)throw changed.error;
+  await audit(db,companyId,user.id,'invite.updated','invite',old.data.id,
+   {employee_name:old.data.employee_name,initial_settings:old.data.initial_settings},
+   {employee_name:name,initial_settings:cfg});
+  return json({ok:true});
+ }
  if(action==='update_settings'){
   if(!permitted(role,'owner'))return json({error:'Sin permiso para configurar'},403);
   if(!uuid(body.driverId))return json({error:'Conductor inválido'},400);
-  const {data:driver}=await db.from('tp_company_members').select('id,joined_at').eq('company_id',companyId).eq('user_id',body.driverId).eq('role','driver').eq('active',true).maybeSingle();
-  if(!driver)return json({error:'El conductor no pertenece a la empresa'},404);
-  const settings=validSettings(body.settings);
-  if(!settings)return json({error:'Configuración inválida'},400);
+  const driver=await db.from('tp_company_members').select('id,employee_name,username').eq('company_id',companyId).eq('user_id',body.driverId).eq('role','driver').eq('active',true).maybeSingle();
+  if(driver.error)throw driver.error;
+  if(!driver.data)return json({error:'El conductor no pertenece a la empresa'},404);
+  let cfg:ReturnType<typeof normalizeEmployeeConfig>;
+  try{cfg=normalizeEmployeeConfig(body.initialSettings);}catch(e){return json({error:e instanceof Error?e.message:'Configuración inválida'},400);}
   const prev=await db.from('tp_driver_settings').select('*').eq('company_id',companyId).eq('driver_id',body.driverId).maybeSingle();
-  const save=await db.from('tp_driver_settings').upsert({company_id:companyId,driver_id:body.driverId,...settings,updated_by:user.id,updated_at:new Date().toISOString()});
+  if(prev.error)throw prev.error;
+  const save=await db.from('tp_driver_settings').upsert({
+   company_id:companyId,driver_id:body.driverId,base_name:cfg.base_name,workplace:cfg.base_city,
+   agreement:plain(body.agreement,120)||prev.data?.agreement||null,
+   diet_rates:cfg.diet_rates,plus_rates:cfg.plus_rates,
+   payroll_terms:{...cfg.payroll_terms,payment_mode:cfg.payment_mode,diet_scheme:cfg.diet_scheme},
+   initial_config:cfg,updated_by:user.id,updated_at:new Date().toISOString()
+  },{onConflict:'company_id,driver_id'});
   if(save.error)throw save.error;
-  await audit(db,companyId,user.id,'driver.settings.updated','driver',body.driverId,prev.data,settings,plain(body.reason,500));
+  await syncEmployeeConfig(db,body.driverId,driver.data.employee_name||driver.data.username,cfg);
+  await audit(db,companyId,user.id,'driver.settings.updated','driver',body.driverId,prev.data,cfg,plain(body.reason,500));
   return json({ok:true});
  }
  if(action==='review'){
