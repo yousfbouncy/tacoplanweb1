@@ -84,20 +84,32 @@ export function buildSelectedReportPdf(report:SharedReportData):Uint8Array {
  };
  for(let index=0;index<report.rows.length;index++){
   const r=report.rows[index];
-  const blueLines:string[]=[];
+  // Preserve 8.2 pt blue-band typography; put start and end side by side when they fit.
+  const estimatedWidth=(value:string)=>latin(value).split('').reduce((sum,ch)=>sum+(ch===' '?2.2:/[ilI1.,:;|]/.test(ch)?2.4:/[mwMW@]/.test(ch)?6:4.25),0);
+  type BlueRow={left:string;right?:string;bold?:boolean;route?:string};
+  const blueRows:BlueRow[]=[];
   const location=(v:string|null)=>has('locations')?(v||'Lugar no registrado'):'';
   if(has('start_end')||has('locations')){
    const startText='INICIO: '+(has('start_end')?dateTime(r.date,r.startTime):formattedDate(r.date))+(has('locations')?' | '+location(r.start):'');
    const endText='FIN: '+(has('start_end')?dateTime(r.endDate||r.date,r.endTime):formattedDate(r.endDate||r.date))+(has('locations')?' | '+location(r.end):'');
-   blueLines.push(...wrap(startText,104),...wrap(endText,104));
-  }else{
-   blueLines.push('FECHA: '+formattedDate(r.date));
-  }
+   if(estimatedWidth(startText)<=245&&estimatedWidth(endText)<=245){
+    blueRows.push({left:startText,right:endText,bold:true});
+   }else{
+    blueRows.push(...wrap(startText,104).map(left=>({left,bold:true})));
+    blueRows.push(...wrap(endText,104).map(left=>({left,bold:true})));
+   }
+  }else blueRows.push({left:'FECHA: '+formattedDate(r.date),bold:true});
   const dietParts:string[]=[];
   if(has('diet_type'))dietParts.push('Dieta: '+(r.dietType||'Sin tipo registrado'));
   if(has('diet_pct'))dietParts.push(r.dietPct===null?'Porcentaje: —':r.dietPct+'%');
-  if(has('route_type'))dietParts.push('Ruta: '+(r.routeType||'No registrada'));
-  if(dietParts.length)blueLines.push(...wrap(dietParts.join(' | '),104));
+  const dietLine=dietParts.join(' | ');
+  const route=has('route_type')?'RUTA: '+(r.routeType||'No registrada').toUpperCase():'';
+  if(dietLine&&route&&estimatedWidth(dietLine)+estimatedWidth(route)+16<=500){
+   blueRows.push({left:dietLine,route});
+  }else{
+   if(dietLine)blueRows.push(...wrap(dietLine,104).map(left=>({left})));
+   if(route)blueRows.push(...wrap(route,104).map(left=>({left,bold:true})));
+  }
 
   const detailLines:string[]=[];
   if(has('availability'))detailLines.push('Disponibilidad: '+(r.availability===null?'Sin datos':hours(r.availability)));
@@ -126,7 +138,7 @@ export function buildSelectedReportPdf(report:SharedReportData):Uint8Array {
   }
   if(extras.length)detailLines.push('Pluses: '+extras.join(' · '));
   const details=detailLines.flatMap(value=>wrap(value,49));
-  const headerHeight=10+blueLines.length*11;
+  const headerHeight=10+blueRows.length*11;
   const detailRows=Math.ceil(details.length/2);
   const detailHeight=detailRows>0?10+detailRows*11:6;
   const height=headerHeight+detailHeight;
@@ -137,8 +149,11 @@ export function buildSelectedReportPdf(report:SharedReportData):Uint8Array {
   const top=y;
   paint(38,top-height,519,height,'0.965 0.976 0.991');
   paint(38,top-headerHeight,519,headerHeight,'0.87 0.92 0.99');
-  for(let n=0;n<blueLines.length;n++){
-   text(46,top-15-n*11,blueLines[n],8.2,n===0||n===1,'0.12 0.24 0.43');
+  for(let n=0;n<blueRows.length;n++){
+   const line=blueRows[n],baseline=top-15-n*11;
+   text(46,baseline,line.left,8.2,!!line.bold,'0.12 0.24 0.43');
+   if(line.right)text(302,baseline,line.right,8.2,!!line.bold,'0.12 0.24 0.43');
+   if(line.route)text(46+estimatedWidth(line.left)+16,baseline,line.route,8.2,true,'0.12 0.24 0.43');
   }
   for(let n=0;n<details.length;n++){
    const col=n%2,lineNo=Math.floor(n/2);
