@@ -1,0 +1,138 @@
+'use client';
+import {useCallback,useEffect,useMemo,useState} from 'react';
+import {Building2,Users,Truck,Wallet,ShieldCheck,LogOut,Plus,RefreshCw,CheckCircle,AlertCircle,Copy,LockKeyhole} from 'lucide-react';
+import {useAuth} from '@/lib/auth-context';
+import {supabase} from '@/lib/supabase';
+import {PLAN_PRICES} from '@/lib/tp-enterprise-plans';
+type Member={company_id:string;username:string;role:'owner'|'traffic'|'hr'|'driver'};
+type Review={id:string;driver_id:string;jornada_id?:string;jornada_date?:string;status:string;original_diet_type:string|null;original_amount:number;proposed_diet_type:string|null;proposed_amount:number|null;change_reason:string|null;driver_observation:string|null;traffic_observation:string|null;created_at:string};
+type Dashboard={member:Member|null;company?:{id:string;name:string;subscription_status:string;trial_ends_at:string|null;plan_price_id:string|null};team?:Array<{user_id:string;username:string;role:string}>;drivers?:Array<{user_id:string;username:string}>;invites?:Array<{username:string;role:string;email:string;accepted_at:string|null}>;settings?:Array<{driver_id:string;base_name:string|null;agreement:string|null}>;driverSettings?:{base_name:string|null;agreement:string|null};jornadas?:Array<{id:string;user_id:string;fecha_inicio:string|null;hora_inicio:string|null;hora_fin:string|null;lugar_inicio:string|null;lugar_fin:string|null;tipo_ruta:string|null;dieta_manual_tipo:string|null;dieta_importe_eur:string|null}>;reviews?:Review[];closures?:Array<{id:string;month:string;driver_id:string;total_diets:number;closed_at:string}>};
+const roleLabels={owner:'Administrador de empresa',traffic:'Departamento de Tráfico',hr:'Recursos Humanos',driver:'Conductor'};
+const monthNow=()=>new Date().toISOString().slice(0,7);
+const euro=(n:number)=>new Intl.NumberFormat('es-ES',{style:'currency',currency:'EUR'}).format(n);
+const date=(v:string|null|undefined)=>v?new Date(v).toLocaleDateString('es-ES'):'—';
+const button='rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50';
+const input='w-full rounded-xl border border-slate-300 bg-white p-3 text-sm text-slate-900';
+
+export function EnterprisePortal(){
+ const {user,loading:authLoading,signOut}=useAuth();
+ const [view,setView]=useState<Dashboard|null>(null),[loading,setLoading]=useState(false),[busy,setBusy]=useState(false);
+ const [error,setError]=useState(''),[message,setMessage]=useState('');
+ const [email,setEmail]=useState(''),[password,setPassword]=useState(''),[authMode,setAuthMode]=useState<'login'|'register'>('login');
+ const [inviteToken,setInviteToken]=useState('');
+ const [companyName,setCompanyName]=useState(''),[ownerUsername,setOwnerUsername]=useState(''),[planId,setPlanId]=useState<string>(PLAN_PRICES[0].priceId);
+ const [staffEmail,setStaffEmail]=useState(''),[staffUsername,setStaffUsername]=useState(''),[staffRole,setStaffRole]=useState('driver');
+ const [latestInvite,setLatestInvite]=useState('');
+ const [driverId,setDriverId]=useState(''),[base,setBase]=useState(''),[agreement,setAgreement]=useState('');
+ const [payrollTerms,setPayrollTerms]=useState('{}');
+ const [dietRates,setDietRates]=useState('{"nacional_100":54.30,"internacional_100":72.77}'),[plusRates,setPlusRates]=useState('{"domingo":80,"festivo":80}');
+ const [reviewJornada,setReviewJornada]=useState(''),[mode,setMode]=useState('confirm'),[newDietAmount,setNewDietAmount]=useState(''),[reason,setReason]=useState(''),[observation,setObservation]=useState('');
+ const [trialConsent,setTrialConsent]=useState(false);
+ const [month,setMonth]=useState(monthNow),[responseTexts,setResponseTexts]=useState<Record<string,string>>({});
+ useEffect(()=>{const params=new URLSearchParams(window.location.search);setInviteToken(params.get('invite')||'');},[]);
+ const token=async()=>{const r=await supabase.auth.getSession();if(!r.data.session?.access_token)throw Error('Inicia sesión de nuevo');return r.data.session.access_token;};
+ const load=useCallback(async()=>{if(!user){setView(null);return;}setLoading(true);setError('');
+ try{const t=await token();const r=await fetch('/api/empresas/dashboard',{cache:'no-store',headers:{Authorization:'Bearer '+t}});const j=await r.json();if(!r.ok)throw Error(j.error||'No se pudo cargar');setView(j);}
+ catch(e:unknown){setError(e instanceof Error?e.message:'Error al cargar');}finally{setLoading(false);}},[user?.id]);
+ useEffect(()=>{void load();},[load]);
+ const action=async(body:Record<string,unknown>)=>{setBusy(true);setError('');setMessage('');
+ try{const t=await token();const r=await fetch('/api/empresas/action',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+t},body:JSON.stringify(body)});const j=await r.json();if(!r.ok)throw Error(j.error||'No se pudo guardar');await load();return j;}
+ catch(e:unknown){setError(e instanceof Error?e.message:'Error');return null;}finally{setBusy(false);}};
+ const login=async()=>{setBusy(true);setError('');setMessage('');
+ try{
+  if(authMode==='register'){
+   if(!email.includes('@'))throw Error('Introduce tu correo electrónico para registrarte');
+   const {error}=await supabase.auth.signUp({email:email.trim(),password});
+   if(error)throw error;
+   setMessage('Cuenta solicitada. Si Supabase exige confirmar el correo, consulta tu bandeja de entrada antes de continuar.');
+  }else if(email.includes('@')){
+   const {error}=await supabase.auth.signInWithPassword({email:email.trim(),password});if(error)throw error;
+  }else{
+   const r=await fetch('/api/empresas/username-login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:email,password})});
+   const j=await r.json();if(!r.ok)throw Error(j.error||'No se pudo iniciar sesión');
+   const result=await supabase.auth.setSession({access_token:j.access_token,refresh_token:j.refresh_token});
+   if(result.error)throw result.error;
+  }
+ }catch(e:unknown){setError(e instanceof Error?e.message:'No se pudo iniciar sesión');}finally{setBusy(false);}};
+ const member=view?.member;
+ const title=view?.company?.name||'Tacoplan Empresas';
+ const active=view?.company?.subscription_status==='trialing'||view?.company?.subscription_status==='active';
+ const reviews=view?.reviews||[];
+ const driverName=(id:string)=>view?.drivers?.find(d=>d.user_id===id)?.username||id.slice(0,8);
+ const pending=reviews.filter(r=>r.status==='awaiting_driver');
+ const hrReviews=reviews.filter(r=>r.jornada_date?.startsWith(month));
+ const payable=hrReviews.filter(r=>['confirmed','accepted','closed'].includes(r.status));
+ const total=payable.reduce((v,r)=>v+(r.status==='accepted'?r.proposed_amount??r.original_amount:r.original_amount),0);
+ const renderError=error?<p role="alert" className="rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</p>:null;
+ return <main className="min-h-screen bg-slate-50 px-4 py-8 sm:py-12"><div className="mx-auto max-w-6xl space-y-5">
+  <header className="rounded-2xl bg-gradient-to-r from-[#071b38] to-[#174477] p-6 text-white"><div className="flex items-center gap-2 text-sm font-bold text-blue-200"><Building2 className="h-5 w-5"/>TACOPLAN EMPRESAS</div><h1 className="mt-3 text-2xl font-extrabold">{title}</h1>
+  <p className="mt-2 text-sm text-slate-200">{member?roleLabels[member.role]:'Gestión empresarial de conductores, Tráfico y Recursos Humanos'}</p></header>
+  {renderError}{message?<p role="status" className="rounded-xl bg-blue-50 p-3 text-sm text-blue-800">{message}</p>:null}
+  {authLoading||loading?<p className="rounded-xl bg-white p-6 text-slate-500">Cargando acceso…</p>:null}
+  {!authLoading&&!user?<section className="mx-auto max-w-lg rounded-2xl border bg-white p-6 shadow-sm"><h2 className="text-xl font-bold">Acceder a Tacoplan Empresas</h2><p className="mt-2 text-sm text-slate-600">Tráfico y RRHH entran con sus propias credenciales. También puedes crear una empresa.</p>
+   <label className="mt-4 block text-sm font-semibold">Correo electrónico o usuario<input className={input+' mt-2'} value={email} onChange={e=>setEmail(e.target.value)} placeholder="empleado@empresa.es o usuario"/></label>
+   <label className="mt-4 block text-sm font-semibold">Contraseña<input className={input+' mt-2'} value={password} onChange={e=>setPassword(e.target.value)} type="password"/></label>
+   <button className={button+' mt-4 w-full'} onClick={()=>void login()} disabled={busy}>{busy?'Procesando…':authMode==='login'?'Iniciar sesión':'Crear cuenta'}</button>
+   <button className="mt-4 w-full text-sm font-semibold text-blue-700" onClick={()=>setAuthMode(authMode==='login'?'register':'login')}>{authMode==='login'?'Crear cuenta de empresa o activar invitación':'Ya tengo cuenta'}</button>
+   <p className="mt-4 text-xs text-slate-500">Las empresas crean invitaciones y asignan la configuración del empleado. La contraseña definitiva la establece el propio usuario.</p>
+   </section>:null}
+  {!authLoading&&user&&!member?<section className="grid gap-4 lg:grid-cols-2">
+   {inviteToken?<div className="rounded-2xl border bg-white p-5"><h2 className="text-lg font-bold">Aceptar invitación</h2><p className="mt-2 text-sm text-slate-600">La invitación solo puede aceptarse con el mismo correo al que fue dirigida.</p><button disabled={busy} className={button+' mt-4'} onClick={async()=>{const r=await action({action:'accept_invite',token:inviteToken});if(r){setInviteToken('');history.replaceState({},'', '/empresas');setMessage('Has quedado vinculado a la empresa.');}}}>Aceptar y continuar</button></div>:null}
+   <div className="rounded-2xl border bg-white p-5"><h2 className="text-lg font-bold">Crear empresa</h2><p className="mt-1 text-sm text-slate-600">Una empresa, con usuarios independientes de Tráfico, RRHH y conductores.</p>
+    <input className={input+' mt-4'} value={companyName} onChange={e=>setCompanyName(e.target.value)} placeholder="Nombre de la empresa"/>
+    <input className={input+' mt-3'} value={ownerUsername} onChange={e=>setOwnerUsername(e.target.value.toLowerCase())} placeholder="Tu nombre de usuario"/>
+    <label className="mt-3 block text-sm font-medium">Plan de flota<select className={input+' mt-2'} value={planId} onChange={e=>setPlanId(e.target.value)}>{PLAN_PRICES.map(p=><option key={p.priceId} value={p.priceId}>{p.title} · {p.seats} conductores · {euro(p.cents/100)}/mes</option>)}</select></label>
+    <p className="mt-3 text-xs text-amber-700">La suscripción todavía no se activa aquí. Quedará pendiente hasta verificar el pago y la prueba gratuita de Stripe.</p>
+    <button disabled={busy} className={button+' mt-4'} onClick={async()=>{const r=await action({action:'create_company',name:companyName,username:ownerUsername,priceId:planId});if(r)setMessage('Empresa creada. La suscripción está pendiente de activación.');}}>Crear empresa</button>
+   </div></section>:null}
+  {member?<><div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-white p-4"><div><p className="text-sm font-bold text-slate-900">{member.username} · {roleLabels[member.role]}</p><p className="mt-1 text-xs text-slate-500">Estado suscripción: {view?.company?.subscription_status||'Pendiente'} · {view?.company?.trial_ends_at?'Prueba hasta '+date(view.company.trial_ends_at):'Prueba no iniciada'}</p></div><div className="flex gap-2"><button onClick={()=>void load()} className="rounded-lg border px-3 py-2 text-sm"><RefreshCw className="h-4 w-4"/></button><button onClick={()=>void signOut()} className="rounded-lg border px-3 py-2 text-sm"><LogOut className="h-4 w-4"/></button></div></div>
+  {!active?<p className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">Tu cuenta empresarial está creada, pero la prueba de Stripe todavía no está activa. No se cobrarán cuotas por crear esta cuenta. Hasta completar la suscripción, este módulo es una vista de preparación.</p>:null}
+  {member.role==='owner'&&!active?<section className="rounded-2xl border border-blue-200 bg-white p-5">
+   <h2 className="text-lg font-bold text-slate-900">Activar 7 días de prueba gratuita</h2>
+   <p className="mt-2 text-sm text-slate-600">Stripe gestionará la contratación del plan elegido. La prueba dura 7 días y, si no cancelas antes de terminar, comienza el cobro mensual de la tarifa seleccionada. Puedes cancelarla desde el portal de facturación.</p>
+   <p className="mt-2 text-sm font-semibold text-blue-800">Plan: {PLAN_PRICES.find(p=>p.priceId===view?.company?.plan_price_id)?.title||'Pendiente'} · {euro((PLAN_PRICES.find(p=>p.priceId===view?.company?.plan_price_id)?.cents||0)/100)}/mes, según tratamiento de IVA configurado.</p>
+   <label className="mt-3 flex items-start gap-2 text-sm text-slate-700"><input type="checkbox" checked={trialConsent} onChange={e=>setTrialConsent(e.target.checked)} className="mt-1"/>Entiendo que después de la prueba gratuita se iniciará la suscripción mensual, salvo cancelación.</label>
+   <button disabled={!trialConsent||busy} className={button+' mt-4'} onClick={async()=>{
+    setBusy(true);setError('');try{const t=await token();const r=await fetch('/api/empresas/billing',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+t},body:JSON.stringify({action:'checkout'})});const j=await r.json();if(!r.ok)throw Error(j.error||'No se pudo activar Stripe');window.location.assign(j.url);}catch(e:unknown){setError(e instanceof Error?e.message:'Error de Stripe');}finally{setBusy(false);}
+   }}>Empezar 7 días gratis en Stripe</button>
+  </section>:null}
+  {member.role==='owner'&&active?<button className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold" disabled={busy} onClick={async()=>{
+    setBusy(true);setError('');try{const t=await token();const r=await fetch('/api/empresas/billing',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+t},body:JSON.stringify({action:'portal'})});const j=await r.json();if(!r.ok)throw Error(j.error||'No se pudo abrir Stripe');window.location.assign(j.url);}catch(e:unknown){setError(e instanceof Error?e.message:'Error');}finally{setBusy(false);}
+  }}>Gestionar suscripción y cancelación</button>:null}
+  {member.role==='owner'?<section className="grid gap-4 lg:grid-cols-2">
+   <div className="rounded-2xl border bg-white p-5"><h2 className="flex items-center gap-2 text-lg font-bold"><Users className="h-5 w-5 text-blue-600"/>Alta de empleados y departamentos</h2><p className="mt-2 text-sm text-slate-600">Crea accesos para Tráfico, RRHH y conductores. El empleado establece su contraseña de manera segura.</p>
+    <input className={input+' mt-3'} value={staffEmail} onChange={e=>setStaffEmail(e.target.value)} placeholder="Correo de empleado"/>
+    <input className={input+' mt-3'} value={staffUsername} onChange={e=>setStaffUsername(e.target.value.toLowerCase())} placeholder="Nombre de usuario"/>
+    <select className={input+' mt-3'} value={staffRole} onChange={e=>setStaffRole(e.target.value)}><option value="driver">Conductor</option><option value="traffic">Tráfico</option><option value="hr">Recursos Humanos</option></select>
+    <button disabled={busy} className={button+' mt-3'} onClick={async()=>{const result=await action({action:'invite',email:staffEmail,username:staffUsername,role:staffRole});if(result){setLatestInvite(result.url);setMessage('Invitación privada creada. Envía este enlace al empleado.');}}}><Plus className="mr-1 inline h-4 w-4"/>Crear invitación</button>
+    {latestInvite?<div className="mt-3 rounded-xl bg-blue-50 p-3"><p className="text-xs font-semibold text-blue-900">Invitación (válida 7 días)</p><input readOnly className={input+' mt-2 text-xs'} value={latestInvite}/><button className="mt-2 flex items-center gap-2 text-sm font-semibold text-blue-700" onClick={()=>void navigator.clipboard.writeText(latestInvite)}><Copy className="h-4 w-4"/>Copiar enlace</button></div>:null}
+   </div>
+   <div className="rounded-2xl border bg-white p-5"><h2 className="text-lg font-bold">Personal de empresa</h2><div className="mt-3 max-h-80 space-y-2 overflow-y-auto">{(view?.team||[]).map(x=><div className="flex items-center justify-between gap-3 rounded-xl border p-3" key={x.user_id}><span className="text-sm font-semibold">{x.username}</span><span className="text-xs text-slate-500">{roleLabels[x.role as keyof typeof roleLabels]||x.role}</span></div>)}</div></div>
+   <div className="rounded-2xl border bg-white p-5 lg:col-span-2"><h2 className="text-lg font-bold">Configuración del conductor</h2><p className="mt-1 text-sm text-slate-500">Condiciones gestionadas exclusivamente por la empresa.</p>
+    <div className="mt-3 grid gap-3 sm:grid-cols-3"><select className={input} value={driverId} onChange={e=>setDriverId(e.target.value)}><option value="">Selecciona un conductor</option>{(view?.team||[]).filter(x=>x.role==='driver').map(x=><option key={x.user_id} value={x.user_id}>{x.username}</option>)}</select><input className={input} placeholder="Base de trabajo" value={base} onChange={e=>setBase(e.target.value)}/><input className={input} placeholder="Convenio" value={agreement} onChange={e=>setAgreement(e.target.value)}/></div>
+    <div className="mt-3 grid gap-3 sm:grid-cols-2"><label className="text-sm font-semibold">Tarifas de dieta (JSON)<textarea className={input+' mt-2 font-mono'} rows={3} value={dietRates} onChange={e=>setDietRates(e.target.value)}/></label><label className="text-sm font-semibold">Pluses (JSON)<textarea className={input+' mt-2 font-mono'} rows={3} value={plusRates} onChange={e=>setPlusRates(e.target.value)}/></label></div>
+    <label className="mt-3 block text-sm font-semibold">Condiciones de nómina (JSON)<textarea className={input+' mt-2 font-mono'} rows={2} value={payrollTerms} onChange={e=>setPayrollTerms(e.target.value)}/></label>
+    <button disabled={!driverId||busy} className={button+' mt-3'} onClick={async()=>{try{await action({action:'update_settings',driverId,settings:{base_name:base,agreement,diet_rates:JSON.parse(dietRates),plus_rates:JSON.parse(plusRates),payroll_terms:JSON.parse(payrollTerms)}});}catch{setError('Revisa el formato de las tarifas.');}}}>Guardar configuración</button>
+   </div>
+  </section>:null}
+  {member.role==='traffic'?<section className="space-y-4"><div className="grid grid-cols-3 gap-2">{[{label:'Conductores',value:view?.drivers?.length||0},{label:'Jornadas recientes',value:view?.jornadas?.length||0},{label:'Cambios pendientes',value:pending.length}].map(x=><div key={x.label} className="rounded-xl bg-white p-4"><p className="text-2xl font-bold">{x.value}</p><p className="mt-1 text-xs text-slate-500">{x.label}</p></div>)}</div>
+    <div className="rounded-2xl border bg-white p-5"><h2 className="flex items-center gap-2 font-bold"><Truck className="h-5 w-5 text-blue-600"/>Jornadas y dietas por conductor</h2><p className="mt-1 text-xs text-slate-500">Solo conductores de tu empresa.</p><div className="mt-3 max-h-80 overflow-y-auto divide-y">{(view?.jornadas||[]).slice(0,80).map(j=><button type="button" key={j.id} onClick={()=>{setReviewJornada(j.id);setDriverId(j.user_id);setNewDietAmount(j.dieta_importe_eur||'0');}} className={'w-full py-3 text-left text-sm '+(reviewJornada===j.id?'text-blue-700 font-bold':'text-slate-700')}><span>{driverName(j.user_id)} · {j.fecha_inicio||'Sin fecha'} · {j.lugar_inicio||'—'} → {j.lugar_fin||'—'}</span><span className="block text-xs text-slate-500">Dieta {j.dieta_manual_tipo||j.tipo_ruta||'—'} · {j.dieta_importe_eur||'—'} €</span></button>)}</div></div>
+    <div className="rounded-2xl border bg-white p-5"><h2 className="font-bold">Revisar dieta seleccionada</h2><p className="mt-1 text-xs text-slate-500">Jornada: {reviewJornada||'Elige una jornada arriba'}</p><div className="mt-3 flex flex-wrap gap-3"><label className="text-sm"><input type="radio" checked={mode==='confirm'} onChange={()=>setMode('confirm')}/> Confirmar sin cambios</label><label className="text-sm"><input type="radio" checked={mode==='propose'} onChange={()=>setMode('propose')}/> Proponer modificación</label></div>
+    {mode==='propose'?<><label className="mt-3 block text-sm">Importe propuesto<input type="number" min="0" step="0.01" value={newDietAmount} onChange={e=>setNewDietAmount(e.target.value)} className={input+' mt-1'}/></label><textarea value={reason} onChange={e=>setReason(e.target.value)} className={input+' mt-2'} placeholder="Motivo obligatorio del cambio (mínimo 10 caracteres)" rows={3}/></>:null}
+    <textarea className={input+' mt-3'} rows={2} placeholder="Observación opcional" value={observation} onChange={e=>setObservation(e.target.value)}/>
+    <button disabled={!reviewJornada||busy} className={button+' mt-3'} onClick={async()=>{const res=await action({action:'review',jornadaId:reviewJornada,driverId,mode,amount:Number(newDietAmount),reason,observation});if(res){setReviewJornada('');setMessage(mode==='confirm'?'Dieta confirmada y conductor avisado.':'Propuesta registrada y enviada al conductor.');}}}>{mode==='confirm'?'Confirmar dieta':'Enviar propuesta al conductor'}</button>
+    </div></section>:null}
+  {member.role==='hr'?<section className="space-y-4"><div className="rounded-2xl border bg-white p-5"><h2 className="flex items-center gap-2 text-xl font-bold"><Wallet className="h-5 w-5 text-blue-600"/>Liquidación de dietas y pluses</h2><p className="mt-1 text-sm text-slate-500">Solo conceptos confirmados. Sin acceso a ubicaciones ni al panel de Tráfico.</p>
+   <label className="mt-4 block text-sm font-semibold">Mes<input type="month" value={month} onChange={e=>setMonth(e.target.value)} className={input+' mt-1 max-w-xs'}/></label><div className="mt-4 grid grid-cols-3 gap-2">{[{label:'Confirmadas',value:payable.length},{label:'Pendientes',value:hrReviews.filter(r=>r.status==='awaiting_driver').length},{label:'En discrepancia',value:hrReviews.filter(r=>r.status==='disputed').length}].map(x=><div key={x.label} className="rounded-xl bg-slate-50 p-3"><p className="text-2xl font-bold">{x.value}</p><p className="text-xs text-slate-500">{x.label}</p></div>)}</div><p className="mt-3 text-xl font-bold">Dietas a liquidar: {euro(total)}</p><div className="mt-4 flex flex-wrap items-center gap-3"><button type="button" disabled={busy||!active||hrReviews.length===0||!!view?.closures?.some(x=>x.month===month)} className={button} onClick={async()=>{
+    if(!window.confirm('Cerrar el mes '+month+' con las dietas confirmadas? Las pendientes y discrepancias quedarán identificadas. Este cierre no podrá sobrescribirse.'))return;
+    setBusy(true);setError('');try{const t=await token();const r=await fetch('/api/empresas/payroll',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+t},body:JSON.stringify({month})});const j=await r.json();if(!r.ok)throw Error(j.error||'No se pudo cerrar el mes');setMessage('Cierre mensual guardado para '+j.drivers+' conductores.');await load();}catch(e:unknown){setError(e instanceof Error?e.message:'Error de cierre');}finally{setBusy(false);}
+   }}>Cerrar mes confirmado</button>{view?.closures?.some(x=>x.month===month)?<span className="text-xs font-semibold text-emerald-700">Mes ya cerrado</span>:null}</div><p className="text-xs text-slate-500">Las cantidades no confirmadas no desaparecen; siguen identificadas como pendientes o discrepantes.</p></div>
+   <div className="rounded-2xl border bg-white p-5"><h3 className="font-bold">Revisiones y observaciones</h3><div className="mt-3 divide-y">{hrReviews.map(r=><div key={r.id} className="py-3 text-sm"><p className="font-semibold">{driverName(r.driver_id)} · {r.jornada_date||'Sin fecha'} · {r.status}</p><p className="text-slate-600">{r.original_diet_type||'Dieta'}: {euro(Number(r.original_amount))}{r.proposed_amount!==null?' → '+euro(Number(r.proposed_amount)):''}</p>{r.change_reason?<p className="text-xs text-amber-800">Motivo: {r.change_reason}</p>:null}{r.driver_observation?<p className="text-xs text-blue-800">Conductor: {r.driver_observation}</p>:null}</div>)}</div></div></section>:null}
+  {member.role==='driver'?<section className="space-y-4"><div className="rounded-2xl border bg-white p-5"><h2 className="font-bold">Mis condiciones de empresa</h2><p className="mt-2 text-sm">Base: {view?.driverSettings?.base_name||'Pendiente'} · Convenio: {view?.driverSettings?.agreement||'Pendiente'}</p><p className="mt-2 text-xs text-slate-500">Gestionadas por la empresa. Puedes solicitar correcciones mediante una observación.</p></div>
+   <div className="rounded-2xl border bg-white p-5"><h2 className="text-lg font-bold">Revisiones de mis dietas</h2><div className="mt-3 space-y-3">{reviews.map(r=><div key={r.id} className="rounded-xl border p-4"><p className="text-sm font-bold">{r.original_diet_type||'Dieta'} · {euro(Number(r.original_amount))}{r.proposed_amount!==null?' → '+euro(Number(r.proposed_amount)):''}</p><p className="mt-1 text-xs text-slate-500">Estado: {r.status}</p>{r.change_reason?<p className="mt-2 text-sm text-slate-700">Motivo de Tráfico: {r.change_reason}</p>:null}
+    {r.status==='awaiting_driver'?<div className="mt-3 space-y-2"><textarea className={input} rows={2} value={responseTexts[r.id]||''} onChange={e=>setResponseTexts({...responseTexts,[r.id]:e.target.value})} placeholder="Observación opcional al aceptar, obligatoria al discrepar"/><div className="flex flex-wrap gap-2"><button disabled={busy} className={button} onClick={()=>void action({action:'respond',reviewId:r.id,response:'accept',observation:responseTexts[r.id]||''})}>Aceptar cambio</button><button disabled={busy} className="rounded-xl border border-red-300 px-4 py-2 text-sm font-semibold text-red-700" onClick={()=>void action({action:'respond',reviewId:r.id,response:'dispute',observation:responseTexts[r.id]||''})}>No estoy conforme</button></div></div>:null}
+   </div>)}</div></div></section>:null}
+  </>:null}
+  <p className="text-xs leading-relaxed text-slate-500">Este es el módulo empresarial en preparación. Los permisos de Tráfico y RRHH se comprueban en el servidor. Las revisiones de dieta no alteran el registro original del conductor y la aceptación no implica renunciar a derechos salariales.</p>
+ </div></main>;
+}

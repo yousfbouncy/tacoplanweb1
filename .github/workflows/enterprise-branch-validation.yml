@@ -1,0 +1,19 @@
+name: Enterprise branch validation
+on:
+  push:
+    branches:
+      - feat/tacoplan-enterprise-roles-trial-foundation-20261114
+  workflow_dispatch:
+jobs:
+  typecheck:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npm run typecheck
