@@ -131,8 +131,8 @@ export function Navbar() {
               <div className="w-[240px] h-10" />
             ) : user ? (
               <div className="flex items-center space-x-4">
-                <Link href="/mi-negocio" className="text-gray-700 hover:text-blue-600 transition">
-                  Mi negocio
+                <Link href="/mi-tacoplan" className="text-gray-700 hover:text-blue-600 transition">
+                  Mi Tacoplan
                 </Link>
                 <Link href="/perfil" className="text-gray-700 hover:text-blue-600 transition">
                   Perfil
@@ -144,8 +144,8 @@ export function Navbar() {
               </div>
             ) : (
               <div className="flex items-center space-x-4">
-                <Link href="/login">
-                  <Button variant="outline">Iniciar Sesión</Button>
+                <Link href="/mi-tacoplan">
+                  <Button variant="outline">Mi Tacoplan · Entrar</Button>
                 </Link>
                 <DownloadApkDialogButton />
               </div>
@@ -199,11 +199,11 @@ export function Navbar() {
             {loading ? null : user ? (
               <>
                 <Link
-                  href="/mi-negocio"
+                  href="/mi-tacoplan"
                   className="block text-gray-700 hover:text-blue-600"
                   onClick={() => setMobileMenuOpen(false)}
                 >
-                  Mi negocio
+                  Mi Tacoplan
                 </Link>
                 <Link
                   href="/perfil"
@@ -219,9 +219,9 @@ export function Navbar() {
               </>
             ) : (
               <div className="space-y-2">
-                <Link href="/login" className="block">
+                <Link href="/mi-tacoplan" className="block" onClick={() => setMobileMenuOpen(false)}>
                   <Button variant="outline" className="w-full">
-                    Iniciar Sesión
+                    Mi Tacoplan · Entrar
                   </Button>
                 </Link>
                 <DownloadApkDialogButton className="w-full" />
