@@ -4,9 +4,11 @@ import {Building2,Users,Truck,Wallet,ShieldCheck,LogOut,Plus,RefreshCw,CheckCirc
 import {useAuth} from '@/lib/auth-context';
 import {supabase} from '@/lib/supabase';
 import {PLAN_PRICES} from '@/lib/tp-enterprise-plans';
+import {EnterpriseDriverConfig,blankCompanyConfig} from '@/components/enterprise-driver-config';
+import type {InitialEmployeeConfig} from '@/lib/tp-employee-config';
 type Member={company_id:string;username:string;role:'owner'|'traffic'|'hr'|'driver'};
 type Review={id:string;driver_id:string;jornada_id?:string;jornada_date?:string;status:string;original_diet_type:string|null;original_amount:number;proposed_diet_type:string|null;proposed_amount:number|null;original_pluses?:Array<{concepto:string;importe:number}>;proposed_pluses?:Array<{concepto:string;importe:number}>|null;change_reason:string|null;driver_observation:string|null;traffic_observation:string|null;created_at:string};
-type Dashboard={member:Member|null;company?:{id:string;name:string;subscription_status:string;trial_ends_at:string|null;plan_price_id:string|null};team?:Array<{user_id:string;username:string;role:string;active?:boolean}>;drivers?:Array<{user_id:string;username:string}>;invites?:Array<{username:string;role:string;email:string;accepted_at:string|null}>;settings?:Array<{driver_id:string;base_name:string|null;workplace?:string|null;agreement:string|null;diet_rates?:Record<string,unknown>;plus_rates?:Record<string,unknown>;payroll_terms?:Record<string,unknown>}>;driverSettings?:{base_name:string|null;agreement:string|null};jornadas?:Array<{id:string;user_id:string;fecha_inicio:string|null;hora_inicio:string|null;hora_fin:string|null;lugar_inicio:string|null;lugar_fin:string|null;tipo_ruta:string|null;dieta_manual_tipo:string|null;dieta_importe_eur:string|null;plus_items?:Array<{concepto:string;importe:number}>}>;reviews?:Review[];closures?:Array<{id:string;month:string;driver_id:string;total_diets:number;closed_at:string}>};
+type Dashboard={member:Member|null;company?:{id:string;name:string;subscription_status:string;trial_ends_at:string|null;plan_price_id:string|null};team?:Array<{user_id:string;username:string;employee_name?:string;role:string;active?:boolean}>;drivers?:Array<{user_id:string;username:string}>;invites?:Array<{id:string;username:string;employee_name?:string;role:string;email:string;accepted_at:string|null;initial_settings?:InitialEmployeeConfig}>;settings?:Array<{driver_id:string;base_name:string|null;workplace?:string|null;agreement:string|null;initial_config?:InitialEmployeeConfig;diet_rates?:Record<string,unknown>;plus_rates?:Record<string,unknown>;payroll_terms?:Record<string,unknown>}>;driverSettings?:{base_name:string|null;agreement:string|null};jornadas?:Array<{id:string;user_id:string;fecha_inicio:string|null;hora_inicio:string|null;hora_fin:string|null;lugar_inicio:string|null;lugar_fin:string|null;tipo_ruta:string|null;dieta_manual_tipo:string|null;dieta_importe_eur:string|null;plus_items?:Array<{concepto:string;importe:number}>}>;reviews?:Review[];closures?:Array<{id:string;month:string;driver_id:string;total_diets:number;closed_at:string}>};
 const roleLabels={owner:'Administrador de empresa',traffic:'Departamento de Tráfico',hr:'Recursos Humanos',driver:'Conductor'};
 const monthNow=()=>new Date().toISOString().slice(0,7);
 const euro=(n:number)=>new Intl.NumberFormat('es-ES',{style:'currency',currency:'EUR'}).format(n);
@@ -26,9 +28,12 @@ export function EnterprisePortal(){
  const autoAcceptStarted=useRef(false);
  const [signupFeedback,setSignupFeedback]=useState<'verify'|'ready'|null>(null);
  const [companyName,setCompanyName]=useState(''),[ownerUsername,setOwnerUsername]=useState(''),[planId,setPlanId]=useState<string>(PLAN_PRICES[0].priceId);
- const [staffEmail,setStaffEmail]=useState(''),[staffUsername,setStaffUsername]=useState(''),[staffRole,setStaffRole]=useState('driver');
+ const [staffEmail,setStaffEmail]=useState(''),[staffUsername,setStaffUsername]=useState(''),[staffName,setStaffName]=useState(''),[staffRole,setStaffRole]=useState('');
+ const [staffConfig,setStaffConfig]=useState<InitialEmployeeConfig>(blankCompanyConfig);
+ const [pendingInviteId,setPendingInviteId]=useState(''),[pendingInviteName,setPendingInviteName]=useState(''),[pendingInviteConfig,setPendingInviteConfig]=useState<InitialEmployeeConfig>(blankCompanyConfig);
  const [latestInvite,setLatestInvite]=useState('');
  const [driverId,setDriverId]=useState(''),[base,setBase]=useState(''),[workplace,setWorkplace]=useState(''),[agreement,setAgreement]=useState('');
+ const [editDriverConfig,setEditDriverConfig]=useState<InitialEmployeeConfig>(blankCompanyConfig);
  const [payrollTerms,setPayrollTerms]=useState('{}');
  const [dietRates,setDietRates]=useState('{"nacional_100":54.30,"internacional_100":72.77}'),[plusRates,setPlusRates]=useState('{"domingo":80,"festivo":80}');
  const [proposedPluses,setProposedPluses]=useState<Array<{concepto:string;importe:number}>>([]);
@@ -115,6 +120,18 @@ export function EnterprisePortal(){
    set(JSON.stringify(next));
   }catch{set(JSON.stringify({[key]:value.replace(',','.')}));}
  };
+ const selectDriver=(id:string)=>{
+  setDriverId(id);
+  const data=view?.settings?.find(x=>x.driver_id===id);
+  setEditDriverConfig(data?.initial_config&&Object.keys(data.initial_config).length?data.initial_config:blankCompanyConfig());
+  setAgreement(data?.agreement||'');
+ };
+ const selectInvite=(id:string)=>{
+  setPendingInviteId(id);
+  const i=view?.invites?.find(x=>x.id===id);
+  setPendingInviteName(i?.employee_name||'');
+  setPendingInviteConfig(i?.initial_settings&&Object.keys(i.initial_settings).length?i.initial_settings:blankCompanyConfig());
+ };
  const member=view?.member;
  const title=view?.company?.name||'Tacoplan Empresas';
  const active=view?.company?.subscription_status==='active'||(view?.company?.subscription_status==='trialing'&&Boolean(view.company.trial_ends_at)&&new Date(view.company.trial_ends_at!).getTime()>Date.now());
@@ -171,54 +188,67 @@ export function EnterprisePortal(){
    <a href="/contacto" className="mt-4 inline-flex rounded-xl bg-blue-700 px-4 py-2.5 text-sm font-semibold text-white">Contactar para activar un plan</a>
   </section>:null}
   {member.role==='owner'?<section className="grid gap-4 lg:grid-cols-2">
-   <div className="rounded-2xl border bg-white p-5"><h2 className="flex items-center gap-2 text-lg font-bold"><Users className="h-5 w-5 text-blue-600"/>Alta de empleados y departamentos</h2><p className="mt-2 text-sm text-slate-600">Crea accesos para Tráfico, RRHH y conductores. El empleado establece su contraseña de manera segura.</p>
-    <input className={input+' mt-3'} value={staffEmail} onChange={e=>setStaffEmail(e.target.value)} placeholder="Correo de empleado"/>
-    <input className={input+' mt-3'} value={staffUsername} onChange={e=>setStaffUsername(e.target.value.toLowerCase())} placeholder="Nombre de usuario"/>
-    <select className={input+' mt-3'} value={staffRole} onChange={e=>setStaffRole(e.target.value)}><option value="driver">Conductor</option><option value="traffic">Tráfico</option><option value="hr">Recursos Humanos</option></select>
-    <button disabled={busy} className={button+' mt-3'} onClick={async()=>{const result=await action({action:'invite',email:staffEmail,username:staffUsername,role:staffRole});if(result){setLatestInvite(result.url);setMessage('Invitación privada creada. Envía este enlace al empleado.');}}}><Plus className="mr-1 inline h-4 w-4"/>Crear invitación</button>
-    {latestInvite?<div className="mt-3 rounded-xl bg-blue-50 p-3"><p className="text-xs font-semibold text-blue-900">Invitación (válida 7 días)</p><input readOnly className={input+' mt-2 text-xs'} value={latestInvite}/><button className="mt-2 flex items-center gap-2 text-sm font-semibold text-blue-700" onClick={()=>void navigator.clipboard.writeText(latestInvite)}><Copy className="h-4 w-4"/>Copiar enlace</button></div>:null}
+   <div className="rounded-2xl border bg-white p-5 lg:col-span-2">
+    <h2 className="flex items-center gap-2 text-lg font-bold"><Users className="h-5 w-5 text-blue-600"/>Alta de empleado</h2>
+    <p className="mt-2 text-sm text-slate-600">Primero selecciona el tipo de empleado. Si es conductor, configura todas sus condiciones antes de crear la invitación.</p>
+    <label className="mt-4 block text-sm font-semibold">Tipo de empleado <span className="text-red-600">*</span>
+     <select className={input+' mt-1'} required value={staffRole} onChange={e=>setStaffRole(e.target.value)}>
+      <option value="">Selecciona un tipo de empleado</option>
+      <option value="driver">Conductor</option><option value="traffic">Tráfico</option><option value="hr">Recursos Humanos</option>
+     </select>
+    </label>
+    {staffRole?<div className="mt-3 grid gap-3 sm:grid-cols-3">
+     <label className="text-sm font-semibold">Nombre y apellidos <span className="text-red-600">*</span>
+      <input className={input+' mt-1'} value={staffName} onChange={e=>setStaffName(e.target.value)} placeholder="Nombre completo"/></label>
+     <label className="text-sm font-semibold">Correo electrónico <span className="text-red-600">*</span>
+      <input type="email" className={input+' mt-1'} value={staffEmail} onChange={e=>setStaffEmail(e.target.value)} placeholder="empleado@empresa.es"/></label>
+     <label className="text-sm font-semibold">Nombre de usuario <span className="text-red-600">*</span>
+      <input className={input+' mt-1'} value={staffUsername} onChange={e=>setStaffUsername(e.target.value.toLowerCase())} placeholder="conductor15"/></label>
+    </div>:null}
+    {staffRole==='driver'?<div className="mt-5"><h3 className="mb-3 text-lg font-bold">Configuración inicial de Tacoplan</h3>
+      <EnterpriseDriverConfig value={staffConfig} onChange={setStaffConfig} idPrefix="new-driver"/></div>:null}
+    {staffRole?<button type="button" disabled={busy||staffName.trim().length<2||!staffEmail.trim()||!staffUsername.trim()} className={button+' mt-5'} onClick={async()=>{
+     const result=await action({action:'invite',email:staffEmail,username:staffUsername,employeeName:staffName,role:staffRole,initialSettings:staffRole==='driver'?staffConfig:null});
+     if(result){setLatestInvite(result.url);setStaffName('');setStaffEmail('');setStaffUsername('');setStaffRole('');setStaffConfig(blankCompanyConfig());setMessage('Invitación creada y configuración guardada en Supabase. Comparte el enlace con el empleado.');}
+    }}><Plus className="mr-1 inline h-4 w-4"/>Crear invitación de empleado</button>:null}
+    {latestInvite?<div className="mt-3 rounded-xl border border-blue-200 bg-blue-50 p-3"><p className="text-xs font-semibold text-blue-900">Invitación privada · válida 7 días</p><input readOnly className={input+' mt-2 text-xs'} value={latestInvite}/><button type="button" className="mt-2 flex items-center gap-2 text-sm font-semibold text-blue-700" onClick={()=>void navigator.clipboard.writeText(latestInvite)}><Copy className="h-4 w-4"/>Copiar enlace</button></div>:null}
    </div>
-   <div className="rounded-2xl border bg-white p-5"><h2 className="text-lg font-bold">Personal de empresa</h2><div className="mt-3 max-h-80 space-y-2 overflow-y-auto">{(view?.team||[]).map(x=><div className="flex items-center justify-between gap-3 rounded-xl border p-3" key={x.user_id}><span className="text-sm font-semibold">{x.username}</span><span className="text-xs text-slate-500">{roleLabels[x.role as keyof typeof roleLabels]||x.role}</span></div>)}</div></div>
-   <div className="rounded-2xl border bg-white p-5 lg:col-span-2"><h2 className="text-lg font-bold">Configuración del conductor</h2><p className="mt-1 text-sm text-slate-500">Condiciones gestionadas exclusivamente por la empresa.</p>
-    <div className="mt-3 grid gap-3 sm:grid-cols-2">
-     <label className="text-sm font-semibold">Conductor<select className={input+' mt-1'} value={driverId} onChange={e=>setDriverId(e.target.value)}>
-      <option value="">Selecciona un conductor</option>{(view?.team||[]).filter(x=>x.role==='driver'&&x.active!==false).map(x=><option key={x.user_id} value={x.user_id}>{x.username}</option>)}
-     </select></label>
-     <label className="text-sm font-semibold">Base de trabajo<input className={input+' mt-1'} placeholder="Ej. Abrera" value={base} onChange={e=>setBase(e.target.value)}/></label>
-     <label className="text-sm font-semibold">Centro de trabajo<input className={input+' mt-1'} placeholder="Centro o delegación" value={workplace} onChange={e=>setWorkplace(e.target.value)}/></label>
-     <label className="text-sm font-semibold">Convenio aplicable<input className={input+' mt-1'} placeholder="Ej. Transporte de Barcelona" value={agreement} onChange={e=>setAgreement(e.target.value)}/></label>
-    </div>
-    {!driverId?<p className="mt-3 rounded-xl bg-blue-50 p-3 text-sm text-blue-800">Cuando el empleado acepte la invitación aparecerá aquí para configurar sus condiciones. Antes de incorporarlo, no se pueden guardar tarifas a su nombre.</p>:null}
-    <div className="mt-5 rounded-xl border border-slate-200 p-4">
-     <h3 className="font-bold">Dietas de empresa</h3><p className="mt-1 text-xs text-slate-500">Introduce el importe correspondiente a cada tipo y porcentaje, en euros.</p>
-     <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
-      {([{key:'nacional',label:'Nacional'},{key:'internacional',label:'Internacional'},{key:'regional',label:'Regional'}] as const).flatMap(t=>[100,60,30].map(pct=>{
-       const key=t.key+'_'+pct;return <label key={key} className="text-xs font-semibold text-slate-700">{t.label} · {pct} %
-        <div className="relative mt-1"><input type="number" min="0" step="0.01" inputMode="decimal" className={input+' pr-8'} value={fieldValue(dietRates,key)} onChange={e=>updateField(dietRates,setDietRates,key,e.target.value)}/><span className="absolute right-3 top-3 text-slate-500">€</span></div>
-       </label>;
-      }))}
-     </div>
-    </div>
-    <div className="mt-4 rounded-xl border border-slate-200 p-4">
-     <h3 className="font-bold">Pluses</h3>
-     <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
-      {([{key:'domingo',label:'Domingos'},{key:'festivo',label:'Festivos'},{key:'sabado',label:'Sábados'},{key:'nocturnidad',label:'Nocturnidad'},{key:'pernocta',label:'Pernoctas'},{key:'fin_semana_fuera',label:'Fin de semana fuera'}] as const).map(x=><label key={x.key} className="text-xs font-semibold text-slate-700">{x.label}
-       <div className="relative mt-1"><input type="number" min="0" step="0.01" inputMode="decimal" className={input+' pr-8'} value={fieldValue(plusRates,x.key)} onChange={e=>updateField(plusRates,setPlusRates,x.key,e.target.value)}/><span className="absolute right-3 top-3 text-slate-500">€</span></div>
-      </label>)}
-     </div>
-    </div>
-    <div className="mt-4 rounded-xl border border-slate-200 p-4">
-     <h3 className="font-bold">Condiciones de nómina</h3>
-     <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
-      {([{key:'salario_base',label:'Salario base'},{key:'complementos',label:'Complementos'},{key:'pagas_extra',label:'Pagas extra'}] as const).map(x=><label key={x.key} className="text-xs font-semibold text-slate-700">{x.label}
-       <div className="relative mt-1"><input type="number" min="0" step="0.01" inputMode="decimal" className={input+' pr-8'} value={fieldValue(payrollTerms,x.key)} onChange={e=>updateField(payrollTerms,setPayrollTerms,x.key,e.target.value)}/><span className="absolute right-3 top-3 text-slate-500">€</span></div>
-      </label>)}
-     </div>
-    </div>
-    <button disabled={!driverId||busy} className={button+' mt-4'} onClick={async()=>{
-     try{const r=await action({action:'update_settings',driverId,settings:{base_name:base,workplace,agreement,diet_rates:JSON.parse(dietRates),plus_rates:JSON.parse(plusRates),payroll_terms:JSON.parse(payrollTerms)}});if(r)setMessage('Configuración del conductor guardada correctamente.');}
-     catch{setError('No se pudieron guardar las tarifas. Comprueba los importes.');}
-    }}>{busy?'Guardando…':'Guardar configuración'}</button>
+   <div className="rounded-2xl border bg-white p-5 lg:col-span-2">
+    <h2 className="text-lg font-bold">Personal de empresa</h2>
+    <div className="mt-3 space-y-2">{(view?.team||[]).map(x=><div className="flex items-center justify-between gap-3 rounded-xl border p-3" key={x.user_id}>
+     <div><p className="text-sm font-semibold">{x.employee_name||x.username}</p><p className="text-xs text-slate-500">@{x.username}</p></div>
+     <span className="text-xs text-slate-500">{roleLabels[x.role as keyof typeof roleLabels]||x.role}</span>
+    </div>)}</div>
+    <h3 className="mt-5 font-bold">Invitaciones pendientes de activación</h3>
+    <p className="mt-1 text-xs text-slate-500">Una invitación no equivale a un empleado activo. Si el conductor ya ha creado su acceso, debe volver al enlace y finalizar la vinculación.</p>
+    <div className="mt-3 space-y-2">{(view?.invites||[]).filter(x=>!x.accepted_at).map(x=><button type="button" key={x.id} className={'w-full rounded-xl border p-3 text-left text-sm '+(pendingInviteId===x.id?'border-blue-500 bg-blue-50':'')} onClick={()=>selectInvite(x.id)}>
+      <strong>{x.employee_name||x.username}</strong> · @{x.username} · {roleLabels[x.role as keyof typeof roleLabels]||x.role}<span className="block text-xs text-amber-700">Pendiente — configurar o corregir antes de activar</span>
+     </button>)}</div>
+    {pendingInviteId?<div className="mt-4 space-y-3 rounded-xl border border-blue-200 p-4"><h4 className="font-bold">Completar invitación pendiente</h4>
+     <label className="text-sm font-semibold">Nombre del empleado<input className={input} value={pendingInviteName} onChange={e=>setPendingInviteName(e.target.value)}/></label>
+     {view?.invites?.find(x=>x.id===pendingInviteId)?.role==='driver'?<EnterpriseDriverConfig value={pendingInviteConfig} onChange={setPendingInviteConfig} idPrefix="pending-driver"/>:null}
+     <button className={button} disabled={busy} type="button" onClick={async()=>{
+      const selected=view?.invites?.find(x=>x.id===pendingInviteId);
+      const res=await action({action:'update_pending_invite',inviteId:pendingInviteId,employeeName:pendingInviteName,initialSettings:selected?.role==='driver'?pendingInviteConfig:null});
+      if(res){setPendingInviteId('');setMessage('Invitación actualizada. El empleado puede abrir de nuevo su enlace para finalizar la activación.');}
+     }}>Guardar datos de la invitación</button>
+    </div>:null}
+   </div>
+   <div className="rounded-2xl border bg-white p-5 lg:col-span-2">
+    <h2 className="text-lg font-bold">Configuración de conductores activos</h2>
+    <p className="mt-1 text-sm text-slate-600">El formulario siguiente es el mismo que se rellena al dar de alta. Los cambios quedan guardados y sincronizados para Tacoplan móvil.</p>
+    <label className="mt-4 block text-sm font-semibold">Conductor activo<select className={input+' mt-1'} value={driverId} onChange={e=>selectDriver(e.target.value)}>
+     <option value="">Selecciona un conductor activo</option>
+     {(view?.team||[]).filter(x=>x.role==='driver'&&x.active!==false).map(x=><option key={x.user_id} value={x.user_id}>{x.employee_name||x.username}</option>)}
+    </select></label>
+    {!driverId?<p className="mt-3 rounded-xl bg-blue-50 p-3 text-sm text-blue-900">Solo aparecerán conductores que hayan terminado de aceptar su invitación. Los pendientes están arriba.</p>:<div className="mt-4">
+      <EnterpriseDriverConfig value={editDriverConfig} onChange={setEditDriverConfig} idPrefix="existing-driver"/>
+      <label className="mt-3 block text-sm font-semibold">Convenio aplicable<input className={input} value={agreement} onChange={e=>setAgreement(e.target.value)} placeholder="Convenio del transporte"/></label>
+      <button type="button" className={button+' mt-4'} disabled={busy} onClick={async()=>{
+       const res=await action({action:'update_settings',driverId,initialSettings:editDriverConfig,agreement});
+       if(res)setMessage('Configuración guardada y sincronizada con Tacoplan del conductor.');
+      }}>Guardar y sincronizar configuración</button>
+    </div>}
    </div>
   </section>:null}
   {member.role==='traffic'?<section className="space-y-4"><div className="grid grid-cols-3 gap-2">{[{label:'Conductores',value:view?.drivers?.length||0},{label:'Jornadas recientes',value:view?.jornadas?.length||0},{label:'Cambios pendientes',value:pending.length}].map(x=><div key={x.label} className="rounded-xl bg-white p-4"><p className="text-2xl font-bold">{x.value}</p><p className="mt-1 text-xs text-slate-500">{x.label}</p></div>)}</div>
