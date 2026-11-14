@@ -20,11 +20,11 @@ function RoadAgendaMark(props: SVGProps<SVGSVGElement>) {
   );
 }
 
-export function TacoplanBrand() {
+export function TacoplanBrand({ compact = false }: { compact?: boolean }) {
   return (
-    <span className="inline-flex h-11 shrink-0 items-center gap-2 rounded-xl bg-gradient-to-r from-[#073B85] via-[#0754B7] to-[#083579] px-2.5 pr-3 shadow-sm sm:h-12 sm:gap-2.5 sm:px-3 sm:pr-4">
-      <RoadAgendaMark className="h-9 w-[50px] shrink-0 sm:h-10 sm:w-[54px]" />
-      <span className="text-[23px] font-extrabold tracking-tight text-white sm:text-[27px]">Tacoplan</span>
+    <span className="inline-flex h-11 shrink-0 items-center gap-1.5 sm:gap-2">
+      <RoadAgendaMark className={compact ? "h-8 w-[43px] shrink-0" : "h-9 w-[50px] shrink-0 sm:h-10 sm:w-[54px]"} />
+      <span className={compact ? "text-xl font-extrabold tracking-tight text-white" : "text-[23px] font-extrabold tracking-tight text-white sm:text-[27px]"}>Tacoplan</span>
     </span>
   );
 }
