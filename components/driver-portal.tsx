@@ -4,10 +4,12 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
+import { DriverDrivingInsights } from '@/components/driver-driving-insights';
 import { CalendarDays, Clock3, Truck, Wallet, ShieldCheck, LogOut, RefreshCw, ChevronDown, ChevronUp, LockKeyhole } from 'lucide-react';
 
 type Jornada = {
  id:string;fecha_inicio:string|null;fecha_fin:string|null;created_at:string;
+ hora_inicio:string|null;hora_fin:string|null;start_at:string|null;end_at:string|null;tacho_driving_min:number|null;
  lugar_inicio:string|null;lugar_fin:string|null;
  conduccion_min:number|null;duracion_jornada_min:number|null;
  descanso_anterior_min:number|null;tipo_descanso_anterior:string|null;
@@ -43,7 +45,7 @@ export function DriverPortal(){
    const [p,d,j]=await Promise.all([
     supabase.from('profiles').select('display_name,name,base_name,base_city,onboarding_completed,payroll_config').eq('id',user.id).maybeSingle(),
     supabase.from('dietas_config').select('nac_100,intl_100').eq('user_id',user.id).maybeSingle(),
-    supabase.from('jornadas').select('id,fecha_inicio,fecha_fin,created_at,lugar_inicio,lugar_fin,conduccion_min,duracion_jornada_min,descanso_anterior_min,tipo_descanso_anterior,dieta_importe_eur,diet_base_eur,tipo_ruta').eq('user_id',user.id).order('created_at',{ascending:false}).limit(500)
+    supabase.from('jornadas').select('id,fecha_inicio,fecha_fin,hora_inicio,hora_fin,start_at,end_at,tacho_driving_min,created_at,lugar_inicio,lugar_fin,conduccion_min,duracion_jornada_min,descanso_anterior_min,tipo_descanso_anterior,dieta_importe_eur,diet_base_eur,tipo_ruta').eq('user_id',user.id).order('created_at',{ascending:false}).limit(500)
    ]);
    if(p.error)throw p.error;if(d.error && d.error.code!=='PGRST116')throw d.error;if(j.error)throw j.error;
    setProfile(p.data);setDiets(d.data);setJornadas(j.data||[]);
@@ -92,6 +94,7 @@ export function DriverPortal(){
   </header>
   <div className="grid gap-3 sm:grid-cols-3"><div className="rounded-2xl border bg-white p-4"><p className="text-xs text-slate-500">Cuenta</p><p className="mt-1 break-all text-sm font-semibold text-slate-900">{user.email||'Correo oculto por el proveedor'}</p></div><div className="rounded-2xl border bg-white p-4"><p className="text-xs text-slate-500">Base configurada</p><p className="mt-1 text-sm font-semibold text-slate-900">{profile?.base_name||profile?.base_city||'Sin configurar'}</p></div><div className="rounded-2xl border bg-white p-4"><p className="text-xs text-slate-500">Configuración inicial</p><p className="mt-1 text-sm font-semibold text-slate-900">{profile?.onboarding_completed?'Completada':'Pendiente'}</p></div></div>
   {error?<div role="alert" className="rounded-xl bg-red-50 p-4 text-sm text-red-700">{error}</div>:null}
+  <DriverDrivingInsights jornadas={jornadas} name={displayName} base={profile?.base_name||profile?.base_city||'No configurada'} reportRows={rows} reportPeriod={period==='all'?'Todos los registros cargados':'Últimos '+period+' días'} />
   <section className="space-y-4"><div className="flex flex-wrap items-center justify-between gap-3"><h2 className="text-xl font-bold text-slate-900">Resumen de tus registros</h2><select aria-label="Periodo" value={period} onChange={e=>setPeriod(e.target.value as Period)} className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm"><option value="7">Últimos 7 días</option><option value="14">Últimos 14 días</option><option value="30">Últimos 30 días</option><option value="all">Todos los registros cargados</option></select></div>
   <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
    {[{icon:CalendarDays,label:'Jornadas registradas',value:String(rows.length)},
