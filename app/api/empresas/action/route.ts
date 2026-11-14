@@ -1,4 +1,5 @@
 import {NextRequest} from 'next/server';
+import {normalizeEmployeeConfig,syncEmployeeConfig} from '@/lib/tp-employee-config';
 import {createHash,randomBytes} from 'node:crypto';
 import {membership,identity,enterpriseJson,originAllowed,permitted,cleanEmail,validEmail,cleanUsername,validUsername,uuid,PLAN_PRICES,audit,isPaidAccess} from '@/lib/tp-enterprise';
 export const dynamic='force-dynamic';
@@ -54,23 +55,53 @@ export async function POST(req:NextRequest){
   return json({ok:true,companyId:company.data.id,subscription:'trialing',trialEndsAt},201);
  }
  if(action==='accept_invite'){
-  if(member)return json({error:'Ya estás vinculado a una empresa'},409);
   const token=plain(body.token,128);
   if(!/^[0-9a-f]{64}$/.test(token))return json({error:'Invitación inválida'},400);
   const hash=createHash('sha256').update(token).digest('hex');
-  const i=await db.from('tp_company_invites').select('*').eq('token_hash',hash).maybeSingle();
-  if(i.error)throw i.error;
-  const invite=i.data;
-  if(!invite||invite.accepted_at||invite.revoked_at||new Date(invite.expires_at).getTime()<Date.now())return json({error:'Invitación caducada o no disponible'},410);
-  if(cleanEmail(user.email)!==cleanEmail(invite.email))return json({error:'Inicia sesión con el correo invitado'},403);
-  const {error:memberError}=await db.from('tp_company_members').insert({company_id:invite.company_id,user_id:user.id,username:invite.username,role:invite.role});
-  if(memberError)return json({error:'El usuario ya existe o pertenece a otra empresa'},409);
-  await db.from('tp_company_invites').update({accepted_at:new Date().toISOString()}).eq('id',invite.id).is('accepted_at',null);
+  const lookup=await db.from('tp_company_invites').select('*').eq('token_hash',hash).maybeSingle();
+  if(lookup.error)throw lookup.error;
+  const invite=lookup.data;
+  if(!invite||invite.revoked_at||new Date(invite.expires_at).getTime()<Date.now())
+   return json({error:'Invitación caducada o revocada. Solicita una nueva'},410);
+  if(cleanEmail(user.email)!==cleanEmail(invite.email))return json({error:'Inicia sesión con el correo electrónico al que se envió la invitación'},403);
+  if(member&&member.company_id!==invite.company_id)return json({error:'Ya perteneces a otra empresa'},409);
+  if(member&&member.role!==invite.role)return json({error:'Ya tienes un perfil distinto en esta empresa'},409);
+  if(invite.accepted_at&&member)return json({ok:true,role:member.role,alreadyAccepted:true});
+  if(invite.accepted_at)return json({error:'Invitación ya utilizada'},409);
+  const name=plain(invite.employee_name||invite.username,120);
+  if(!name)return json({error:'El nombre del empleado no está configurado'},400);
+  let cfg:ReturnType<typeof normalizeEmployeeConfig>|null=null;
   if(invite.role==='driver'){
-   const insert=await db.from('tp_driver_settings').insert({company_id:invite.company_id,driver_id:user.id,updated_by:invite.invited_by});
-   if(insert.error)console.error('tp config pending',insert.error.message);
+   try{cfg=normalizeEmployeeConfig(invite.initial_settings);}catch(e){
+    return json({error:e instanceof Error?e.message:'La empresa debe configurar el conductor antes de activar su cuenta'},409);
+   }
   }
-  await audit(db,invite.company_id,user.id,'member.accepted','member',user.id,null,{role:invite.role,username:invite.username});
+  if(!member){
+   const inserted=await db.from('tp_company_members').insert({company_id:invite.company_id,user_id:user.id,username:invite.username,employee_name:name,role:invite.role});
+   if(inserted.error){
+    const existing=await db.from('tp_company_members').select('company_id,role').eq('user_id',user.id).maybeSingle();
+    if(existing.data?.company_id!==invite.company_id||existing.data?.role!==invite.role)return json({error:'Esta cuenta ya pertenece a otra empresa o el nombre de usuario está ocupado'},409);
+   }
+  }
+  if(cfg){
+   const stored=await db.from('tp_driver_settings').upsert({
+    company_id:invite.company_id,driver_id:user.id,base_name:cfg.base_name,workplace:cfg.base_city,
+    agreement:plain(cfg.payroll_terms?.agreement,120)||null,
+    diet_rates:cfg.diet_rates,plus_rates:cfg.plus_rates,
+    payroll_terms:{...cfg.payroll_terms,payment_mode:cfg.payment_mode,diet_scheme:cfg.diet_scheme},
+    initial_config:cfg,updated_by:invite.invited_by,updated_at:new Date().toISOString()
+   },{onConflict:'company_id,driver_id'});
+   if(stored.error)throw stored.error;
+   // Ensure standard mobile Tacoplan reads the exact company configuration.
+   await syncEmployeeConfig(db,user.id,name,cfg);
+  }else{
+   // Keep the employee display name in Supabase for HR and Traffic too.
+   const profile=await db.from('profiles').upsert({id:user.id,display_name:name,updated_at:new Date().toISOString()},{onConflict:'id'});
+   if(profile.error)throw profile.error;
+  }
+  const updated=await db.from('tp_company_invites').update({accepted_at:new Date().toISOString()}).eq('id',invite.id).is('accepted_at',null);
+  if(updated.error)throw updated.error;
+  await audit(db,invite.company_id,user.id,'member.accepted','member',user.id,null,{role:invite.role,username:invite.username,employee_name:name});
   return json({ok:true,role:invite.role});
  }
  if(!member)return json({error:'No tienes empresa asignada'},403);
@@ -83,6 +114,13 @@ export async function POST(req:NextRequest){
  if(action==='invite'){
   if(!permitted(role,'owner'))return json({error:'Solo el administrador crea usuarios'},403);
   const username=cleanUsername(body.username),email=cleanEmail(body.email),inviteRole=body.role;
+  const employeeName=plain(body.employeeName,120);
+  if(employeeName.length<2)return json({error:'Indica el nombre y apellidos del empleado'},400);
+  let initialSettings:ReturnType<typeof normalizeEmployeeConfig>|null=null;
+  if(inviteRole==='driver'){
+   try{initialSettings=normalizeEmployeeConfig(body.initialSettings);}
+   catch(e){return json({error:e instanceof Error?e.message:'Completa la configuración inicial del conductor'},400);}
+  }
   if(!validUsername(username)||!validEmail(email)||!['traffic','hr','driver'].includes(inviteRole))return json({error:'Usuario, correo o rol incorrectos'},400);
   const {data:company,error:ce}=await db.from('tp_companies').select('plan_price_id').eq('id',companyId).single();
   if(ce)throw ce;
@@ -100,11 +138,11 @@ export async function POST(req:NextRequest){
   if(existing.data||(pending.data||[]).length)return json({error:'Nombre de usuario ya reservado'},409);
   const token=randomBytes(32).toString('hex');
   const insert=await db.from('tp_company_invites').insert({
-    company_id:companyId,username,email,role:inviteRole,token_hash:createHash('sha256').update(token).digest('hex'),
+    company_id:companyId,username,email,employee_name:employeeName,initial_settings:initialSettings||{},role:inviteRole,token_hash:createHash('sha256').update(token).digest('hex'),
     invited_by:user.id,expires_at:new Date(Date.now()+7*DAY).toISOString()
   }).select('id').single();
   if(insert.error)throw insert.error;
-  await audit(db,companyId,user.id,'member.invited','invite',insert.data.id,null,{username,email,role:inviteRole});
+  await audit(db,companyId,user.id,'member.invited','invite',insert.data.id,null,{username,email,employee_name:employeeName,role:inviteRole,has_initial_config:Boolean(initialSettings)});
   return json({ok:true,url:'https://tacoplan.es/empresas?invite='+token},201);
  }
  if(action==='update_settings'){
