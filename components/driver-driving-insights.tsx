@@ -1,8 +1,8 @@
 'use client';
 
 import { useEffect,useMemo,useState } from 'react';
-import { Clock3,Truck,Share2,Download,AlertTriangle,CalendarDays,RefreshCw } from 'lucide-react';
-import { buildDriverReportPdf } from '@/lib/driver-report-pdf';
+import { Clock3,Truck,AlertTriangle,CalendarDays } from 'lucide-react';
+import { DriverReportManager } from '@/components/driver-report-manager';
 
 export type DrivingJornada={
  id:string;created_at:string;fecha_inicio:string|null;fecha_fin:string|null;hora_inicio:string|null;hora_fin:string|null;
@@ -45,7 +45,7 @@ export function DriverDrivingInsights({jornadas,name,base,reportRows,reportPerio
  jornadas:DrivingJornada[];name:string;base:string;reportRows:DrivingJornada[];reportPeriod:string;
 }){
  const [now,setNow]=useState(()=>Date.now());
- const [sharing,setSharing]=useState(false),[message,setMessage]=useState('');
+
  useEffect(()=>{const id=setInterval(()=>setNow(Date.now()),1000);return()=>clearInterval(id);},[]);
  const start=weekStartUTC(now),prev=start-7*86_400_000;
  const weekly=jornadas.filter(j=>{const d=dayMs(j);return Number.isFinite(d)&&d>=start&&d<=now&&d<start+7*86_400_000;});
@@ -64,39 +64,6 @@ export function DriverDrivingInsights({jornadas,name,base,reportRows,reportPerio
   if(open)return {kind:'working' as const};
   return {kind:'rest' as const,from:last.t!,minutes:Math.max(0,Math.floor((now-last.t!)/60000))};
  },[jornadas,now]);
- const periodRows=reportRows.filter(j=>{const d=dayMs(j);return Number.isFinite(d)&&d<=now;}).sort((a,b)=>dayMs(b)-dayMs(a));
- const report=()=>{
-  const today=new Date();
-  const allDriving=periodRows.reduce((v,j)=>v+(driving(j)||0),0);
-  const work=periodRows.reduce((v,j)=>v+(j.duracion_jornada_min||0),0);
-  const diets=periodRows.reduce((v,j)=>v+(parseMoney(j)||0),0);
-  const pdf=buildDriverReportPdf({
-   name,base,period:reportPeriod,generatedAt:today.toLocaleString('es-ES'),
-   week:week.total,fortnight:two.total,
-   weekMissing:week.missing,fortnightMissing:two.missing,
-   rest:rest.kind==='rest'?mins(rest.minutes):rest.kind==='working'?'Jornada posiblemente abierta':'Sin fin de jornada comprobable',
-   count:periodRows.length,driving:allDriving,work,diets,
-   rows:periodRows.map(j=>({
-    date:day(j),start:j.lugar_inicio||'—',end:j.lugar_fin||'—',
-    driving:driving(j),working:j.duracion_jornada_min,diet:parseMoney(j)
-   }))
-  });
-  return new File([pdf],'Tacoplan-informe-'+today.toISOString().slice(0,10)+'.pdf',{type:'application/pdf'});
- };
- const download=(file:File)=>{const url=URL.createObjectURL(file);const link=document.createElement('a');link.href=url;link.download=file.name;document.body.appendChild(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),30_000);};
- const share=async()=>{
-  if(sharing)return;
-  setSharing(true);setMessage('');
-  try{
-   const file=report();
-   if(navigator.share&&navigator.canShare&&navigator.canShare({files:[file]})){
-    try{await navigator.share({files:[file],title:'Informe Tacoplan',text:'Informe de jornadas registrado por el conductor en Tacoplan.'});setMessage('Informe preparado para compartir.');}
-    catch(e:unknown){if(e instanceof Error&&e.name==='AbortError')setMessage('Compartir cancelado.');else{download(file);setMessage('La opción de compartir no está disponible: se ha descargado el PDF.');}}
-   }else{download(file);setMessage('PDF descargado. Puedes enviarlo a tu empresa por correo o WhatsApp.');}
-  }catch(e){console.error('Driver report',e);setMessage('No se pudo preparar el informe. Prueba a actualizar la página.');}
-  finally{setSharing(false);}
- };
- const downloadReport=()=>{try{download(report());setMessage('Informe PDF descargado.');}catch(e){console.error(e);setMessage('No se pudo generar el PDF.');}};
  const meter=(value:number,limit:number,missing:number)=>(
   <div><div className="h-2.5 overflow-hidden rounded-full bg-slate-200"><div className={'h-full rounded-full '+(value>limit?'bg-red-500':value>=limit*0.85?'bg-amber-500':'bg-blue-600')} style={{width:Math.min(100,(value/limit)*100)+'%'}}/></div>
    <p className="mt-2 text-xs text-slate-500">{mins(value)} registrados / referencia {mins(limit)}{missing>0?' · '+missing+' jornadas sin conducción anotada':''}</p>
@@ -114,12 +81,7 @@ export function DriverDrivingInsights({jornadas,name,base,reportRows,reportPerio
     <p className="mt-3 text-xs text-blue-200">Estimación temporal, no validación legal del descanso</p>
    </article>
   </div>
-  <div className="flex flex-col gap-3 rounded-2xl border border-blue-100 bg-blue-50 p-4 sm:flex-row sm:items-center sm:justify-between">
-   <div><h3 className="font-bold text-slate-900">Informe para tu empresa</h3><p className="mt-1 text-sm text-slate-600">Jornadas, conducción, descanso y dietas del periodo seleccionado. PDF generado en tu dispositivo.</p></div>
-   <div className="flex flex-wrap gap-2"><button type="button" onClick={downloadReport} className="flex items-center gap-2 rounded-xl border border-blue-200 bg-white px-4 py-3 text-sm font-semibold text-blue-800"><Download className="h-4 w-4"/>Descargar PDF</button>
-    <button type="button" onClick={()=>void share()} disabled={sharing} className="flex items-center gap-2 rounded-xl bg-blue-700 px-4 py-3 text-sm font-bold text-white disabled:opacity-60"><Share2 className="h-4 w-4"/>{sharing?'Preparando…':'Compartir con empresa'}</button></div>
-  </div>
-  {message?<p role="status" className="rounded-lg bg-slate-100 px-3 py-2 text-sm text-slate-700">{message}</p>:null}
+  <DriverReportManager name={name}/>
   <p className="flex items-start gap-2 text-xs leading-relaxed text-slate-500"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0"/>Los límites de 56 h y 90 h son referencias normativas, no saldos legales disponibles. Si faltan jornadas o minutos, los totales pueden estar incompletos. El tiempo desde el cierre no demuestra que todo el periodo se haya registrado como descanso. Comprueba siempre el tacógrafo.</p>
  </section>;
 }
