@@ -27,6 +27,7 @@ export function EnterprisePortal(){
  const [payrollTerms,setPayrollTerms]=useState('{}');
  const [dietRates,setDietRates]=useState('{"nacional_100":54.30,"internacional_100":72.77}'),[plusRates,setPlusRates]=useState('{"domingo":80,"festivo":80}');
  const [reviewJornada,setReviewJornada]=useState(''),[mode,setMode]=useState('confirm'),[newDietAmount,setNewDietAmount]=useState(''),[reason,setReason]=useState(''),[observation,setObservation]=useState('');
+ const [trialConsent,setTrialConsent]=useState(false);
  const [month,setMonth]=useState(monthNow),[responseTexts,setResponseTexts]=useState<Record<string,string>>({});
  useEffect(()=>{const params=new URLSearchParams(window.location.search);setInviteToken(params.get('invite')||'');},[]);
  const token=async()=>{const r=await supabase.auth.getSession();if(!r.data.session?.access_token)throw Error('Inicia sesión de nuevo');return r.data.session.access_token;};
@@ -86,6 +87,18 @@ export function EnterprisePortal(){
    </div></section>:null}
   {member?<><div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-white p-4"><div><p className="text-sm font-bold text-slate-900">{member.username} · {roleLabels[member.role]}</p><p className="mt-1 text-xs text-slate-500">Estado suscripción: {view?.company?.subscription_status||'Pendiente'} · {view?.company?.trial_ends_at?'Prueba hasta '+date(view.company.trial_ends_at):'Prueba no iniciada'}</p></div><div className="flex gap-2"><button onClick={()=>void load()} className="rounded-lg border px-3 py-2 text-sm"><RefreshCw className="h-4 w-4"/></button><button onClick={()=>void signOut()} className="rounded-lg border px-3 py-2 text-sm"><LogOut className="h-4 w-4"/></button></div></div>
   {!active?<p className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">Tu cuenta empresarial está creada, pero la prueba de Stripe todavía no está activa. No se cobrarán cuotas por crear esta cuenta. Hasta completar la suscripción, este módulo es una vista de preparación.</p>:null}
+  {member.role==='owner'&&!active?<section className="rounded-2xl border border-blue-200 bg-white p-5">
+   <h2 className="text-lg font-bold text-slate-900">Activar 7 días de prueba gratuita</h2>
+   <p className="mt-2 text-sm text-slate-600">Stripe gestionará la contratación del plan elegido. La prueba dura 7 días y, si no cancelas antes de terminar, comienza el cobro mensual de la tarifa seleccionada. Puedes cancelarla desde el portal de facturación.</p>
+   <p className="mt-2 text-sm font-semibold text-blue-800">Plan: {PLAN_PRICES.find(p=>p.priceId===view?.company?.plan_price_id)?.title||'Pendiente'} · {euro((PLAN_PRICES.find(p=>p.priceId===view?.company?.plan_price_id)?.cents||0)/100)}/mes, según tratamiento de IVA configurado.</p>
+   <label className="mt-3 flex items-start gap-2 text-sm text-slate-700"><input type="checkbox" checked={trialConsent} onChange={e=>setTrialConsent(e.target.checked)} className="mt-1"/>Entiendo que después de la prueba gratuita se iniciará la suscripción mensual, salvo cancelación.</label>
+   <button disabled={!trialConsent||busy} className={button+' mt-4'} onClick={async()=>{
+    setBusy(true);setError('');try{const t=await token();const r=await fetch('/api/empresas/billing',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+t},body:JSON.stringify({action:'checkout'})});const j=await r.json();if(!r.ok)throw Error(j.error||'No se pudo activar Stripe');window.location.assign(j.url);}catch(e:unknown){setError(e instanceof Error?e.message:'Error de Stripe');}finally{setBusy(false);}
+   }}>Empezar 7 días gratis en Stripe</button>
+  </section>:null}
+  {member.role==='owner'&&active?<button className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold" disabled={busy} onClick={async()=>{
+    setBusy(true);setError('');try{const t=await token();const r=await fetch('/api/empresas/billing',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+t},body:JSON.stringify({action:'portal'})});const j=await r.json();if(!r.ok)throw Error(j.error||'No se pudo abrir Stripe');window.location.assign(j.url);}catch(e:unknown){setError(e instanceof Error?e.message:'Error');}finally{setBusy(false);}
+  }}>Gestionar suscripción y cancelación</button>:null}
   {member.role==='owner'?<section className="grid gap-4 lg:grid-cols-2">
    <div className="rounded-2xl border bg-white p-5"><h2 className="flex items-center gap-2 text-lg font-bold"><Users className="h-5 w-5 text-blue-600"/>Alta de empleados y departamentos</h2><p className="mt-2 text-sm text-slate-600">Crea accesos para Tráfico, RRHH y conductores. El empleado establece su contraseña de manera segura.</p>
     <input className={input+' mt-3'} value={staffEmail} onChange={e=>setStaffEmail(e.target.value)} placeholder="Correo de empleado"/>
