@@ -8,7 +8,7 @@ import {EnterpriseDriverConfig,blankCompanyConfig} from '@/components/enterprise
 import type {InitialEmployeeConfig} from '@/lib/tp-employee-config';
 type Member={company_id:string;username:string;role:'owner'|'traffic'|'hr'|'driver'};
 type Review={id:string;driver_id:string;jornada_id?:string;jornada_date?:string;status:string;original_diet_type:string|null;original_amount:number;proposed_diet_type:string|null;proposed_amount:number|null;original_pluses?:Array<{concepto:string;importe:number}>;proposed_pluses?:Array<{concepto:string;importe:number}>|null;change_reason:string|null;driver_observation:string|null;traffic_observation:string|null;created_at:string};
-type Dashboard={member:Member|null;company?:{id:string;name:string;subscription_status:string;trial_ends_at:string|null;plan_price_id:string|null};team?:Array<{user_id:string;username:string;employee_name?:string;role:string;active?:boolean}>;drivers?:Array<{user_id:string;username:string}>;invites?:Array<{id:string;username:string;employee_name?:string;role:string;email:string;accepted_at:string|null;initial_settings?:InitialEmployeeConfig}>;settings?:Array<{driver_id:string;base_name:string|null;workplace?:string|null;agreement:string|null;initial_config?:InitialEmployeeConfig;diet_rates?:Record<string,unknown>;plus_rates?:Record<string,unknown>;payroll_terms?:Record<string,unknown>}>;driverSettings?:{base_name:string|null;agreement:string|null};jornadas?:Array<{id:string;user_id:string;fecha_inicio:string|null;hora_inicio:string|null;hora_fin:string|null;lugar_inicio:string|null;lugar_fin:string|null;tipo_ruta:string|null;dieta_manual_tipo:string|null;dieta_importe_eur:string|null;plus_items?:Array<{concepto:string;importe:number}>}>;reviews?:Review[];closures?:Array<{id:string;month:string;driver_id:string;total_diets:number;closed_at:string}>};
+type Dashboard={member:Member|null;company?:{id:string;name:string;subscription_status:string;trial_ends_at:string|null;plan_price_id:string|null};team?:Array<{user_id:string;username:string;employee_name?:string;role:string;active?:boolean}>;drivers?:Array<{user_id:string;username:string;employee_name?:string|null}>;invites?:Array<{id:string;username:string;employee_name?:string;role:string;email:string;accepted_at:string|null;initial_settings?:InitialEmployeeConfig}>;settings?:Array<{driver_id:string;base_name:string|null;workplace?:string|null;agreement:string|null;initial_config?:InitialEmployeeConfig;diet_rates?:Record<string,unknown>;plus_rates?:Record<string,unknown>;payroll_terms?:Record<string,unknown>}>;driverSettings?:{base_name:string|null;agreement:string|null};jornadas?:Array<{id:string;user_id:string;fecha_inicio:string|null;hora_inicio:string|null;hora_fin:string|null;lugar_inicio:string|null;lugar_fin:string|null;tipo_ruta:string|null;dieta_manual_tipo:string|null;dieta_importe_eur:string|null;plus_items?:Array<{concepto:string;importe:number}>}>;reviews?:Review[];closures?:Array<{id:string;month:string;driver_id:string;total_diets:number;closed_at:string}>};
 const roleLabels={owner:'Administrador de empresa',traffic:'Departamento de Tráfico',hr:'Recursos Humanos',driver:'Conductor'};
 const monthNow=()=>new Date().toISOString().slice(0,7);
 const euro=(n:number)=>new Intl.NumberFormat('es-ES',{style:'currency',currency:'EUR'}).format(n);
@@ -104,7 +104,7 @@ export function EnterprisePortal(){
   setEditDriverConfig(data?.initial_config&&Object.keys(data.initial_config).length?data.initial_config:blankCompanyConfig());
  };
  const selectInvite=(id:string)=>{
-  setPendingInviteId(id);
+  setPendingInviteId(id);setLatestInvite('');
   const i=view?.invites?.find(x=>x.id===id);
   setPendingInviteName(i?.employee_name||'');
   setPendingInviteConfig(i?.initial_settings&&Object.keys(i.initial_settings).length?i.initial_settings:blankCompanyConfig());
@@ -113,7 +113,7 @@ export function EnterprisePortal(){
  const title=view?.company?.name||'Tacoplan Empresas';
  const active=view?.company?.subscription_status==='active'||(view?.company?.subscription_status==='trialing'&&Boolean(view.company.trial_ends_at)&&new Date(view.company.trial_ends_at!).getTime()>Date.now());
  const reviews=view?.reviews||[];
- const driverName=(id:string)=>view?.drivers?.find(d=>d.user_id===id)?.username||id.slice(0,8);
+ const driverName=(id:string)=>{const driver=view?.drivers?.find(d=>d.user_id===id);return driver?.employee_name||driver?.username||id.slice(0,8);};
  const pending=reviews.filter(r=>r.status==='awaiting_driver');
  const hrReviews=reviews.filter(r=>r.jornada_date?.startsWith(month));
  const payable=hrReviews.filter(r=>['confirmed','accepted','closed'].includes(r.status));
