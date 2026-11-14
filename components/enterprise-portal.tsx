@@ -29,7 +29,6 @@ export function EnterprisePortal(){
  const [dietRates,setDietRates]=useState('{"nacional_100":54.30,"internacional_100":72.77}'),[plusRates,setPlusRates]=useState('{"domingo":80,"festivo":80}');
  const [proposedPluses,setProposedPluses]=useState<Array<{concepto:string;importe:number}>>([]);
  const [reviewJornada,setReviewJornada]=useState(''),[mode,setMode]=useState('confirm'),[newDietAmount,setNewDietAmount]=useState(''),[reason,setReason]=useState(''),[observation,setObservation]=useState('');
- const [trialConsent,setTrialConsent]=useState(false);
  const [month,setMonth]=useState(monthNow),[responseTexts,setResponseTexts]=useState<Record<string,string>>({});
  useEffect(()=>{const params=new URLSearchParams(window.location.search);setInviteToken(params.get('invite')||'');},[]);
  const token=async()=>{const r=await supabase.auth.getSession();if(!r.data.session?.access_token)throw Error('Inicia sesión de nuevo');return r.data.session.access_token;};
@@ -70,7 +69,7 @@ export function EnterprisePortal(){
  finally{setBusy(false);}};
  const member=view?.member;
  const title=view?.company?.name||'Tacoplan Empresas';
- const active=view?.company?.subscription_status==='trialing'||view?.company?.subscription_status==='active';
+ const active=view?.company?.subscription_status==='active'||(view?.company?.subscription_status==='trialing'&&Boolean(view.company.trial_ends_at)&&new Date(view.company.trial_ends_at!).getTime()>Date.now());
  const reviews=view?.reviews||[];
  const driverName=(id:string)=>view?.drivers?.find(d=>d.user_id===id)?.username||id.slice(0,8);
  const pending=reviews.filter(r=>r.status==='awaiting_driver');
@@ -99,23 +98,16 @@ export function EnterprisePortal(){
     <input className={input+' mt-4'} value={companyName} onChange={e=>setCompanyName(e.target.value)} placeholder="Nombre de la empresa"/>
     <input className={input+' mt-3'} value={ownerUsername} onChange={e=>setOwnerUsername(e.target.value.toLowerCase())} placeholder="Tu nombre de usuario"/>
     <label className="mt-3 block text-sm font-medium">Plan de flota<select className={input+' mt-2'} value={planId} onChange={e=>setPlanId(e.target.value)}>{PLAN_PRICES.map(p=><option key={p.priceId} value={p.priceId}>{p.title} · {p.seats} conductores · {euro(p.cents/100)}/mes</option>)}</select></label>
-    <p className="mt-3 text-xs text-amber-700">La suscripción todavía no se activa aquí. Quedará pendiente hasta verificar el pago y la prueba gratuita de Stripe.</p>
-    <button disabled={busy} className={button+' mt-4'} onClick={async()=>{const r=await action({action:'create_company',name:companyName,username:ownerUsername,priceId:planId});if(r)setMessage('Empresa creada. La suscripción está pendiente de activación.');}}>Crear empresa</button>
+    <p className="mt-3 text-xs text-amber-700">Al crear la empresa comienza una prueba gratuita de 7 días, sin tarjeta y sin cobros automáticos. Al terminar se suspenderán las funciones empresariales hasta contratar un plan.</p>
+    <button disabled={busy} className={button+' mt-4'} onClick={async()=>{const r=await action({action:'create_company',name:companyName,username:ownerUsername,priceId:planId});if(r)setMessage('Empresa creada. La prueba gratuita de 7 días ya está activa. No se ha guardado ninguna tarjeta ni se realizarán cobros automáticos.');}}>Crear empresa</button>
    </div></section>:null}
   {member?<><div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-white p-4"><div><p className="text-sm font-bold text-slate-900">{member.username} · {roleLabels[member.role]}</p><p className="mt-1 text-xs text-slate-500">Estado suscripción: {view?.company?.subscription_status||'Pendiente'} · {view?.company?.trial_ends_at?'Prueba hasta '+date(view.company.trial_ends_at):'Prueba no iniciada'}</p></div><div className="flex gap-2"><button onClick={()=>void load()} className="rounded-lg border px-3 py-2 text-sm"><RefreshCw className="h-4 w-4"/></button><button onClick={()=>void signOut()} className="rounded-lg border px-3 py-2 text-sm"><LogOut className="h-4 w-4"/></button></div></div>
-  {!active?<p className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">Tu cuenta empresarial está creada, pero la prueba de Stripe todavía no está activa. No se cobrarán cuotas por crear esta cuenta. Hasta completar la suscripción, este módulo es una vista de preparación.</p>:null}
+  {!active?<p className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">El periodo de prueba ha terminado o la suscripción está inactiva. Los datos se conservan, pero las funciones empresariales quedan suspendidas. No se realizará ningún cobro automático.</p>:null}
   {member.role==='owner'&&!active?<section className="rounded-2xl border border-blue-200 bg-white p-5">
-   <h2 className="text-lg font-bold text-slate-900">Activar 7 días de prueba gratuita</h2>
-   <p className="mt-2 text-sm text-slate-600">Stripe gestionará la contratación del plan elegido. La prueba dura 7 días y, si no cancelas antes de terminar, comienza el cobro mensual de la tarifa seleccionada. Puedes cancelarla desde el portal de facturación.</p>
-   <p className="mt-2 text-sm font-semibold text-blue-800">Plan: {PLAN_PRICES.find(p=>p.priceId===view?.company?.plan_price_id)?.title||'Pendiente'} · {euro((PLAN_PRICES.find(p=>p.priceId===view?.company?.plan_price_id)?.cents||0)/100)}/mes, según tratamiento de IVA configurado.</p>
-   <label className="mt-3 flex items-start gap-2 text-sm text-slate-700"><input type="checkbox" checked={trialConsent} onChange={e=>setTrialConsent(e.target.checked)} className="mt-1"/>Entiendo que después de la prueba gratuita se iniciará la suscripción mensual, salvo cancelación.</label>
-   <button disabled={!trialConsent||busy} className={button+' mt-4'} onClick={async()=>{
-    setBusy(true);setError('');try{const t=await token();const r=await fetch('/api/empresas/billing',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+t},body:JSON.stringify({action:'checkout'})});const j=await r.json();if(!r.ok)throw Error(j.error||'No se pudo activar Stripe');window.location.assign(j.url);}catch(e:unknown){setError(e instanceof Error?e.message:'Error de Stripe');}finally{setBusy(false);}
-   }}>Empezar 7 días gratis en Stripe</button>
+   <h2 className="text-lg font-bold text-slate-900">Prueba gratuita finalizada</h2>
+   <p className="mt-2 text-sm text-slate-600">La prueba gratuita de 7 días no requiere tarjeta y no se renueva automáticamente. Para contratar un plan, contacta con el equipo de Tacoplan mientras terminamos de habilitar la facturación segura de Stripe.</p>
+   <a href="/contacto" className="mt-4 inline-flex rounded-xl bg-blue-700 px-4 py-2.5 text-sm font-semibold text-white">Contactar para activar un plan</a>
   </section>:null}
-  {member.role==='owner'&&active?<button className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold" disabled={busy} onClick={async()=>{
-    setBusy(true);setError('');try{const t=await token();const r=await fetch('/api/empresas/billing',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+t},body:JSON.stringify({action:'portal'})});const j=await r.json();if(!r.ok)throw Error(j.error||'No se pudo abrir Stripe');window.location.assign(j.url);}catch(e:unknown){setError(e instanceof Error?e.message:'Error');}finally{setBusy(false);}
-  }}>Gestionar suscripción y cancelación</button>:null}
   {member.role==='owner'?<section className="grid gap-4 lg:grid-cols-2">
    <div className="rounded-2xl border bg-white p-5"><h2 className="flex items-center gap-2 text-lg font-bold"><Users className="h-5 w-5 text-blue-600"/>Alta de empleados y departamentos</h2><p className="mt-2 text-sm text-slate-600">Crea accesos para Tráfico, RRHH y conductores. El empleado establece su contraseña de manera segura.</p>
     <input className={input+' mt-3'} value={staffEmail} onChange={e=>setStaffEmail(e.target.value)} placeholder="Correo de empleado"/>
