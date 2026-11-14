@@ -1,14 +1,14 @@
 import {NextRequest} from 'next/server';
 import {membership,enterpriseJson,originAllowed,permitted,isPaidAccess} from '@/lib/tp-enterprise';
 export const dynamic='force-dynamic';
-type Review={id:string;driver_id:string;status:string;original_amount:number;proposed_amount:number|null;original_pluses:unknown;jornada_date:string|null};
+type Review={id:string;driver_id:string;status:string;original_amount:number;proposed_amount:number|null;original_pluses:unknown;proposed_pluses:unknown;jornada_date:string|null};
 const parseAmount=(v:unknown)=>{const n=Number(v);return Number.isFinite(n)&&n>0?n:0;};
 const calcPlus=(items:unknown)=>{
  if(!Array.isArray(items))return 0;
  return items.reduce<number>((sum,item)=>{
   if(!item||typeof item!=='object')return sum;
   const x=item as Record<string,unknown>;
-  if(/^dieta\b/i.test(String(x.concepto??x.concept??'')))return sum;
+  if(/dieta|n[oó]mina|salario|sueldo|anticipo/i.test(String(x.concepto??x.concept??'')))return sum;
   return sum+parseAmount(x.importe??x.amount);
  },0);
 };
@@ -23,7 +23,7 @@ async function payroll(req:NextRequest,month:string){
  const year=Number(month.slice(0,4)),mm=Number(month.slice(5));
  const first=new Date(Date.UTC(year,mm-1,1)).toISOString().slice(0,10),last=new Date(Date.UTC(year,mm,0)).toISOString().slice(0,10);
  const [reviews,drivers]=await Promise.all([
-  db.from('tp_diet_reviews').select('id,driver_id,status,original_amount,proposed_amount,original_pluses,jornada_date')
+  db.from('tp_diet_reviews').select('id,driver_id,status,original_amount,proposed_amount,original_pluses,proposed_pluses,jornada_date')
    .eq('company_id',companyId).gte('jornada_date',first).lte('jornada_date',last).limit(3000),
   db.from('tp_company_members').select('user_id,username').eq('company_id',companyId).eq('role','driver')
  ]);
@@ -34,7 +34,7 @@ async function payroll(req:NextRequest,month:string){
   const target=byDriver.get(r.driver_id);if(!target)continue;
   if(['confirmed','accepted','closed'].includes(r.status)){
    const value=parseAmount(r.status==='accepted'?r.proposed_amount??r.original_amount:r.original_amount);
-   const plus=calcPlus(r.original_pluses);target.diets+=value;target.pluses+=plus;target.confirmed++;
+   const plus=calcPlus(r.status==='accepted'&&r.proposed_pluses!==null?r.proposed_pluses:r.original_pluses);target.diets+=value;target.pluses+=plus;target.confirmed++;
    target.lines.push({review_id:r.id,date:r.jornada_date,diet:value,plus,status:r.status});
   }else if(r.status==='disputed')target.disputed++;
   else target.pending++;
