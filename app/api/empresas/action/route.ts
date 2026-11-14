@@ -1,6 +1,6 @@
 import {NextRequest} from 'next/server';
 import {createHash,randomBytes} from 'node:crypto';
-import {membership,identity,enterpriseJson,originAllowed,permitted,cleanEmail,validEmail,cleanUsername,validUsername,uuid,PLAN_PRICES,audit} from '@/lib/tp-enterprise';
+import {membership,identity,enterpriseJson,originAllowed,permitted,cleanEmail,validEmail,cleanUsername,validUsername,uuid,PLAN_PRICES,audit,isPaidAccess} from '@/lib/tp-enterprise';
 export const dynamic='force-dynamic';
 const DAY=86_400_000;
 const json=enterpriseJson;
@@ -57,6 +57,11 @@ export async function POST(req:NextRequest){
  }
  if(!member)return json({error:'No tienes empresa asignada'},403);
  const companyId=member.company_id,role=member.role;
+ if(['review','respond'].includes(action)){
+  const state=await db.from('tp_companies').select('subscription_status,trial_ends_at').eq('id',companyId).single();
+  if(state.error||!isPaidAccess(state.data))return json({error:'La prueba gratuita o la suscripción de la empresa no está activa'},402);
+ }
+
  if(action==='invite'){
   if(!permitted(role,'owner'))return json({error:'Solo el administrador crea usuarios'},403);
   const username=cleanUsername(body.username),email=cleanEmail(body.email),inviteRole=body.role;
