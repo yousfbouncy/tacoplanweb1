@@ -145,6 +145,26 @@ export async function POST(req:NextRequest){
   await audit(db,companyId,user.id,'member.invited','invite',insert.data.id,null,{username,email,employee_name:employeeName,role:inviteRole,has_initial_config:Boolean(initialSettings)});
   return json({ok:true,url:'https://tacoplan.es/empresas?invite='+token},201);
  }
+ if(action==='renew_invite'){
+  if(!permitted(role,'owner'))return json({error:'Solo el administrador puede renovar invitaciones'},403);
+  if(!uuid(body.inviteId))return json({error:'Invitación inválida'},400);
+  const found=await db.from('tp_company_invites').select('*').eq('company_id',companyId).eq('id',body.inviteId).is('accepted_at',null).is('revoked_at',null).maybeSingle();
+  if(found.error)throw found.error;
+  if(!found.data)return json({error:'La invitación ya no está pendiente'},404);
+  if(!found.data.employee_name||found.data.employee_name.trim().length<2)return json({error:'Primero guarda el nombre del empleado'},400);
+  if(found.data.role==='driver'){
+   try{normalizeEmployeeConfig(found.data.initial_settings);}
+   catch{return json({error:'Primero guarda toda la configuración inicial del conductor'},400);}
+  }
+  const fresh=randomBytes(32).toString('hex');
+  const updated=await db.from('tp_company_invites').update({
+   token_hash:createHash('sha256').update(fresh).digest('hex'),
+   expires_at:new Date(Date.now()+7*DAY).toISOString(),
+  }).eq('company_id',companyId).eq('id',body.inviteId).is('accepted_at',null);
+  if(updated.error)throw updated.error;
+  await audit(db,companyId,user.id,'invite.renewed','invite',body.inviteId,null,{employee_name:found.data.employee_name,role:found.data.role});
+  return json({ok:true,url:'https://tacoplan.es/empresas?invite='+fresh});
+ }
  if(action==='update_pending_invite'){
   if(!permitted(role,'owner'))return json({error:'Solo el administrador puede actualizar invitaciones'},403);
   if(!uuid(body.inviteId))return json({error:'Invitación inválida'},400);
