@@ -104,7 +104,7 @@ export function Navbar() {
   const showPlanes = false;
 
   return (
-    <nav className="bg-white border-b sticky top-0 z-50">
+    <nav className="sticky top-0 z-50 border-b border-[#25456F] bg-gradient-to-r from-[#071B38] via-[#0A3167] to-[#081C3B] text-white shadow-sm">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between h-16 items-center">
           <Link href="/" aria-label="Tacoplan - inicio" className="flex items-center shrink-0">
@@ -112,18 +112,18 @@ export function Navbar() {
           </Link>
 
           <div className="hidden md:flex items-center space-x-8">
-            <Link href="/" className="text-gray-700 hover:text-blue-600 transition">
+            <Link href="/" className="text-slate-100 hover:text-sky-300 transition">
               Inicio
             </Link>
             {showPlanes ? (
-              <Link href="/planes" className="text-gray-700 hover:text-blue-600 transition">
+              <Link href="/planes" className="text-slate-100 hover:text-sky-300 transition">
                 Planes
               </Link>
             ) : null}
-            <Link href="/contacto" className="text-gray-700 hover:text-blue-600 transition">
+            <Link href="/contacto" className="text-slate-100 hover:text-sky-300 transition">
               Contacto
             </Link>
-            <Link href="/soporte" className="text-gray-700 hover:text-blue-600 transition">
+            <Link href="/soporte" className="text-slate-100 hover:text-sky-300 transition">
               Soporte
             </Link>
 
@@ -131,21 +131,21 @@ export function Navbar() {
               <div className="w-[240px] h-10" />
             ) : user ? (
               <div className="flex items-center space-x-4">
-                <Link href="/mi-tacoplan" className="text-gray-700 hover:text-blue-600 transition">
+                <Link href="/mi-tacoplan" className="text-slate-100 hover:text-sky-300 transition">
                   Mi Tacoplan
                 </Link>
-                <Link href="/perfil" className="text-gray-700 hover:text-blue-600 transition">
+                <Link href="/perfil" className="text-slate-100 hover:text-sky-300 transition">
                   Perfil
                 </Link>
                 <DownloadApkDialogButton />
-                <Button onClick={signOut} variant="outline">
+                <Button onClick={signOut} variant="outline" className="border-white/35 bg-white/10 text-white hover:bg-white/20 hover:text-white">
                   Cerrar Sesión
                 </Button>
               </div>
             ) : (
               <div className="flex items-center space-x-4">
                 <Link href="/mi-tacoplan">
-                  <Button variant="outline">Mi Tacoplan · Entrar</Button>
+                  <Button variant="outline" className="border-white/35 bg-white/10 text-white hover:bg-white/20 hover:text-white">Mi Tacoplan · Entrar</Button>
                 </Link>
                 <DownloadApkDialogButton />
               </div>
@@ -153,7 +153,9 @@ export function Navbar() {
           </div>
 
           <button
-            className="md:hidden"
+            className="md:hidden rounded-lg p-2 text-white hover:bg-white/10"
+            aria-label={mobileMenuOpen ? "Cerrar menú" : "Abrir menú"}
+            aria-expanded={mobileMenuOpen}
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
           >
             {mobileMenuOpen ? (
@@ -165,10 +167,10 @@ export function Navbar() {
         </div>
 
         {mobileMenuOpen && (
-          <div className="md:hidden py-4 space-y-4">
+          <div className="md:hidden space-y-4 border-t border-white/15 py-4 text-white">
             <Link
               href="/"
-              className="block text-gray-700 hover:text-blue-600"
+              className="block text-slate-100 hover:text-sky-300"
               onClick={() => setMobileMenuOpen(false)}
             >
               Inicio
@@ -176,7 +178,7 @@ export function Navbar() {
             {showPlanes ? (
               <Link
                 href="/planes"
-                className="block text-gray-700 hover:text-blue-600"
+                className="block text-slate-100 hover:text-sky-300"
                 onClick={() => setMobileMenuOpen(false)}
               >
                 Planes
@@ -184,14 +186,14 @@ export function Navbar() {
             ) : null}
             <Link
               href="/contacto"
-              className="block text-gray-700 hover:text-blue-600"
+              className="block text-slate-100 hover:text-sky-300"
               onClick={() => setMobileMenuOpen(false)}
             >
               Contacto
             </Link>
             <Link
               href="/soporte"
-              className="block text-gray-700 hover:text-blue-600"
+              className="block text-slate-100 hover:text-sky-300"
               onClick={() => setMobileMenuOpen(false)}
             >
               Soporte
@@ -200,27 +202,27 @@ export function Navbar() {
               <>
                 <Link
                   href="/mi-tacoplan"
-                  className="block text-gray-700 hover:text-blue-600"
+                  className="block text-slate-100 hover:text-sky-300"
                   onClick={() => setMobileMenuOpen(false)}
                 >
                   Mi Tacoplan
                 </Link>
                 <Link
                   href="/perfil"
-                  className="block text-gray-700 hover:text-blue-600"
+                  className="block text-slate-100 hover:text-sky-300"
                   onClick={() => setMobileMenuOpen(false)}
                 >
                   Perfil
                 </Link>
                 <DownloadApkDialogButton className="w-full" />
-                <Button onClick={signOut} variant="outline" className="w-full">
+                <Button onClick={signOut} variant="outline" className="w-full border-white/35 bg-white/10 text-white hover:bg-white/20 hover:text-white">
                   Cerrar Sesión
                 </Button>
               </>
             ) : (
               <div className="space-y-2">
                 <Link href="/mi-tacoplan" className="block" onClick={() => setMobileMenuOpen(false)}>
-                  <Button variant="outline" className="w-full">
+                  <Button variant="outline" className="w-full border-white/35 bg-white/10 text-white hover:bg-white/20 hover:text-white">
                     Mi Tacoplan · Entrar
                   </Button>
                 </Link>

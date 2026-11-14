@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { Truck } from 'lucide-react';
+import { TacoplanBrand } from '@/components/tacoplan-brand';
 
 export function Footer() {
   const showPlanes = false;
@@ -8,9 +8,8 @@ export function Footer() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
           <div className="col-span-1">
-            <Link href="/" className="flex items-center space-x-2 mb-4">
-              <Truck className="h-8 w-8 text-blue-500" />
-              <span className="text-xl font-bold text-white">Tacoplan</span>
+            <Link href="/" className="mb-4 inline-flex items-center" aria-label="Tacoplan - inicio">
+              <TacoplanBrand compact />
             </Link>
             <p className="text-sm text-gray-400">
               La app profesional para conductores de camión y tráiler. Control completo de tu jornada laboral.

@@ -3,6 +3,7 @@ import {useEffect,useMemo,useState} from 'react';
 import {CalendarDays,ChevronDown,ChevronUp,Download,ShieldCheck,Truck,RefreshCw,Clock3,MapPin,Wallet} from 'lucide-react';
 import {REPORT_FIELD_OPTIONS,SharedReportData,ReportField,labelValue,money,hours} from '@/lib/report-sharing';
 import {saveReportPdf} from '@/lib/selected-report-pdf';
+import {TacoplanBrand} from '@/components/tacoplan-brand';
 const label=Object.fromEntries(REPORT_FIELD_OPTIONS.map(f=>[f.key,f.label])) as Record<ReportField,string>;
 const date=(v:string)=>v.split('-').reverse().join('/');
 const isSunday=(x:string|null)=>/DOMINGO/i.test(x||'');
@@ -81,7 +82,7 @@ export function CompanyReport({token}:{token:string}){
  };
  return <main className="min-h-screen bg-[#081224] px-3 py-6 text-white sm:px-6 sm:py-10"><div className="mx-auto max-w-5xl space-y-5">
   <header className="rounded-2xl border border-[#29456a] bg-gradient-to-br from-[#122a4e] to-[#09172d] p-5 sm:p-8">
-   <div className="flex items-center gap-2 text-sm font-extrabold tracking-wider text-blue-300"><Truck className="h-6 w-6"/>TACOPLAN</div>
+   <TacoplanBrand compact />
    <h1 className="mt-4 text-2xl font-extrabold sm:text-3xl">Informe de actividad</h1>
    <p className="mt-2 text-sm text-slate-300">Historial compartido por el conductor. Solo puedes consultar los datos autorizados.</p>
    {report?<p className="mt-3 text-xs text-blue-200">Periodo autorizado: {date(report.from)} – {date(report.to)} · Acceso hasta {new Date(expires).toLocaleString('es-ES')}</p>:null}
