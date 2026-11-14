@@ -1,5 +1,5 @@
-import { trackWebsiteEvent } from '@/components/web-analytics-tracker';
 'use client';
+import { trackWebsiteEvent } from '@/components/web-analytics-tracker';
 
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
