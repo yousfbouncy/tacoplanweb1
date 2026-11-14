@@ -105,7 +105,7 @@ export async function POST(req:NextRequest){
   }).select('id').single();
   if(insert.error)throw insert.error;
   await audit(db,companyId,user.id,'member.invited','invite',insert.data.id,null,{username,email,role:inviteRole});
-  return json({ok:true,url:req.nextUrl.origin+'/empresas?invite='+token},201);
+  return json({ok:true,url:'https://tacoplan.es/empresas?invite='+token},201);
  }
  if(action==='update_settings'){
   if(!permitted(role,'owner'))return json({error:'Sin permiso para configurar'},403);

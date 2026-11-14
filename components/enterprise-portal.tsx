@@ -1,5 +1,5 @@
 'use client';
-import {useCallback,useEffect,useMemo,useState} from 'react';
+import {useCallback,useEffect,useMemo,useRef,useState} from 'react';
 import {Building2,Users,Truck,Wallet,ShieldCheck,LogOut,Plus,RefreshCw,CheckCircle,AlertCircle,Copy,LockKeyhole} from 'lucide-react';
 import {useAuth} from '@/lib/auth-context';
 import {supabase} from '@/lib/supabase';
@@ -20,6 +20,10 @@ export function EnterprisePortal(){
  const [error,setError]=useState(''),[message,setMessage]=useState('');
  const [email,setEmail]=useState(''),[password,setPassword]=useState(''),[authMode,setAuthMode]=useState<'login'|'register'>('login');
  const [inviteToken,setInviteToken]=useState('');
+ const [inviteInfo,setInviteInfo]=useState<{companyName:string;email:string;username:string;role:string}|null>(null);
+ const [inviteLoading,setInviteLoading]=useState(false);
+ const [inviteError,setInviteError]=useState('');
+ const autoAcceptStarted=useRef(false);
  const [signupFeedback,setSignupFeedback]=useState<'verify'|'ready'|null>(null);
  const [companyName,setCompanyName]=useState(''),[ownerUsername,setOwnerUsername]=useState(''),[planId,setPlanId]=useState<string>(PLAN_PRICES[0].priceId);
  const [staffEmail,setStaffEmail]=useState(''),[staffUsername,setStaffUsername]=useState(''),[staffRole,setStaffRole]=useState('driver');
@@ -30,7 +34,19 @@ export function EnterprisePortal(){
  const [proposedPluses,setProposedPluses]=useState<Array<{concepto:string;importe:number}>>([]);
  const [reviewJornada,setReviewJornada]=useState(''),[mode,setMode]=useState('confirm'),[newDietAmount,setNewDietAmount]=useState(''),[reason,setReason]=useState(''),[observation,setObservation]=useState('');
  const [month,setMonth]=useState(monthNow),[responseTexts,setResponseTexts]=useState<Record<string,string>>({});
- useEffect(()=>{const params=new URLSearchParams(window.location.search);setInviteToken(params.get('invite')||'');},[]);
+ useEffect(()=>{
+  const value=new URLSearchParams(window.location.search).get('invite')||'';
+  if(!value)return;
+  setInviteToken(value);
+  setAuthMode('register');
+  setInviteLoading(true);
+  fetch('/api/empresas/invite?token='+encodeURIComponent(value),{cache:'no-store'})
+   .then(async res=>{const result=await res.json();if(!res.ok)throw Error(result.error||'No se pudo comprobar el enlace');
+    setInviteInfo(result);setEmail(result.email);
+   })
+   .catch(err=>setInviteError(err instanceof Error?err.message:'Invitación no válida'))
+   .finally(()=>setInviteLoading(false));
+ },[]);
  const token=async()=>{const r=await supabase.auth.getSession();if(!r.data.session?.access_token)throw Error('Inicia sesión de nuevo');return r.data.session.access_token;};
  const load=useCallback(async()=>{if(!user){setView(null);return;}setLoading(true);setError('');
  try{const t=await token();const r=await fetch('/api/empresas/dashboard',{cache:'no-store',headers:{Authorization:'Bearer '+t}});const j=await r.json();if(!r.ok)throw Error(j.error||'No se pudo cargar');setView(j);}
@@ -43,18 +59,19 @@ export function EnterprisePortal(){
  try{
   if(authMode==='register'){
    if(!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email.trim()))throw Error('Introduce una dirección de correo válida.');
+   if(inviteInfo&&email.trim().toLowerCase()!==inviteInfo.email.toLowerCase())throw Error('Debes utilizar el correo que recibió la invitación.');
    if(password.length<8)throw Error('La contraseña debe tener al menos 8 caracteres.');
    const {data,error:signUpError}=await supabase.auth.signUp({
     email:email.trim().toLowerCase(),password,
-    options:{emailRedirectTo:window.location.origin+'/empresas'}
+    options:{emailRedirectTo:window.location.origin+'/empresas'+(inviteToken?'?invite='+encodeURIComponent(inviteToken):'')}
    });
    if(signUpError)throw signUpError;
    if(data.session){
     setSignupFeedback('ready');
-    setMessage('Cuenta de acceso creada. Ahora puedes registrar tu empresa y configurar sus empleados.');
+    setMessage(inviteToken?'Cuenta de empleado creada. Estamos asociándola con tu empresa.':'Cuenta de acceso creada. Ahora puedes registrar tu empresa y configurar sus empleados.');
    }else{
     setSignupFeedback('verify');
-    setMessage('Registro recibido. Revisa tu correo electrónico para confirmar el acceso y después inicia sesión.');
+    setMessage(inviteToken?'Revisa tu correo para confirmar la cuenta; regresarás a esta invitación para activarla.':'Registro recibido. Revisa tu correo electrónico para confirmar el acceso y después inicia sesión.');
    }
   }else if(email.includes('@')){
    const {error:signInError}=await supabase.auth.signInWithPassword({email:email.trim(),password});
@@ -67,6 +84,17 @@ export function EnterprisePortal(){
   }
  }catch(e:unknown){setError(e instanceof Error?e.message:'No se pudo completar la operación.');}
  finally{setBusy(false);}};
+ // Once the employee authenticates, accept the specific invitation with the
+ // server validating that the login email matches the invitation exactly.
+ useEffect(()=>{
+  if(!user||authLoading||loading||view?.member!==null||!view||!inviteToken||!inviteInfo||inviteLoading||autoAcceptStarted.current)return;
+  if(user.email?.trim().toLowerCase()!==inviteInfo.email.trim().toLowerCase())return;
+  autoAcceptStarted.current=true;
+  void action({action:'accept_invite',token:inviteToken}).then(result=>{
+   if(result){setInviteToken('');setInviteInfo(null);window.history.replaceState({},'', '/empresas');
+    setMessage('Invitación aceptada. Tu acceso empresarial ya está activado.');}
+  });
+ },[user?.id,authLoading,loading,view?.member,inviteToken,inviteInfo?.email,inviteLoading]);
  const member=view?.member;
  const title=view?.company?.name||'Tacoplan Empresas';
  const active=view?.company?.subscription_status==='active'||(view?.company?.subscription_status==='trialing'&&Boolean(view.company.trial_ends_at)&&new Date(view.company.trial_ends_at!).getTime()>Date.now());
@@ -82,25 +110,39 @@ export function EnterprisePortal(){
   <p className="mt-2 text-sm text-slate-200">{member?roleLabels[member.role]:'Gestión empresarial de conductores, Tráfico y Recursos Humanos'}</p></header>
   {renderError}{message?<p role="status" className="rounded-xl bg-blue-50 p-3 text-sm text-blue-800">{message}</p>:null}
   {authLoading||loading?<p className="rounded-xl bg-white p-6 text-slate-500">Cargando acceso…</p>:null}
-  {!authLoading&&!user?<section className="mx-auto max-w-lg rounded-2xl border bg-white p-6 shadow-sm"><h2 className="text-xl font-bold">{authMode==='register'?'Paso 1 · Crear cuenta de acceso':'Acceder a Tacoplan Empresas'}</h2><p className="mt-2 text-sm text-slate-600">{authMode==='register'?'Registra tu correo y contraseña. Tras confirmar tu correo, iniciarás sesión y podrás crear tu empresa en el paso 2.':'Accede con tu correo o nombre de usuario. Si todavía no tienes cuenta, primero debes crear una cuenta de acceso.'}</p>
+  {!authLoading&&!user?<section className="mx-auto max-w-lg rounded-2xl border bg-white p-6 shadow-sm"><h2 className="text-xl font-bold">{inviteToken?'Activar mi cuenta de empleado':authMode==='register'?'Paso 1 · Crear cuenta de acceso':'Acceder a Tacoplan Empresas'}</h2>
+   {inviteToken?<div className="mt-3 rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-950" role="status">
+    {inviteLoading?<p>Comprobando la invitación…</p>:inviteError?<p className="font-semibold text-red-700">{inviteError}</p>:inviteInfo?<><p className="font-bold">Invitación de {inviteInfo.companyName}</p>
+     <p className="mt-1">Perfil: {roleLabels[inviteInfo.role as keyof typeof roleLabels]||inviteInfo.role}</p>
+     <p className="mt-1">Tu usuario: <strong>{inviteInfo.username}</strong></p>
+     <p className="mt-1">Correo asignado: <strong>{inviteInfo.email}</strong></p>
+     <p className="mt-2">Crea una contraseña para activar tu acceso. Si ya tienes una cuenta Tacoplan con este correo, pulsa «Ya tengo cuenta» e inicia sesión. La invitación se aceptará automáticamente.</p></>:null}
+   </div>:<p className="mt-2 text-sm text-slate-600">{authMode==='register'?'Registra tu correo y contraseña. Tras confirmar tu correo, iniciarás sesión y podrás crear tu empresa en el paso 2.':'Accede con tu correo o nombre de usuario. Si todavía no tienes cuenta, primero debes crear una cuenta de acceso.'}</p>}
    <label className="mt-4 block text-sm font-semibold">{authMode==='register'?'Correo electrónico':'Correo electrónico o usuario'}<input className={input+' mt-2'} value={email} onChange={e=>setEmail(e.target.value)} type={authMode==='register'?'email':'text'} autoComplete={authMode==='register'?'email':'username'} placeholder={authMode==='register'?'tu@empresa.es':'empleado@empresa.es o usuario'}/></label>
    <label className="mt-4 block text-sm font-semibold">Contraseña<input className={input+' mt-2'} value={password} onChange={e=>setPassword(e.target.value)} type="password" autoComplete={authMode==='register'?'new-password':'current-password'} minLength={authMode==='register'?8:undefined}/></label>
    {error?<p role="alert" className="mt-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">{error}</p>:null}
    {signupFeedback==='verify'?<div role="status" aria-live="polite" className="mt-3 rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900"><strong>Comprueba tu correo electrónico.</strong><p className="mt-1">Sigue el enlace de confirmación y vuelve aquí para iniciar sesión. Si no llega, comprueba la carpeta de spam.</p></div>:null}
-   {signupFeedback==='ready'?<p role="status" className="mt-3 rounded-lg bg-emerald-50 p-3 text-sm text-emerald-900">Cuenta creada. Continúa con el paso 2: crear tu empresa.</p>:null}
-   <button type="button" className={button+' mt-4 w-full'} onClick={()=>void login()} disabled={busy||signupFeedback==='verify'}>{busy?'Procesando…':authMode==='login'?'Iniciar sesión':'Registrarme con correo electrónico'}</button>
-   <button type="button" className="mt-4 w-full text-sm font-semibold text-blue-700" onClick={()=>{setAuthMode(authMode==='login'?'register':'login');setSignupFeedback(null);setError('');setMessage('');}}>{authMode==='login'?'No tengo cuenta · Crear acceso para mi empresa':'Ya tengo cuenta · Iniciar sesión'}</button>
+   {signupFeedback==='ready'?<p role="status" className="mt-3 rounded-lg bg-emerald-50 p-3 text-sm text-emerald-900">Cuenta creada. Continuando con la activación del acceso…</p>:null}
+   <button type="button" className={button+' mt-4 w-full'} onClick={()=>void login()} disabled={busy||signupFeedback==='verify'||Boolean(inviteToken&&(inviteLoading||inviteError||!inviteInfo))}>{busy?'Procesando…':authMode==='login'?'Iniciar sesión':inviteToken?'Crear mi acceso de empleado':'Registrarme con correo electrónico'}</button>
+   <button type="button" className="mt-4 w-full text-sm font-semibold text-blue-700" onClick={()=>{setAuthMode(authMode==='login'?'register':'login');setSignupFeedback(null);setError('');setMessage('');}}>{authMode==='login'?'No tengo cuenta · Crear mi acceso':'Ya tengo cuenta · Iniciar sesión'}</button>
    <p className="mt-4 text-xs text-slate-500">Las empresas crean invitaciones y asignan la configuración del empleado. La contraseña definitiva la establece el propio usuario.</p>
    </section>:null}
   {!authLoading&&user&&!member?<section className="grid gap-4 lg:grid-cols-2">
-   {inviteToken?<div className="rounded-2xl border bg-white p-5"><h2 className="text-lg font-bold">Aceptar invitación</h2><p className="mt-2 text-sm text-slate-600">La invitación solo puede aceptarse con el mismo correo al que fue dirigida.</p><button disabled={busy} className={button+' mt-4'} onClick={async()=>{const r=await action({action:'accept_invite',token:inviteToken});if(r){setInviteToken('');history.replaceState({},'', '/empresas');setMessage('Has quedado vinculado a la empresa.');}}}>Aceptar y continuar</button></div>:null}
-   <div className="rounded-2xl border bg-white p-5"><h2 className="text-lg font-bold">Paso 2 · Crear empresa</h2><p className="mt-1 text-sm text-slate-600">Una empresa, con usuarios independientes de Tráfico, RRHH y conductores.</p>
+   {inviteToken?<div className="rounded-2xl border border-blue-200 bg-white p-5">
+    <h2 className="text-lg font-bold">Activación de la invitación</h2>
+    {inviteInfo&&user.email?.toLowerCase()!==inviteInfo.email.toLowerCase()?<>
+     <p className="mt-2 text-sm text-red-700">Has iniciado sesión como {user.email}. Esta invitación corresponde a {inviteInfo.email}. Cierra sesión y utiliza el correo invitado.</p>
+     <button type="button" className={button+' mt-3'} onClick={()=>void signOut()}>Cambiar de cuenta</button>
+    </>:<p className="mt-2 text-sm text-slate-600">{busy?'Asociando tu usuario con la empresa…':'Comprobando tu cuenta y la invitación…'}</p>}
+    {inviteError?<p role="alert" className="mt-2 text-sm text-red-700">{inviteError}</p>:null}
+   </div>:null}
+   {!inviteToken?<div className="rounded-2xl border bg-white p-5"><h2 className="text-lg font-bold">Paso 2 · Crear empresa</h2><p className="mt-1 text-sm text-slate-600">Una empresa, con usuarios independientes de Tráfico, RRHH y conductores.</p>
     <input className={input+' mt-4'} value={companyName} onChange={e=>setCompanyName(e.target.value)} placeholder="Nombre de la empresa"/>
     <input className={input+' mt-3'} value={ownerUsername} onChange={e=>setOwnerUsername(e.target.value.toLowerCase())} placeholder="Tu nombre de usuario"/>
     <label className="mt-3 block text-sm font-medium">Plan de flota<select className={input+' mt-2'} value={planId} onChange={e=>setPlanId(e.target.value)}>{PLAN_PRICES.map(p=><option key={p.priceId} value={p.priceId}>{p.title} · {p.seats} conductores · {euro(p.cents/100)}/mes</option>)}</select></label>
     <p className="mt-3 text-xs text-amber-700">Al crear la empresa comienza una prueba gratuita de 7 días, sin tarjeta y sin cobros automáticos. Al terminar se suspenderán las funciones empresariales hasta contratar un plan.</p>
     <button disabled={busy} className={button+' mt-4'} onClick={async()=>{const r=await action({action:'create_company',name:companyName,username:ownerUsername,priceId:planId});if(r)setMessage('Empresa creada. La prueba gratuita de 7 días ya está activa. No se ha guardado ninguna tarjeta ni se realizarán cobros automáticos.');}}>Crear empresa</button>
-   </div></section>:null}
+   </div>:null}</section>:null}
   {member?<><div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-white p-4"><div><p className="text-sm font-bold text-slate-900">{member.username} · {roleLabels[member.role]}</p><p className="mt-1 text-xs text-slate-500">Estado suscripción: {view?.company?.subscription_status||'Pendiente'} · {view?.company?.trial_ends_at?'Prueba hasta '+date(view.company.trial_ends_at):'Prueba no iniciada'}</p></div><div className="flex gap-2"><button onClick={()=>void load()} className="rounded-lg border px-3 py-2 text-sm"><RefreshCw className="h-4 w-4"/></button><button onClick={()=>void signOut()} className="rounded-lg border px-3 py-2 text-sm"><LogOut className="h-4 w-4"/></button></div></div>
   {!active?<p className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">El periodo de prueba ha terminado o la suscripción está inactiva. Los datos se conservan, pero las funciones empresariales quedan suspendidas. No se realizará ningún cobro automático.</p>:null}
   {member.role==='owner'&&!active?<section className="rounded-2xl border border-blue-200 bg-white p-5">
