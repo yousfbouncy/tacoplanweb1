@@ -40,12 +40,18 @@ export async function POST(req:NextRequest){
   if(name.length<2||!validUsername(username))return json({error:'Nombre de empresa o usuario inválido'},400);
   const plan=PLAN_PRICES.find(p=>p.priceId===body.priceId);
   if(!plan)return json({error:'Elige una tarifa disponible'},400);
-  const company=await db.from('tp_companies').insert({name,owner_user_id:user.id,plan_price_id:plan.priceId}).select('id').single();
+  // Launch trial without card capture or automatic charges. Once it expires,
+  // access is suspended until an explicitly purchased Stripe plan is active.
+  const trialEndsAt=new Date(Date.now()+7*DAY).toISOString();
+  const company=await db.from('tp_companies').insert({
+   name,owner_user_id:user.id,plan_price_id:plan.priceId,
+   subscription_status:'trialing',trial_ends_at:trialEndsAt
+  }).select('id').single();
   if(company.error)throw company.error;
   const created=await db.from('tp_company_members').insert({company_id:company.data.id,user_id:user.id,username,role:'owner'});
   if(created.error){await db.from('tp_companies').delete().eq('id',company.data.id).eq('owner_user_id',user.id);return json({error:'El usuario ya existe o está vinculado a otra empresa'},409);}
   await audit(db,company.data.id,user.id,'company.created','company',company.data.id,null,{name,plan:plan.title});
-  return json({ok:true,companyId:company.data.id,subscription:'pending'},201);
+  return json({ok:true,companyId:company.data.id,subscription:'trialing',trialEndsAt},201);
  }
  if(action==='accept_invite'){
   if(member)return json({error:'Ya estás vinculado a una empresa'},409);
