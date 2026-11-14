@@ -17,7 +17,7 @@ export const REPORT_FIELD_OPTIONS=[
 ] as const;
 export type ReportField=typeof REPORT_FIELD_OPTIONS[number]['key'];
 export const ALL_REPORT_FIELDS=REPORT_FIELD_OPTIONS.map(v=>v.key);
-export const DEFAULT_REPORT_FIELDS:ReportField[]=['start_end','locations','route_type','diet_type','diet_pct','day_flags'];
+export const DEFAULT_REPORT_FIELDS:ReportField[]=['start_end','locations','route_type','diet_type','diet_pct','day_flags','pluses'];
 export type SharedReportRow={
  date:string;start:string|null;end:string|null;routeType:string|null;
  startTime:string|null;endTime:string|null;endDate:string|null;
@@ -59,7 +59,7 @@ export function mapReportRow(j:RawReportJornada):SharedReportRow{
   date:j.fecha_inicio||j.created_at.slice(0,10),
   start:j.lugar_inicio,end:j.lugar_fin,routeType:j.tipo_ruta,
   startTime:time(j.hora_inicio),endTime:time(j.hora_fin),endDate:j.fecha_fin,
-  dayFlag:j.day_flag,dayExtra:j.report_hide_amounts?null:parseAmount(j.day_extra_eur),plusItems,
+  dayFlag:j.day_flag,dayExtra:j.report_hide_amounts||j.report_hide_pluses?null:parseAmount(j.day_extra_eur),plusItems,
   driving:j.conduccion_min??(j.tacho_driving_min&&j.tacho_driving_min>0?j.tacho_driving_min:null),
   working:j.duracion_jornada_min,
   dietType:j.dieta_manual_tipo||dietItem?.tipo||j.tipo_ruta||null,
