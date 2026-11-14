@@ -1,5 +1,5 @@
 import {NextRequest} from 'next/server';
-import {membership,enterpriseJson,originAllowed,permitted} from '@/lib/tp-enterprise';
+import {membership,enterpriseJson,originAllowed,permitted,isPaidAccess} from '@/lib/tp-enterprise';
 export const dynamic='force-dynamic';
 type Review={id:string;driver_id:string;status:string;original_amount:number;proposed_amount:number|null;original_pluses:unknown;jornada_date:string|null};
 const parseAmount=(v:unknown)=>{const n=Number(v);return Number.isFinite(n)&&n>0?n:0;};
@@ -8,6 +8,7 @@ const calcPlus=(items:unknown)=>{
  return items.reduce<number>((sum,item)=>{
   if(!item||typeof item!=='object')return sum;
   const x=item as Record<string,unknown>;
+  if(/^dieta\b/i.test(String(x.concepto??x.concept??'')))return sum;
   return sum+parseAmount(x.importe??x.amount);
  },0);
 };
@@ -17,6 +18,8 @@ async function payroll(req:NextRequest,month:string){
  if(!auth||!auth.member)return {error:'Sesión de empresa requerida',status:401} as const;
  if(!permitted(auth.member.role,'hr'))return {error:'Solo RRHH tiene acceso al cierre de nómina',status:403} as const;
  const {db,member}=auth,companyId=member.company_id;
+ const state=await db.from('tp_companies').select('subscription_status,trial_ends_at').eq('id',companyId).single();
+ if(state.error||!isPaidAccess(state.data))return {error:'La suscripción empresarial no está activa',status:402} as const;
  const year=Number(month.slice(0,4)),mm=Number(month.slice(5));
  const first=new Date(Date.UTC(year,mm-1,1)).toISOString().slice(0,10),last=new Date(Date.UTC(year,mm,0)).toISOString().slice(0,10);
  const [reviews,drivers]=await Promise.all([
