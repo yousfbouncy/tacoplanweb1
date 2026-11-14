@@ -99,10 +99,10 @@ export async function POST(req:NextRequest){
  }
  if(action==='review'){
   if(!permitted(role,'traffic'))return json({error:'Solo Tráfico revisa dietas'},403);
-  if(!uuid(body.jornadaId)||!uuid(body.driverId)||!['confirm','propose'].includes(body.mode))return json({error:'Datos inválidos'},400);
+  if(typeof body.jornadaId!=='string'||body.jornadaId.length<1||body.jornadaId.length>160||!uuid(body.driverId)||!['confirm','propose'].includes(body.mode))return json({error:'Datos inválidos'},400);
   const {data:driver}=await db.from('tp_company_members').select('id').eq('company_id',companyId).eq('user_id',body.driverId).eq('role','driver').eq('active',true).maybeSingle();
   if(!driver)return json({error:'Conductor no autorizado'},403);
-  const journey=await db.from('jornadas').select('id,user_id,dieta_manual_tipo,dieta_importe_eur,plus_items').eq('id',body.jornadaId).eq('user_id',body.driverId).maybeSingle();
+  const journey=await db.from('jornadas').select('id,user_id,fecha_inicio,dieta_manual_tipo,dieta_importe_eur,plus_items').eq('id',body.jornadaId).eq('user_id',body.driverId).maybeSingle();
   if(journey.error||!journey.data)return json({error:'Jornada no encontrada'},404);
   const existing=await db.from('tp_diet_reviews').select('*').eq('company_id',companyId).eq('jornada_id',body.jornadaId).maybeSingle();
   if(existing.error)throw existing.error;
@@ -113,7 +113,7 @@ export async function POST(req:NextRequest){
   const proposed=mode==='propose'?amount(body.amount):null;
   if(mode==='propose'&&proposed===null)return json({error:'Importe de dieta incorrecto'},400);
   const payload={company_id:companyId,driver_id:body.driverId,jornada_id:body.jornadaId,
-   original_diet_type:journey.data.dieta_manual_tipo,original_amount:Math.max(0,originalAmount),
+   original_diet_type:journey.data.dieta_manual_tipo,jornada_date:journey.data.fecha_inicio||null,original_amount:Math.max(0,originalAmount),
    original_pluses:Array.isArray(journey.data.plus_items)?journey.data.plus_items:[],
    proposed_diet_type:mode==='propose'?plain(body.dietType,80)||journey.data.dieta_manual_tipo:null,
    proposed_amount:proposed,status:mode==='confirm'?'confirmed':'awaiting_driver',
@@ -123,6 +123,7 @@ export async function POST(req:NextRequest){
   const result=await db.from('tp_diet_reviews').upsert(payload,{onConflict:'company_id,jornada_id'}).select('id').single();
   if(result.error)throw result.error;
   await audit(db,companyId,user.id,mode==='confirm'?'diet.confirmed':'diet.change_proposed','review',result.data.id,existing.data,payload,reason||observation);
+  await db.from('user_notifications').insert({user_id:body.driverId,type:'admin_message',title:mode==='confirm'?'Dieta confirmada por Tráfico':'Revisión de dieta pendiente de respuesta',body:mode==='confirm'?'Tráfico ha validado tu dieta sin cambios.':('Tráfico ha propuesto un cambio. Motivo: '+reason),data:{kind:'enterprise_diet_review',company_id:companyId,review_id:result.data.id,action:mode}});
   return json({ok:true,status:payload.status});
  }
  if(action==='respond'){
@@ -136,6 +137,8 @@ export async function POST(req:NextRequest){
   const upd=await db.from('tp_diet_reviews').update({status,driver_observation:reason,driver_decision_at:new Date().toISOString(),updated_at:new Date().toISOString()}).eq('id',body.reviewId).eq('company_id',companyId).eq('status','awaiting_driver').select('id').maybeSingle();
   if(upd.error||!upd.data)return json({error:'La propuesta ya ha sido revisada'},409);
   await audit(db,companyId,user.id,'diet.'+status,'review',body.reviewId,{status:'awaiting_driver'},{status,driver_observation:reason},reason);
+  // Notification for Tráfico is surfaced in the company dashboard review list.
+
   return json({ok:true,status});
  }
  return json({error:'Operación no permitida'},403);
