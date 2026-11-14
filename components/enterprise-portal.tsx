@@ -32,10 +32,8 @@ export function EnterprisePortal(){
  const [staffConfig,setStaffConfig]=useState<InitialEmployeeConfig>(blankCompanyConfig);
  const [pendingInviteId,setPendingInviteId]=useState(''),[pendingInviteName,setPendingInviteName]=useState(''),[pendingInviteConfig,setPendingInviteConfig]=useState<InitialEmployeeConfig>(blankCompanyConfig);
  const [latestInvite,setLatestInvite]=useState('');
- const [driverId,setDriverId]=useState(''),[base,setBase]=useState(''),[workplace,setWorkplace]=useState(''),[agreement,setAgreement]=useState('');
+ const [driverId,setDriverId]=useState('');
  const [editDriverConfig,setEditDriverConfig]=useState<InitialEmployeeConfig>(blankCompanyConfig);
- const [payrollTerms,setPayrollTerms]=useState('{}');
- const [dietRates,setDietRates]=useState('{"nacional_100":54.30,"internacional_100":72.77}'),[plusRates,setPlusRates]=useState('{"domingo":80,"festivo":80}');
  const [proposedPluses,setProposedPluses]=useState<Array<{concepto:string;importe:number}>>([]);
  const [reviewJornada,setReviewJornada]=useState(''),[mode,setMode]=useState('confirm'),[newDietAmount,setNewDietAmount]=useState(''),[reason,setReason]=useState(''),[observation,setObservation]=useState('');
  const [month,setMonth]=useState(monthNow),[responseTexts,setResponseTexts]=useState<Record<string,string>>({});
@@ -100,31 +98,10 @@ export function EnterprisePortal(){
     setMessage('Invitación aceptada. Tu acceso empresarial ya está activado.');}
   });
  },[user?.id,authLoading,loading,view?.member,inviteToken,inviteInfo?.email,inviteLoading]);
- const driverSettings=view?.settings?.find(x=>x.driver_id===driverId);
- useEffect(()=>{
-  if(!driverId){setBase('');setWorkplace('');setAgreement('');setDietRates('{}');setPlusRates('{}');setPayrollTerms('{}');return;}
-  if(!view?.settings)return;
-  const row=view.settings.find(x=>x.driver_id===driverId);
-  setBase(row?.base_name||'');setWorkplace(row?.workplace||'');setAgreement(row?.agreement||'');
-  setDietRates(JSON.stringify(row?.diet_rates||{}));
-  setPlusRates(JSON.stringify(row?.plus_rates||{}));
-  setPayrollTerms(JSON.stringify(row?.payroll_terms||{}));
- },[driverId,view?.settings]);
- const fieldValue=(raw:string,key:string)=>{
-  try{const val=JSON.parse(raw)?.[key];return val===null||val===undefined?'':String(val);}catch{return '';}
- };
- const updateField=(raw:string,set:(value:string)=>void,key:string,value:string)=>{
-  try{
-   const original=JSON.parse(raw);const next=original&&typeof original==='object'&&!Array.isArray(original)?{...original}:{};
-   if(value.trim()==='')delete next[key];else next[key]=value.replace(',','.');
-   set(JSON.stringify(next));
-  }catch{set(JSON.stringify({[key]:value.replace(',','.')}));}
- };
  const selectDriver=(id:string)=>{
   setDriverId(id);
   const data=view?.settings?.find(x=>x.driver_id===id);
   setEditDriverConfig(data?.initial_config&&Object.keys(data.initial_config).length?data.initial_config:blankCompanyConfig());
-  setAgreement(data?.agreement||'');
  };
  const selectInvite=(id:string)=>{
   setPendingInviteId(id);
@@ -250,9 +227,8 @@ export function EnterprisePortal(){
     </select></label>
     {!driverId?<p className="mt-3 rounded-xl bg-blue-50 p-3 text-sm text-blue-900">Solo aparecerán conductores que hayan terminado de aceptar su invitación. Los pendientes están arriba.</p>:<div className="mt-4">
       <EnterpriseDriverConfig value={editDriverConfig} onChange={setEditDriverConfig} idPrefix="existing-driver"/>
-      <label className="mt-3 block text-sm font-semibold">Convenio aplicable<input className={input} value={agreement} onChange={e=>setAgreement(e.target.value)} placeholder="Convenio del transporte"/></label>
       <button type="button" className={button+' mt-4'} disabled={busy} onClick={async()=>{
-       const res=await action({action:'update_settings',driverId,initialSettings:editDriverConfig,agreement});
+       const res=await action({action:'update_settings',driverId,initialSettings:editDriverConfig});
        if(res)setMessage('Configuración guardada y sincronizada con Tacoplan del conductor.');
       }}>Guardar y sincronizar configuración</button>
     </div>}
