@@ -32,7 +32,14 @@ export function buildSelectedReportPdf(report:SharedReportData):Uint8Array{
  const summary:[string,string][]=[['VIAJES / JORNADAS',String(report.rows.length)]];
  if(report.fields.includes('driving'))summary.push(['CONDUCCIÓN ANOTADA',hours(report.rows.reduce((n,j)=>n+(j.driving||0),0))]);
  if(report.fields.includes('working'))summary.push(['TIEMPO JORNADA',hours(report.rows.reduce((n,j)=>n+(j.working||0),0))]);
- if(report.fields.includes('diet_amount'))summary.push(['DIETAS REGISTRADAS',money(report.rows.reduce((n,j)=>n+(j.dietAmount||0),0))]);
+ if(report.fields.includes('diet_type')||report.fields.includes('diet_amount'))summary.push(['DIETAS REGISTRADAS',String(report.rows.filter(j=>(report.fields.includes('diet_type')&&!!j.dietType)||(report.fields.includes('diet_amount')&&j.dietAmount!==null)).length)]);
+ if(report.fields.includes('diet_amount'))summary.push(['IMPORTE DIETAS',money(report.rows.reduce((n,j)=>n+(j.dietAmount||0),0))]);
+ if(report.fields.includes('day_flags')){
+ summary.push(['DOMINGOS MARCADOS',String(report.rows.filter(j=>/DOMINGO/i.test(j.dayFlag||'')).length)]);
+ summary.push(['FESTIVOS MARCADOS',String(report.rows.filter(j=>/FESTIV|FIESTA|HOLIDAY/i.test(j.dayFlag||'')).length)]);
+ }
+ if(report.fields.includes('pluses')||report.fields.includes('plus_amount'))summary.push(['JORNADAS CON PLUSES',String(report.rows.filter(j=>j.plusItems.length>0||(j.dayExtra!==null&&j.dayExtra>0)).length)]);
+ if(report.fields.includes('plus_amount'))summary.push(['IMPORTE DE PLUSES',money(report.rows.reduce((n,j)=>n+(j.dayExtra||0)+j.plusItems.reduce((v,x)=>v+(x.amount||0),0),0))]);
  if(report.fields.includes('km'))summary.push(['KILÓMETROS REGISTRADOS',new Intl.NumberFormat('es-ES').format(report.rows.reduce((n,j)=>n+(j.km||0),0))+' km']);
  for(let i=0;i<summary.length;i+=2){
   summary.slice(i,i+2).forEach(([label,value],j)=>{
@@ -55,7 +62,7 @@ export function buildSelectedReportPdf(report:SharedReportData):Uint8Array{
   const top=y;
   rect(43,y-height,508,height,'0.965 0.975 0.989');
   rect(43,y-28,508,28,'0.91 0.94 0.985');
-  t(56,y-19,formatDate(row.date),11,true);
+  t(56,y-19,report.fields.includes('start_end') ? fit(formatDate(row.date)+' '+(row.startTime||'—')+'  >  '+formatDate(row.endDate||row.date)+' '+(row.endTime||'—'),68) : formatDate(row.date),11,true);
   t(430,y-19,'Registro '+(index+1),8,false,'0.35 0.46 0.64');
   for(let i=0;i<fields.length;i++){
    const key=fields[i],col=i%2,line=Math.floor(i/2);
