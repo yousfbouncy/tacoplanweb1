@@ -2,6 +2,7 @@ import {NextRequest} from 'next/server';
 import {createHash} from 'node:crypto';
 import {createClient} from '@supabase/supabase-js';
 import {adminDatabase,sameOrigin} from '@/lib/admin-users';
+import {SUPABASE_URL,SUPABASE_ANON_KEY} from '@/lib/supabase';
 import {enterpriseJson,cleanUsername,validUsername} from '@/lib/tp-enterprise';
 export const dynamic='force-dynamic';
 export async function POST(req:NextRequest){
@@ -28,9 +29,9 @@ export async function POST(req:NextRequest){
  if(found.error||!found.data)return enterpriseJson({error:'Credenciales incorrectas'},401);
  const foundUser=await db.auth.admin.getUserById(found.data.user_id);
  if(foundUser.error||!foundUser.data.user?.email)return enterpriseJson({error:'Credenciales incorrectas'},401);
- const anonKey=process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY||process.env.SUPABASE_ANON_KEY;
+ const anonKey=process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY||process.env.SUPABASE_ANON_KEY||SUPABASE_ANON_KEY;
  if(!anonKey)return enterpriseJson({error:'Configura SUPABASE_ANON_KEY en el servidor para acceso por usuario'},503);
- const client=createClient('https://dutgxjwfjtqxmqonnjlp.supabase.co',anonKey,{auth:{persistSession:false,autoRefreshToken:false}});
+ const client=createClient(SUPABASE_URL,anonKey,{auth:{persistSession:false,autoRefreshToken:false}});
  const signin=await client.auth.signInWithPassword({email:foundUser.data.user.email,password});
  if(signin.error||!signin.data.session)return enterpriseJson({error:'Credenciales incorrectas'},401);
  return enterpriseJson({access_token:signin.data.session.access_token,refresh_token:signin.data.session.refresh_token,
