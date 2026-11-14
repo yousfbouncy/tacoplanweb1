@@ -27,15 +27,17 @@ export async function GET(req:NextRequest){
   return enterpriseJson({company,member,drivers:drivers.data||[],reviews:reviews.data||[],closures:closures.data||[]});
  }
  if(role==='traffic'){
-  const members=await db.from('tp_company_members').select('user_id,username').eq('company_id',companyId).eq('active',true).eq('role','driver');
+  const members=await db.from('tp_company_members').select('user_id,username,joined_at').eq('company_id',companyId).eq('active',true).eq('role','driver');
   if(members.error)throw members.error;
   const ids=(members.data||[]).map(x=>x.user_id);
+  // Joining an employer never shares a conductor's prior personal history.
+  const joinedAt=new Map((members.data||[]).map(m=>[m.user_id,new Date(m.joined_at).getTime()]));
   const [jornadas,reviews]=await Promise.all([
-   ids.length?db.from('jornadas').select('id,user_id,fecha_inicio,fecha_fin,hora_inicio,hora_fin,lugar_inicio,lugar_fin,tipo_ruta,dieta_manual_tipo,dieta_importe_eur,plus_items,conduccion_min').in('user_id',ids).order('created_at',{ascending:false}).limit(1500):Promise.resolve({data:[],error:null}),
+   ids.length?db.from('jornadas').select('id,user_id,created_at,fecha_inicio,fecha_fin,hora_inicio,hora_fin,lugar_inicio,lugar_fin,tipo_ruta,dieta_manual_tipo,dieta_importe_eur,plus_items,conduccion_min').in('user_id',ids).order('created_at',{ascending:false}).limit(1500):Promise.resolve({data:[],error:null}),
    db.from('tp_diet_reviews').select('id,jornada_id,jornada_date,driver_id,status,original_diet_type,original_amount,original_pluses,proposed_diet_type,proposed_amount,proposed_pluses,traffic_observation,change_reason,driver_observation,created_at').eq('company_id',companyId).order('created_at',{ascending:false}).limit(1000)
   ]);
   if(jornadas.error||reviews.error)throw jornadas.error||reviews.error;
-  return enterpriseJson({company,member,drivers:members.data||[],jornadas:jornadas.data||[],reviews:reviews.data||[]});
+  return enterpriseJson({company,member,drivers:members.data||[],jornadas:(jornadas.data||[]).filter(j=>{const joined=joinedAt.get(j.user_id);return joined!==undefined&&new Date(j.created_at).getTime()>=joined;}),reviews:reviews.data||[]});
  }
  if(role==='driver'){
   const [settings,reviews]=await Promise.all([
