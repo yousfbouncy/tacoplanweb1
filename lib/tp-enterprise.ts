@@ -31,3 +31,12 @@ export async function audit(db:any,company:string,actor:string,action:string,ent
  const r=await db.from('tp_company_audit').insert({company_id:company,actor_id:actor,action,entity,entity_id:entityId,before_data:before,after_data:after,reason:reason||null});
  if(r.error)throw r.error;
 }
+
+export function isPaidAccess(company:{subscription_status:string;trial_ends_at?:string|null}|null|undefined){
+ if(!company)return false;
+ if(company.subscription_status==='active')return true;
+ if(company.subscription_status==='trialing'){
+  return Boolean(company.trial_ends_at&&new Date(company.trial_ends_at).getTime()>Date.now());
+ }
+ return false;
+}
