@@ -6,7 +6,7 @@ import {supabase} from '@/lib/supabase';
 import {PLAN_PRICES} from '@/lib/tp-enterprise-plans';
 type Member={company_id:string;username:string;role:'owner'|'traffic'|'hr'|'driver'};
 type Review={id:string;driver_id:string;jornada_id?:string;jornada_date?:string;status:string;original_diet_type:string|null;original_amount:number;proposed_diet_type:string|null;proposed_amount:number|null;original_pluses?:Array<{concepto:string;importe:number}>;proposed_pluses?:Array<{concepto:string;importe:number}>|null;change_reason:string|null;driver_observation:string|null;traffic_observation:string|null;created_at:string};
-type Dashboard={member:Member|null;company?:{id:string;name:string;subscription_status:string;trial_ends_at:string|null;plan_price_id:string|null};team?:Array<{user_id:string;username:string;role:string}>;drivers?:Array<{user_id:string;username:string}>;invites?:Array<{username:string;role:string;email:string;accepted_at:string|null}>;settings?:Array<{driver_id:string;base_name:string|null;agreement:string|null}>;driverSettings?:{base_name:string|null;agreement:string|null};jornadas?:Array<{id:string;user_id:string;fecha_inicio:string|null;hora_inicio:string|null;hora_fin:string|null;lugar_inicio:string|null;lugar_fin:string|null;tipo_ruta:string|null;dieta_manual_tipo:string|null;dieta_importe_eur:string|null;plus_items?:Array<{concepto:string;importe:number}>}>;reviews?:Review[];closures?:Array<{id:string;month:string;driver_id:string;total_diets:number;closed_at:string}>};
+type Dashboard={member:Member|null;company?:{id:string;name:string;subscription_status:string;trial_ends_at:string|null;plan_price_id:string|null};team?:Array<{user_id:string;username:string;role:string;active?:boolean}>;drivers?:Array<{user_id:string;username:string}>;invites?:Array<{username:string;role:string;email:string;accepted_at:string|null}>;settings?:Array<{driver_id:string;base_name:string|null;workplace?:string|null;agreement:string|null;diet_rates?:Record<string,unknown>;plus_rates?:Record<string,unknown>;payroll_terms?:Record<string,unknown>}>;driverSettings?:{base_name:string|null;agreement:string|null};jornadas?:Array<{id:string;user_id:string;fecha_inicio:string|null;hora_inicio:string|null;hora_fin:string|null;lugar_inicio:string|null;lugar_fin:string|null;tipo_ruta:string|null;dieta_manual_tipo:string|null;dieta_importe_eur:string|null;plus_items?:Array<{concepto:string;importe:number}>}>;reviews?:Review[];closures?:Array<{id:string;month:string;driver_id:string;total_diets:number;closed_at:string}>};
 const roleLabels={owner:'Administrador de empresa',traffic:'Departamento de Tráfico',hr:'Recursos Humanos',driver:'Conductor'};
 const monthNow=()=>new Date().toISOString().slice(0,7);
 const euro=(n:number)=>new Intl.NumberFormat('es-ES',{style:'currency',currency:'EUR'}).format(n);
@@ -28,7 +28,7 @@ export function EnterprisePortal(){
  const [companyName,setCompanyName]=useState(''),[ownerUsername,setOwnerUsername]=useState(''),[planId,setPlanId]=useState<string>(PLAN_PRICES[0].priceId);
  const [staffEmail,setStaffEmail]=useState(''),[staffUsername,setStaffUsername]=useState(''),[staffRole,setStaffRole]=useState('driver');
  const [latestInvite,setLatestInvite]=useState('');
- const [driverId,setDriverId]=useState(''),[base,setBase]=useState(''),[agreement,setAgreement]=useState('');
+ const [driverId,setDriverId]=useState(''),[base,setBase]=useState(''),[workplace,setWorkplace]=useState(''),[agreement,setAgreement]=useState('');
  const [payrollTerms,setPayrollTerms]=useState('{}');
  const [dietRates,setDietRates]=useState('{"nacional_100":54.30,"internacional_100":72.77}'),[plusRates,setPlusRates]=useState('{"domingo":80,"festivo":80}');
  const [proposedPluses,setProposedPluses]=useState<Array<{concepto:string;importe:number}>>([]);
@@ -58,7 +58,7 @@ export function EnterprisePortal(){
  const login=async()=>{if(busy)return;setBusy(true);setError('');setMessage('');setSignupFeedback(null);
  try{
   if(authMode==='register'){
-   if(!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email.trim()))throw Error('Introduce una dirección de correo válida.');
+   if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()))throw Error('Introduce una dirección de correo válida.');
    if(inviteInfo&&email.trim().toLowerCase()!==inviteInfo.email.toLowerCase())throw Error('Debes utilizar el correo que recibió la invitación.');
    if(password.length<8)throw Error('La contraseña debe tener al menos 8 caracteres.');
    const {data,error:signUpError}=await supabase.auth.signUp({
@@ -95,6 +95,26 @@ export function EnterprisePortal(){
     setMessage('Invitación aceptada. Tu acceso empresarial ya está activado.');}
   });
  },[user?.id,authLoading,loading,view?.member,inviteToken,inviteInfo?.email,inviteLoading]);
+ const driverSettings=view?.settings?.find(x=>x.driver_id===driverId);
+ useEffect(()=>{
+  if(!driverId){setBase('');setWorkplace('');setAgreement('');setDietRates('{}');setPlusRates('{}');setPayrollTerms('{}');return;}
+  if(!view?.settings)return;
+  const row=view.settings.find(x=>x.driver_id===driverId);
+  setBase(row?.base_name||'');setWorkplace(row?.workplace||'');setAgreement(row?.agreement||'');
+  setDietRates(JSON.stringify(row?.diet_rates||{}));
+  setPlusRates(JSON.stringify(row?.plus_rates||{}));
+  setPayrollTerms(JSON.stringify(row?.payroll_terms||{}));
+ },[driverId,view?.settings]);
+ const fieldValue=(raw:string,key:string)=>{
+  try{const val=JSON.parse(raw)?.[key];return val===null||val===undefined?'':String(val);}catch{return '';}
+ };
+ const updateField=(raw:string,set:(value:string)=>void,key:string,value:string)=>{
+  try{
+   const original=JSON.parse(raw);const next=original&&typeof original==='object'&&!Array.isArray(original)?{...original}:{};
+   if(value.trim()==='')delete next[key];else next[key]=value.replace(',','.');
+   set(JSON.stringify(next));
+  }catch{set(JSON.stringify({[key]:value.replace(',','.')}));}
+ };
  const member=view?.member;
  const title=view?.company?.name||'Tacoplan Empresas';
  const active=view?.company?.subscription_status==='active'||(view?.company?.subscription_status==='trialing'&&Boolean(view.company.trial_ends_at)&&new Date(view.company.trial_ends_at!).getTime()>Date.now());
@@ -160,10 +180,45 @@ export function EnterprisePortal(){
    </div>
    <div className="rounded-2xl border bg-white p-5"><h2 className="text-lg font-bold">Personal de empresa</h2><div className="mt-3 max-h-80 space-y-2 overflow-y-auto">{(view?.team||[]).map(x=><div className="flex items-center justify-between gap-3 rounded-xl border p-3" key={x.user_id}><span className="text-sm font-semibold">{x.username}</span><span className="text-xs text-slate-500">{roleLabels[x.role as keyof typeof roleLabels]||x.role}</span></div>)}</div></div>
    <div className="rounded-2xl border bg-white p-5 lg:col-span-2"><h2 className="text-lg font-bold">Configuración del conductor</h2><p className="mt-1 text-sm text-slate-500">Condiciones gestionadas exclusivamente por la empresa.</p>
-    <div className="mt-3 grid gap-3 sm:grid-cols-3"><select className={input} value={driverId} onChange={e=>setDriverId(e.target.value)}><option value="">Selecciona un conductor</option>{(view?.team||[]).filter(x=>x.role==='driver').map(x=><option key={x.user_id} value={x.user_id}>{x.username}</option>)}</select><input className={input} placeholder="Base de trabajo" value={base} onChange={e=>setBase(e.target.value)}/><input className={input} placeholder="Convenio" value={agreement} onChange={e=>setAgreement(e.target.value)}/></div>
-    <div className="mt-3 grid gap-3 sm:grid-cols-2"><label className="text-sm font-semibold">Tarifas de dieta (JSON)<textarea className={input+' mt-2 font-mono'} rows={3} value={dietRates} onChange={e=>setDietRates(e.target.value)}/></label><label className="text-sm font-semibold">Pluses (JSON)<textarea className={input+' mt-2 font-mono'} rows={3} value={plusRates} onChange={e=>setPlusRates(e.target.value)}/></label></div>
-    <label className="mt-3 block text-sm font-semibold">Condiciones de nómina (JSON)<textarea className={input+' mt-2 font-mono'} rows={2} value={payrollTerms} onChange={e=>setPayrollTerms(e.target.value)}/></label>
-    <button disabled={!driverId||busy} className={button+' mt-3'} onClick={async()=>{try{await action({action:'update_settings',driverId,settings:{base_name:base,agreement,diet_rates:JSON.parse(dietRates),plus_rates:JSON.parse(plusRates),payroll_terms:JSON.parse(payrollTerms)}});}catch{setError('Revisa el formato de las tarifas.');}}}>Guardar configuración</button>
+    <div className="mt-3 grid gap-3 sm:grid-cols-2">
+     <label className="text-sm font-semibold">Conductor<select className={input+' mt-1'} value={driverId} onChange={e=>setDriverId(e.target.value)}>
+      <option value="">Selecciona un conductor</option>{(view?.team||[]).filter(x=>x.role==='driver'&&x.active!==false).map(x=><option key={x.user_id} value={x.user_id}>{x.username}</option>)}
+     </select></label>
+     <label className="text-sm font-semibold">Base de trabajo<input className={input+' mt-1'} placeholder="Ej. Abrera" value={base} onChange={e=>setBase(e.target.value)}/></label>
+     <label className="text-sm font-semibold">Centro de trabajo<input className={input+' mt-1'} placeholder="Centro o delegación" value={workplace} onChange={e=>setWorkplace(e.target.value)}/></label>
+     <label className="text-sm font-semibold">Convenio aplicable<input className={input+' mt-1'} placeholder="Ej. Transporte de Barcelona" value={agreement} onChange={e=>setAgreement(e.target.value)}/></label>
+    </div>
+    {!driverId?<p className="mt-3 rounded-xl bg-blue-50 p-3 text-sm text-blue-800">Cuando el empleado acepte la invitación aparecerá aquí para configurar sus condiciones. Antes de incorporarlo, no se pueden guardar tarifas a su nombre.</p>:null}
+    <div className="mt-5 rounded-xl border border-slate-200 p-4">
+     <h3 className="font-bold">Dietas de empresa</h3><p className="mt-1 text-xs text-slate-500">Introduce el importe correspondiente a cada tipo y porcentaje, en euros.</p>
+     <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
+      {([{key:'nacional',label:'Nacional'},{key:'internacional',label:'Internacional'},{key:'regional',label:'Regional'}] as const).flatMap(t=>[100,60,30].map(pct=>{
+       const key=t.key+'_'+pct;return <label key={key} className="text-xs font-semibold text-slate-700">{t.label} · {pct} %
+        <div className="relative mt-1"><input type="number" min="0" step="0.01" inputMode="decimal" className={input+' pr-8'} value={fieldValue(dietRates,key)} onChange={e=>updateField(dietRates,setDietRates,key,e.target.value)}/><span className="absolute right-3 top-3 text-slate-500">€</span></div>
+       </label>;
+      }))}
+     </div>
+    </div>
+    <div className="mt-4 rounded-xl border border-slate-200 p-4">
+     <h3 className="font-bold">Pluses</h3>
+     <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
+      {([{key:'domingo',label:'Domingos'},{key:'festivo',label:'Festivos'},{key:'sabado',label:'Sábados'},{key:'nocturnidad',label:'Nocturnidad'},{key:'pernocta',label:'Pernoctas'},{key:'fin_semana_fuera',label:'Fin de semana fuera'}] as const).map(x=><label key={x.key} className="text-xs font-semibold text-slate-700">{x.label}
+       <div className="relative mt-1"><input type="number" min="0" step="0.01" inputMode="decimal" className={input+' pr-8'} value={fieldValue(plusRates,x.key)} onChange={e=>updateField(plusRates,setPlusRates,x.key,e.target.value)}/><span className="absolute right-3 top-3 text-slate-500">€</span></div>
+      </label>)}
+     </div>
+    </div>
+    <div className="mt-4 rounded-xl border border-slate-200 p-4">
+     <h3 className="font-bold">Condiciones de nómina</h3>
+     <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
+      {([{key:'salario_base',label:'Salario base'},{key:'complementos',label:'Complementos'},{key:'pagas_extra',label:'Pagas extra'}] as const).map(x=><label key={x.key} className="text-xs font-semibold text-slate-700">{x.label}
+       <div className="relative mt-1"><input type="number" min="0" step="0.01" inputMode="decimal" className={input+' pr-8'} value={fieldValue(payrollTerms,x.key)} onChange={e=>updateField(payrollTerms,setPayrollTerms,x.key,e.target.value)}/><span className="absolute right-3 top-3 text-slate-500">€</span></div>
+      </label>)}
+     </div>
+    </div>
+    <button disabled={!driverId||busy} className={button+' mt-4'} onClick={async()=>{
+     try{const r=await action({action:'update_settings',driverId,settings:{base_name:base,workplace,agreement,diet_rates:JSON.parse(dietRates),plus_rates:JSON.parse(plusRates),payroll_terms:JSON.parse(payrollTerms)}});if(r)setMessage('Configuración del conductor guardada correctamente.');}
+     catch{setError('No se pudieron guardar las tarifas. Comprueba los importes.');}
+    }}>{busy?'Guardando…':'Guardar configuración'}</button>
    </div>
   </section>:null}
   {member.role==='traffic'?<section className="space-y-4"><div className="grid grid-cols-3 gap-2">{[{label:'Conductores',value:view?.drivers?.length||0},{label:'Jornadas recientes',value:view?.jornadas?.length||0},{label:'Cambios pendientes',value:pending.length}].map(x=><div key={x.label} className="rounded-xl bg-white p-4"><p className="text-2xl font-bold">{x.value}</p><p className="mt-1 text-xs text-slate-500">{x.label}</p></div>)}</div>

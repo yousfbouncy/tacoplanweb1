@@ -10,8 +10,8 @@ const normalizeJornadaDate=(value:unknown):string|null=>{
  if(typeof value!=='string')return null;
  const v=value.trim();
  let iso:string;
- if(/^\\d{4}-\\d{2}-\\d{2}/.test(v))iso=v.slice(0,10);
- else if(/^\\d{2}\/\\d{2}\/\\d{4}$/.test(v)){
+ if(/^\d{4}-\d{2}-\d{2}/.test(v))iso=v.slice(0,10);
+ else if(/^\d{2}\/\d{2}\/\d{4}$/.test(v)){
   const [d,m,y]=v.split('/');iso=y+'-'+m+'-'+d;
  }else return null;
  const parsed=new Date(iso+'T12:00:00Z');
