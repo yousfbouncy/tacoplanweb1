@@ -43,7 +43,7 @@ export async function GET(req:NextRequest){
     .eq('company_id',companyId).eq('driver_id',user.id).order('created_at',{ascending:false}).limit(250)
   ]);
   if(settings.error||reviews.error)throw settings.error||reviews.error;
-  return enterpriseJson({company,member,settings:settings.data,reviews:reviews.data||[]});
+  return enterpriseJson({company,member,driverSettings:settings.data,reviews:reviews.data||[]});
  }
  // Owner manages identity, plan and configuration, but does not automatically
  // receive traffic routes, GPS or HR payroll figures.
