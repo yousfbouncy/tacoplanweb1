@@ -16,7 +16,7 @@ export async function GET(req:NextRequest){
  // HR does not receive route, location, individual jornada or traffic data.
  if(role==='hr'){
   const [reviews,closures,drivers]=await Promise.all([
-   db.from('tp_diet_reviews').select('id,driver_id,status,original_diet_type,original_amount,proposed_diet_type,proposed_amount,driver_observation,traffic_observation,change_reason,confirmed_at,created_at')
+   db.from('tp_diet_reviews').select('id,driver_id,jornada_date,status,original_diet_type,original_amount,proposed_diet_type,proposed_amount,driver_observation,traffic_observation,change_reason,confirmed_at,created_at')
     .eq('company_id',companyId).order('created_at',{ascending:false}).limit(500),
    db.from('tp_payroll_closures').select('id,month,driver_id,total_diets,total_pluses,confirmed_count,pending_count,disputed_count,closed_at')
     .eq('company_id',companyId).order('closed_at',{ascending:false}).limit(200),
@@ -26,16 +26,15 @@ export async function GET(req:NextRequest){
   return enterpriseJson({company,member,drivers:drivers.data||[],reviews:reviews.data||[],closures:closures.data||[]});
  }
  if(role==='traffic'){
-  const [members,jornadas,reviews]=await Promise.all([
-   db.from('tp_company_members').select('user_id,username').eq('company_id',companyId).eq('active',true).eq('role','driver'),
-   db.from('jornadas').select('id,user_id,fecha_inicio,fecha_fin,hora_inicio,hora_fin,lugar_inicio,lugar_fin,tipo_ruta,dieta_manual_tipo,dieta_importe_eur,conduccion_min')
-    .order('created_at',{ascending:false}).limit(1500),
-   db.from('tp_diet_reviews').select('id,jornada_id,driver_id,status,original_diet_type,original_amount,proposed_diet_type,proposed_amount,traffic_observation,change_reason,driver_observation,created_at')
-    .eq('company_id',companyId).order('created_at',{ascending:false}).limit(1000)
+  const members=await db.from('tp_company_members').select('user_id,username').eq('company_id',companyId).eq('active',true).eq('role','driver');
+  if(members.error)throw members.error;
+  const ids=(members.data||[]).map(x=>x.user_id);
+  const [jornadas,reviews]=await Promise.all([
+   ids.length?db.from('jornadas').select('id,user_id,fecha_inicio,fecha_fin,hora_inicio,hora_fin,lugar_inicio,lugar_fin,tipo_ruta,dieta_manual_tipo,dieta_importe_eur,conduccion_min').in('user_id',ids).order('created_at',{ascending:false}).limit(1500):Promise.resolve({data:[],error:null}),
+   db.from('tp_diet_reviews').select('id,jornada_id,jornada_date,driver_id,status,original_diet_type,original_amount,proposed_diet_type,proposed_amount,traffic_observation,change_reason,driver_observation,created_at').eq('company_id',companyId).order('created_at',{ascending:false}).limit(1000)
   ]);
-  for(const response of [members,jornadas,reviews])if(response.error)throw response.error;
-  const ids=new Set((members.data||[]).map(x=>x.user_id));
-  return enterpriseJson({company,member,drivers:members.data||[],jornadas:(jornadas.data||[]).filter(j=>ids.has(j.user_id)),reviews:reviews.data||[]});
+  if(jornadas.error||reviews.error)throw jornadas.error||reviews.error;
+  return enterpriseJson({company,member,drivers:members.data||[],jornadas:jornadas.data||[],reviews:reviews.data||[]});
  }
  if(role==='driver'){
   const [settings,reviews]=await Promise.all([
