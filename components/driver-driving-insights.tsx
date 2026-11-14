@@ -18,7 +18,7 @@ const driving=(j:DrivingJornada)=>{
  const primary=j.conduccion_min;
  if(typeof primary==='number'&&Number.isFinite(primary)&&primary>=0)return primary;
  const tacho=j.tacho_driving_min;
- return typeof tacho==='number'&&Number.isFinite(tacho)&&tacho>=0?tacho:null;
+ return typeof tacho==='number'&&Number.isFinite(tacho)&&tacho>0?tacho:null;
 };
 const instant=(iso:string|null|undefined,date:string|null|undefined,time:string|null|undefined)=>{
  if(iso && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(iso)){
@@ -43,8 +43,8 @@ export function DriverDrivingInsights({jornadas,name,base,reportRows,reportPerio
  const [sharing,setSharing]=useState(false),[message,setMessage]=useState('');
  useEffect(()=>{const id=setInterval(()=>setNow(Date.now()),1000);return()=>clearInterval(id);},[]);
  const start=weekStartUTC(now),prev=start-7*86_400_000;
- const weekly=jornadas.filter(j=>{const d=dayMs(j);return Number.isFinite(d)&&d>=start&&d<start+7*86_400_000;});
- const fortnight=jornadas.filter(j=>{const d=dayMs(j);return Number.isFinite(d)&&d>=prev&&d<start+7*86_400_000;});
+ const weekly=jornadas.filter(j=>{const d=dayMs(j);return Number.isFinite(d)&&d>=start&&d<=now&&d<start+7*86_400_000;});
+ const fortnight=jornadas.filter(j=>{const d=dayMs(j);return Number.isFinite(d)&&d>=prev&&d<=now&&d<start+7*86_400_000;});
  const sum=(items:DrivingJornada[])=>({total:items.reduce((v,j)=>v+(driving(j)||0),0),missing:items.filter(j=>driving(j)===null).length,known:items.filter(j=>driving(j)!==null).length});
  const week=sum(weekly),two=sum(fortnight);
  const rest=useMemo(()=>{
@@ -71,7 +71,7 @@ export function DriverDrivingInsights({jornadas,name,base,reportRows,reportPerio
    weekMissing:week.missing,fortnightMissing:two.missing,
    rest:rest.kind==='rest'?mins(rest.minutes):rest.kind==='working'?'Jornada posiblemente abierta':'Sin fin de jornada comprobable',
    count:periodRows.length,driving:allDriving,work,diets,
-   rows:periodRows.slice(0,75).map(j=>({
+   rows:periodRows.map(j=>({
     date:day(j),start:j.lugar_inicio||'—',end:j.lugar_fin||'—',
     driving:driving(j),working:j.duracion_jornada_min,diet:parseMoney(j)
    }))
