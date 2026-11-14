@@ -120,6 +120,7 @@ export function Navbar() {
                 Planes
               </Link>
             ) : null}
+            <Link href="/empresas" className="text-slate-100 hover:text-sky-300 transition">Empresas</Link>
             <Link href="/contacto" className="text-slate-100 hover:text-sky-300 transition">
               Contacto
             </Link>
@@ -184,6 +185,7 @@ export function Navbar() {
                 Planes
               </Link>
             ) : null}
+            <Link href="/empresas" className="block text-slate-100 hover:text-sky-300" onClick={() => setMobileMenuOpen(false)}>Empresas</Link>
             <Link
               href="/contacto"
               className="block text-slate-100 hover:text-sky-300"
