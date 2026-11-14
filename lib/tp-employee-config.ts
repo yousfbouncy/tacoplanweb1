@@ -5,8 +5,9 @@ export type InitialEmployeeConfig={
  trip_types:{nacional:boolean;internacional:boolean;morocco:boolean;ferry:boolean};
  payment_mode:'dietas'|'km'|'viaje';
  diet_scheme:'percentage'|'fixed';
- base_name:string;base_city:string;base_country:string;base_address:string;
+ base_name:string;base_city:string;base_country:string;base_address:string;agreement:string;base_latitude:number|null;base_longitude:number|null;
  base_radius_km:number;
+ ferry_config:{crossesFerry:boolean;routeMode:'spain'|'morocco';paymentMode:'spain_diet'|'morocco_diet'|'morocco_trip'|'morocco_pernight';tripRate:number;pernightRate:number;ferryRestEnabled:boolean};
  period_type:'AUTO_01_30'|'AUTO_20_20'|'MANUAL';
  period_start_day:number;period_end_day:number;
  diet_rates:Record<string,number>;
@@ -19,7 +20,8 @@ export const emptyEmployeeConfig=():InitialEmployeeConfig=>({
  driver_profile:'standard',operation_zone:'spain',
  trip_types:{nacional:true,internacional:false,morocco:false,ferry:false},
  payment_mode:'dietas',diet_scheme:'percentage',
- base_name:'',base_city:'',base_country:'España',base_address:'',base_radius_km:20,
+ base_name:'',base_city:'',base_country:'España',base_address:'',agreement:'',base_latitude:null,base_longitude:null,base_radius_km:20,
+ ferry_config:{crossesFerry:false,routeMode:'spain',paymentMode:'spain_diet',tripRate:0,pernightRate:0,ferryRestEnabled:false},
  period_type:'AUTO_01_30',period_start_day:1,period_end_day:30,
  diet_rates:{},plus_rates:{},km_rates:{},trip_rates:{},payroll_terms:{}
 });
@@ -54,7 +56,10 @@ export function normalizeEmployeeConfig(raw:unknown):InitialEmployeeConfig{
  cfg.trip_types={nacional:types.nacional===true,internacional:types.internacional===true,morocco:types.morocco===true,ferry:types.ferry===true};
  if(!Object.values(cfg.trip_types).some(Boolean))throw new Error('Selecciona al menos un tipo de viaje');
  cfg.base_name=clean(c.base_name);cfg.base_city=clean(c.base_city);cfg.base_country=clean(c.base_country,80);
- cfg.base_address=clean(c.base_address,255);
+ cfg.base_address=clean(c.base_address,255);cfg.agreement=clean(c.agreement,160);
+ cfg.base_latitude=c.base_latitude===undefined||c.base_latitude===null||String(c.base_latitude).trim()===''?null:Number(c.base_latitude);
+ cfg.base_longitude=c.base_longitude===undefined||c.base_longitude===null||String(c.base_longitude).trim()===''?null:Number(c.base_longitude);
+ if((cfg.base_latitude!==null&&(!Number.isFinite(cfg.base_latitude)||Math.abs(cfg.base_latitude)>90))||(cfg.base_longitude!==null&&(!Number.isFinite(cfg.base_longitude)||Math.abs(cfg.base_longitude)>180)))throw new Error('Coordenadas de base incorrectas');
  const radius=numberField(c.base_radius_km);cfg.base_radius_km=radius===null?20:radius;
  if(!cfg.base_name||!cfg.base_city||!cfg.base_country||cfg.base_radius_km<=0)throw new Error('Indica la base, ciudad, país y radio de trabajo');
  cfg.period_type=allowed(c.period_type,['AUTO_01_30','AUTO_20_20','MANUAL'],'AUTO_01_30');
@@ -68,6 +73,11 @@ export function normalizeEmployeeConfig(raw:unknown):InitialEmployeeConfig{
  cfg.km_rates=numericRates(c.km_rates,[...dietNames]);
  cfg.trip_rates=numericRates(c.trip_rates,[...dietNames]);
  cfg.payroll_terms=numericRates(c.payroll_terms,['salario_base','complementos','pagas_extra']);
+ const ferry=c.ferry_config&&typeof c.ferry_config==='object'?c.ferry_config as Record<string,unknown>:{};
+ const isFerry=cfg.driver_profile==='ferry'||cfg.driver_profile==='morocco';
+ cfg.ferry_config={crossesFerry:isFerry,routeMode:cfg.driver_profile==='morocco'?'morocco':'spain',paymentMode:isFerry?allowed(ferry.paymentMode,['morocco_diet','morocco_trip','morocco_pernight'],'morocco_diet'):'spain_diet',tripRate:numberField(ferry.tripRate)??0,pernightRate:numberField(ferry.pernightRate)??0,ferryRestEnabled:cfg.driver_profile==='ferry'};
+ if(isFerry&&cfg.ferry_config.paymentMode==='morocco_trip'&&cfg.ferry_config.tripRate<=0)throw new Error('Indica el precio por viaje para Marruecos o ferry');
+ if(isFerry&&cfg.ferry_config.paymentMode==='morocco_pernight'&&cfg.ferry_config.pernightRate<=0)throw new Error('Indica el precio por pernocta para Marruecos o ferry');
  if(cfg.payment_mode==='dietas'&&cfg.diet_scheme==='fixed'){
   for(const name of dietNames){
    const amount=cfg.diet_rates[name+'_fija'];
@@ -91,6 +101,7 @@ export function mobileProfileConfig(cfg:InitialEmployeeConfig,displayName:string
   trip_types:cfg.trip_types,payment_mode:cfg.payment_mode,
   period_type:cfg.period_type,period_start_day:cfg.period_start_day,period_end_day:cfg.period_end_day,
   base_name:cfg.base_name,base_city:cfg.base_city,base_country:cfg.base_country,base_address:cfg.base_address,
+  base_latitude:cfg.base_latitude,base_longitude:cfg.base_longitude,
   base_radius_km:cfg.base_radius_km,
  };
  for(const name of dietNames){
@@ -117,4 +128,9 @@ export async function syncEmployeeConfig(db:any,driverId:string,name:string,cfg:
   offsite_weekly_complete_internacional:plus.offsite_weekly_complete_internacional??0,
  },{onConflict:'user_id'});
  if(extras.error)throw extras.error;
+ if(cfg.ferry_config.crossesFerry){
+  const f=cfg.ferry_config;
+  const update=await db.from('user_ferry_config').upsert({user_id:driverId,crosses_ferry:f.crossesFerry,route_mode:f.routeMode,payment_mode:f.paymentMode,trip_rate:f.tripRate,pernight_rate:f.pernightRate,ferry_rest_enabled:f.ferryRestEnabled,updated_at:new Date().toISOString()},{onConflict:'user_id'});
+  if(update.error)throw update.error;
+ }
 }
