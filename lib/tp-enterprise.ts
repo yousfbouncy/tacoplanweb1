@@ -1,12 +1,8 @@
 import {NextRequest,NextResponse} from 'next/server';
 import {adminDatabase,sameOrigin} from '@/lib/admin-users';
 export type EnterpriseRole='owner'|'traffic'|'hr'|'driver';
-export const PLAN_PRICES=[
- {priceId:'price_1UblTjFoZhJx3uBkhZpCawQT',title:'Starter',seats:5,cents:1999},
- {priceId:'price_1UblVEFoZhJx3uBkdr6qD8vb',title:'Profesional',seats:15,cents:3999},
- {priceId:'price_1UblVwFoZhJx3uBkTmRyH9T9',title:'Business',seats:40,cents:7999},
- {priceId:'price_1UblXtFoZhJx3uBk7zrSvGqA',title:'Enterprise',seats:100,cents:14999},
-] as const;
+export {PLAN_PRICES} from '@/lib/tp-enterprise-plans';
+
 export const enterpriseJson=(value:unknown,status=200)=>NextResponse.json(value,{status,headers:{'Cache-Control':'private,no-store','X-Robots-Tag':'noindex,nofollow'}});
 export async function identity(req:NextRequest){
  const match=req.headers.get('authorization')?.match(/^Bearer ([^\s]+)$/);
