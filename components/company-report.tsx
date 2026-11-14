@@ -8,6 +8,15 @@ const date=(v:string)=>v.split('-').reverse().join('/');
 const isSunday=(x:string|null)=>/DOMINGO/i.test(x||'');
 const isHoliday=(x:string|null)=>/FESTIV|FIESTA|HOLIDAY/i.test(x||'');
 const plusTotal=(r:SharedReportData['rows'][number])=>(r.dayExtra||0)+r.plusItems.reduce((s,x)=>s+(x.amount||0),0);
+type DietCategory='Nacional'|'Internacional'|'Regional';
+const DIET_CATEGORIES:DietCategory[]=['Nacional','Internacional','Regional'];
+const dietCategory=(value:string|null):DietCategory|null=>{
+ const text=(value||'').trim().toUpperCase();
+ if(text.includes('INTERNACIONAL')||text.includes('INTERNATIONAL'))return 'Internacional';
+ if(text.includes('NACIONAL')||text.includes('NATIONAL'))return 'Nacional';
+ if(text.includes('REGIONAL'))return 'Regional';
+ return null;
+};
 export function CompanyReport({token}:{token:string}){
  const [report,setReport]=useState<SharedReportData|null>(null),[expires,setExpires]=useState('');
  const [busy,setBusy]=useState(true),[error,setError]=useState('');
@@ -31,10 +40,30 @@ export function CompanyReport({token}:{token:string}){
  const allowed=(f:ReportField)=>!!report?.fields.includes(f);
  const totals=useMemo(()=>{
   const countDiets=rows.filter(r=>(allowed('diet_type')&&!!r.dietType)||(allowed('diet_amount')&&r.dietAmount!==null)).length;
+  const dietBreakdown=Object.fromEntries(DIET_CATEGORIES.map(category=>[category,{
+   count:0,amount:0,amountCount:0
+  }])) as Record<DietCategory,{count:number;amount:number;amountCount:number}>;
+  let unclassified=0,unclassifiedAmount=0;
+  if(allowed('diet_type')){
+   for(const row of rows){
+    if(!row.dietType && !(allowed('diet_amount')&&row.dietAmount!==null))continue;
+    const kind=dietCategory(row.dietType);
+    if(kind){
+     dietBreakdown[kind].count++;
+     if(allowed('diet_amount')&&row.dietAmount!==null){
+      dietBreakdown[kind].amount+=row.dietAmount;
+      dietBreakdown[kind].amountCount++;
+     }
+    }else{
+     unclassified++;
+     if(allowed('diet_amount')&&row.dietAmount!==null)unclassifiedAmount+=row.dietAmount;
+    }
+   }
+  }
   const sunday=rows.filter(r=>isSunday(r.dayFlag)).length;
   const holiday=rows.filter(r=>isHoliday(r.dayFlag)).length;
   const extra=rows.filter(r=>r.plusItems.length>0||(r.dayExtra!==null&&r.dayExtra>0)).length;
-  return {countDiets,sunday,holiday,extra,amountDiets:rows.reduce((s,r)=>s+(r.dietAmount||0),0),amountExtras:rows.reduce((s,r)=>s+plusTotal(r),0)};
+  return {countDiets,dietBreakdown,unclassified,unclassifiedAmount,sunday,holiday,extra,amountDiets:rows.reduce((sum,r)=>sum+(r.dietAmount||0),0),amountExtras:rows.reduce((sum,r)=>sum+plusTotal(r),0)};
  },[rows,report]);
  const download=()=>{if(!report)return;saveReportPdf({...report,from,to,rows,generatedAt:new Date().toISOString()});};
  const periodLabel=(r:SharedReportData['rows'][number])=>{
@@ -63,7 +92,19 @@ export function CompanyReport({token}:{token:string}){
      <div className="col-span-2 rounded-xl bg-[#1c3e69] p-3 sm:col-span-1"><p className="text-xs text-blue-200">Jornadas</p><p className="mt-1 text-2xl font-extrabold">{rows.length}</p></div>
     </div>
     <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
-     {(allowed('diet_type')||allowed('diet_amount'))?<div className="rounded-xl border border-[#344d70] bg-[#0b1b33] p-3"><p className="text-xs text-slate-400">Dietas registradas</p><p className="mt-1 text-xl font-bold">{totals.countDiets}</p>{allowed('diet_amount')?<p className="mt-1 text-sm text-emerald-300">{money(totals.amountDiets)}</p>:null}</div>:null}
+     {(allowed('diet_type')||allowed('diet_amount'))?<div className="col-span-2 rounded-xl border border-[#344d70] bg-[#0b1b33] p-4 sm:col-span-4">
+      <div className="flex items-center justify-between gap-3"><p className="text-sm font-semibold text-slate-200">Dietas registradas</p><p className="text-2xl font-extrabold text-white">{totals.countDiets}</p></div>
+      {allowed('diet_amount')?<p className="mt-1 text-right text-sm font-semibold text-emerald-300">Total: {money(totals.amountDiets)}</p>:null}
+      {allowed('diet_type')?<div className="mt-3 grid grid-cols-3 gap-2">
+        {DIET_CATEGORIES.map(category=><div key={category} className="min-w-0 rounded-xl border border-[#344d70] bg-[#152b4a] p-2.5 sm:p-3">
+          <p className="text-[11px] font-medium text-slate-300 sm:text-xs">{category}</p>
+          <p className="mt-1 text-xl font-bold tabular-nums text-white">{totals.dietBreakdown[category].count}</p>
+          {allowed('diet_amount')&&totals.dietBreakdown[category].amountCount>0?<p className="mt-1 text-xs font-semibold text-emerald-300">{money(totals.dietBreakdown[category].amount)}</p>:null}
+        </div>)}
+      </div>:null}
+      {allowed('diet_type')&&totals.unclassified>0?<p className="mt-3 text-xs text-slate-400">Sin tipo identificado: {totals.unclassified}{allowed('diet_amount')?' · '+money(totals.unclassifiedAmount):''}</p>:null}
+      {!allowed('diet_type')?<p className="mt-2 text-xs text-slate-400">El conductor no ha autorizado mostrar los tipos de dieta.</p>:null}
+    </div>:null}
      {allowed('day_flags')?<><div className="rounded-xl border border-[#344d70] bg-[#0b1b33] p-3"><p className="text-xs text-slate-400">Domingos marcados</p><p className="mt-1 text-xl font-bold">{totals.sunday}</p></div><div className="rounded-xl border border-[#344d70] bg-[#0b1b33] p-3"><p className="text-xs text-slate-400">Festivos marcados</p><p className="mt-1 text-xl font-bold">{totals.holiday}</p></div></>:null}
      {(allowed('pluses')||allowed('plus_amount'))?<div className="rounded-xl border border-[#344d70] bg-[#0b1b33] p-3"><p className="text-xs text-slate-400">Jornadas con pluses</p><p className="mt-1 text-xl font-bold">{totals.extra}</p>{allowed('plus_amount')?<p className="mt-1 text-sm text-amber-300">{money(totals.amountExtras)}</p>:null}</div>:null}
     </div>
