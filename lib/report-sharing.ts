@@ -18,7 +18,7 @@ export const REPORT_FIELD_OPTIONS=[
 ] as const;
 export type ReportField=typeof REPORT_FIELD_OPTIONS[number]['key'];
 export const ALL_REPORT_FIELDS=REPORT_FIELD_OPTIONS.map(v=>v.key);
-export const DEFAULT_REPORT_FIELDS:ReportField[]=['start_end','locations','route_type','diet_type','diet_pct','day_flags','pluses'];
+export const DEFAULT_REPORT_FIELDS:ReportField[]=['start_end','locations','route_type','diet_type','diet_pct','driving','availability','day_flags','pluses'];
 export type SharedReportRow={
  date:string;start:string|null;end:string|null;routeType:string|null;
  startTime:string|null;endTime:string|null;endDate:string|null;
