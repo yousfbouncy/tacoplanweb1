@@ -111,9 +111,9 @@ export function EnterprisePortal(){
  const updateField=(raw:string,set:(value:string)=>void,key:string,value:string)=>{
   try{
    const original=JSON.parse(raw);const next=original&&typeof original==='object'&&!Array.isArray(original)?{...original}:{};
-   if(value.trim()==='')delete next[key];else next[key]=Number(value.replace(',','.'));
+   if(value.trim()==='')delete next[key];else next[key]=value.replace(',','.');
    set(JSON.stringify(next));
-  }catch{set(JSON.stringify({[key]:Number(value.replace(',','.'))}));}
+  }catch{set(JSON.stringify({[key]:value.replace(',','.')}));}
  };
  const member=view?.member;
  const title=view?.company?.name||'Tacoplan Empresas';
