@@ -6,7 +6,8 @@ import {SUPABASE_URL,SUPABASE_ANON_KEY} from '@/lib/supabase';
 import {enterpriseJson,cleanUsername,validUsername} from '@/lib/tp-enterprise';
 export const dynamic='force-dynamic';
 export async function POST(req:NextRequest){
- if(!sameOrigin(req))return enterpriseJson({error:'Solicitud no permitida'},403);
+ // Native apps do not send Origin; reject foreign browser origins, while authenticating every request with a password.
+ if(req.headers.get('origin')&&!sameOrigin(req))return enterpriseJson({error:'Solicitud no permitida'},403);
  let username='',password='';
  try{
   const data=await req.json();
