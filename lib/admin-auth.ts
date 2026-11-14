@@ -43,9 +43,7 @@ export function verifyAdminToken(secret: string, token: string | undefined, maxA
 
 export function getAdminPassword(): string | null {
   const fromEnv =
-    process.env.TACOPLAN_ADMIN_PASSWORD ||
-    process.env.ADMIN_PASSWORD ||
-    process.env.NEXT_PUBLIC_ADMIN_PASSWORD;
+    process.env.TACOPLAN_ADMIN_PASSWORD || process.env.ADMIN_PASSWORD;
 
   return fromEnv?.trim() ? fromEnv.trim() : null;
 }
