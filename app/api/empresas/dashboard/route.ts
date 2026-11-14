@@ -27,7 +27,7 @@ export async function GET(req:NextRequest){
   return enterpriseJson({company,member,drivers:drivers.data||[],reviews:reviews.data||[],closures:closures.data||[]});
  }
  if(role==='traffic'){
-  const members=await db.from('tp_company_members').select('user_id,username,joined_at').eq('company_id',companyId).eq('active',true).eq('role','driver');
+  const members=await db.from('tp_company_members').select('user_id,username,employee_name,joined_at').eq('company_id',companyId).eq('active',true).eq('role','driver');
   if(members.error)throw members.error;
   const ids=(members.data||[]).map(x=>x.user_id);
   // Joining an employer never shares a conductor's prior personal history.
@@ -52,9 +52,9 @@ export async function GET(req:NextRequest){
  // receive traffic routes, GPS or HR payroll figures.
  if(role==='owner'){
   const [team,settings,invites]=await Promise.all([
-   db.from('tp_company_members').select('user_id,username,role,active,joined_at').eq('company_id',companyId).order('joined_at',{ascending:false}),
-   db.from('tp_driver_settings').select('driver_id,base_name,workplace,agreement,effective_from,diet_rates,plus_rates,payroll_terms,updated_at').eq('company_id',companyId),
-   db.from('tp_company_invites').select('id,email,username,role,created_at,expires_at,accepted_at,revoked_at').eq('company_id',companyId).order('created_at',{ascending:false}).limit(100)
+   db.from('tp_company_members').select('user_id,username,employee_name,role,active,joined_at').eq('company_id',companyId).order('joined_at',{ascending:false}),
+   db.from('tp_driver_settings').select('driver_id,base_name,workplace,agreement,effective_from,diet_rates,plus_rates,payroll_terms,initial_config,updated_at').eq('company_id',companyId),
+   db.from('tp_company_invites').select('id,email,username,employee_name,role,initial_settings,created_at,expires_at,accepted_at,revoked_at').eq('company_id',companyId).order('created_at',{ascending:false}).limit(100)
   ]);
   for(const response of [team,settings,invites])if(response.error)throw response.error;
   return enterpriseJson({company,member,team:team.data||[],settings:settings.data||[],invites:invites.data||[]});

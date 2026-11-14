@@ -1,0 +1,20 @@
+name: Validate enterprise onboarding
+on:
+  push:
+    branches:
+      - feat/enterprise-onboarding-at-invite-20261114
+  workflow_dispatch:
+jobs:
+  typecheck:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npm run typecheck
+      - run: node scripts/test-enterprise-config.cjs
