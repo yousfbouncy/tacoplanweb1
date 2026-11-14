@@ -68,10 +68,10 @@ export function EnterprisePortal(){
    if(signUpError)throw signUpError;
    if(data.session){
     setSignupFeedback('ready');
-    setMessage('Cuenta de acceso creada. Ahora puedes registrar tu empresa y configurar sus empleados.');
+    setMessage(inviteToken?'Cuenta de empleado creada. Estamos asociándola con tu empresa.':'Cuenta de acceso creada. Ahora puedes registrar tu empresa y configurar sus empleados.');
    }else{
     setSignupFeedback('verify');
-    setMessage('Registro recibido. Revisa tu correo electrónico para confirmar el acceso y después inicia sesión.');
+    setMessage(inviteToken?'Revisa tu correo para confirmar la cuenta; regresarás a esta invitación para activarla.':'Registro recibido. Revisa tu correo electrónico para confirmar el acceso y después inicia sesión.');
    }
   }else if(email.includes('@')){
    const {error:signInError}=await supabase.auth.signInWithPassword({email:email.trim(),password});
@@ -122,7 +122,7 @@ export function EnterprisePortal(){
    <label className="mt-4 block text-sm font-semibold">Contraseña<input className={input+' mt-2'} value={password} onChange={e=>setPassword(e.target.value)} type="password" autoComplete={authMode==='register'?'new-password':'current-password'} minLength={authMode==='register'?8:undefined}/></label>
    {error?<p role="alert" className="mt-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">{error}</p>:null}
    {signupFeedback==='verify'?<div role="status" aria-live="polite" className="mt-3 rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900"><strong>Comprueba tu correo electrónico.</strong><p className="mt-1">Sigue el enlace de confirmación y vuelve aquí para iniciar sesión. Si no llega, comprueba la carpeta de spam.</p></div>:null}
-   {signupFeedback==='ready'?<p role="status" className="mt-3 rounded-lg bg-emerald-50 p-3 text-sm text-emerald-900">Cuenta creada. Continúa con el paso 2: crear tu empresa.</p>:null}
+   {signupFeedback==='ready'?<p role="status" className="mt-3 rounded-lg bg-emerald-50 p-3 text-sm text-emerald-900">Cuenta creada. Continuando con la activación del acceso…</p>:null}
    <button type="button" className={button+' mt-4 w-full'} onClick={()=>void login()} disabled={busy||signupFeedback==='verify'||Boolean(inviteToken&&(inviteLoading||inviteError||!inviteInfo))}>{busy?'Procesando…':authMode==='login'?'Iniciar sesión':inviteToken?'Crear mi acceso de empleado':'Registrarme con correo electrónico'}</button>
    <button type="button" className="mt-4 w-full text-sm font-semibold text-blue-700" onClick={()=>{setAuthMode(authMode==='login'?'register':'login');setSignupFeedback(null);setError('');setMessage('');}}>{authMode==='login'?'No tengo cuenta · Crear mi acceso':'Ya tengo cuenta · Iniciar sesión'}</button>
    <p className="mt-4 text-xs text-slate-500">Las empresas crean invitaciones y asignan la configuración del empleado. La contraseña definitiva la establece el propio usuario.</p>
