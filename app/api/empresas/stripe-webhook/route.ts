@@ -34,7 +34,7 @@ export async function POST(req:NextRequest){
   if(event.type==='checkout.session.completed'&&o.mode==='subscription'){
    const companyId=o.metadata?.tp_company_id||o.client_reference_id;
    if(typeof companyId==='string'&&typeof o.subscription==='string'&&typeof o.customer==='string'){
-    const existing=await db.from('tp_companies').select('id,stripe_customer_id,stripe_subscription_id').eq('id',companyId).maybeSingle();
+    const existing=await db.from('tp_companies').select('id,stripe_customer_id,stripe_subscription_id,trial_ends_at').eq('id',companyId).maybeSingle();
     if(!existing.error&&existing.data&&(!existing.data.stripe_customer_id||existing.data.stripe_customer_id===o.customer)){
      const updated=await db.from('tp_companies').update({stripe_customer_id:o.customer,stripe_subscription_id:o.subscription}).eq('id',companyId);
      if(updated.error)throw updated.error;
@@ -44,7 +44,7 @@ export async function POST(req:NextRequest){
   if(['customer.subscription.created','customer.subscription.updated','customer.subscription.deleted'].includes(event.type)){
    const companyId=o.metadata?.tp_company_id;
    if(typeof companyId==='string'&&typeof o.id==='string'&&typeof o.customer==='string'){
-    const existing=await db.from('tp_companies').select('id,stripe_customer_id,stripe_subscription_id').eq('id',companyId).maybeSingle();
+    const existing=await db.from('tp_companies').select('id,stripe_customer_id,stripe_subscription_id,trial_ends_at').eq('id',companyId).maybeSingle();
     if(existing.error)throw existing.error;
     if(existing.data&&(!existing.data.stripe_customer_id||existing.data.stripe_customer_id===o.customer)
       &&(!existing.data.stripe_subscription_id||existing.data.stripe_subscription_id===o.id)){
