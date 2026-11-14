@@ -30,6 +30,16 @@ const FIELDS: FieldDef[] = [
   { key: 'home_final_cta_title', label: 'Home · CTA final (título)', kind: 'textarea' },
 ];
 
+const DEFAULT_CONTENT: Record<string, string> = {
+  "home_title": "Tu jornada bajo control. Sin libreta ni cálculos manuales.",
+  "home_subtitle": "Consulta tu conducción y descansos desde el móvil, recibe avisos preventivos y lleva tus dietas a mano. Menos cálculos, más tranquilidad en carretera.",
+  "home_beta_notice": "Herramienta de apoyo al conductor. No sustituye al tacógrafo oficial.",
+  "home_about": "Tacoplan nació de las dificultades que vivimos los camioneros para controlar nuestras horas y descansos sin recurrir constantemente al tacógrafo o a apuntes manuales. La app ayuda a organizar tus registros y anticipar posibles errores.",
+  "home_benefits_title": "Todo lo que necesitas, a mano",
+  "home_benefits_subtitle": "Control de jornada, descansos, dietas y avisos de posibles infracciones en una sola aplicación.",
+  "home_final_cta_title": "Empieza a llevar tus jornadas con Tacoplan"
+};
+
 function toMap(rows: SiteContentRow[]): Record<string, SiteContentRow> {
   const map: Record<string, SiteContentRow> = {};
   for (const r of rows) map[r.key] = r;
@@ -124,7 +134,7 @@ export function SiteContentEditor() {
       const nextDraft: Record<string, string> = {};
       for (const k of keys) {
         const r = map[k];
-        const value = r?.draft_value ?? r?.published_value ?? '';
+        const value = r?.draft_value ?? r?.published_value ?? DEFAULT_CONTENT[k] ?? '';
         nextDraft[k] = value;
       }
       setDraft(nextDraft);
@@ -213,7 +223,7 @@ export function SiteContentEditor() {
                       <div className="flex flex-col gap-1">
                         <div className="text-sm font-medium text-slate-800">{field.label}</div>
                         <div className="text-xs text-slate-500">
-                          Publicado: {published ? 'Sí' : 'No'}{updatedAt ? ` · Actualizado: ${new Date(updatedAt).toLocaleString()}` : ''}
+                          Publicado: {published ? 'Sí' : 'No (se muestra el texto predeterminado)'}{updatedAt ? ` · Actualizado: ${new Date(updatedAt).toLocaleString()}` : ''}
                         </div>
                       </div>
                       {field.kind === 'textarea' ? (
@@ -254,27 +264,27 @@ export function SiteContentEditor() {
           </CardContent>
         </Card>
 
-        <Card className="rounded-2xl">
+        {preview ? (<Card className="rounded-2xl">
           <CardHeader>
-            <CardTitle>{preview ? 'Vista previa (borrador)' : 'Publicado (referencia)'}</CardTitle>
+            <CardTitle>Vista previa del borrador</CardTitle>
             <CardDescription>
-              {preview ? 'Así quedaría si publicas el borrador.' : 'Esto es lo que está publicado ahora.'}
+              Así quedaría la portada con los textos del borrador.
             </CardDescription>
           </CardHeader>
           <CardContent className="overflow-hidden rounded-2xl border bg-white p-0">
             <div className="max-h-[75vh] overflow-auto">
               <HomePageView
-                heroTitle={preview ? (draft.home_title ?? '') : (rows.home_title?.published_value ?? '')}
-                heroSubtitle={preview ? (draft.home_subtitle ?? '') : (rows.home_subtitle?.published_value ?? '')}
-                betaNotice={preview ? (draft.home_beta_notice ?? '') : (rows.home_beta_notice?.published_value ?? '')}
-                aboutText={preview ? (draft.home_about ?? '') : (rows.home_about?.published_value ?? '')}
-                benefitsTitle={preview ? (draft.home_benefits_title ?? '') : (rows.home_benefits_title?.published_value ?? '')}
-                benefitsSubtitle={preview ? (draft.home_benefits_subtitle ?? '') : (rows.home_benefits_subtitle?.published_value ?? '')}
-                finalCtaTitle={preview ? (draft.home_final_cta_title ?? '') : (rows.home_final_cta_title?.published_value ?? '')}
+                heroTitle={draft.home_title || DEFAULT_CONTENT.home_title}
+                heroSubtitle={draft.home_subtitle || DEFAULT_CONTENT.home_subtitle}
+                betaNotice={draft.home_beta_notice || DEFAULT_CONTENT.home_beta_notice}
+                aboutText={draft.home_about || DEFAULT_CONTENT.home_about}
+                benefitsTitle={draft.home_benefits_title || DEFAULT_CONTENT.home_benefits_title}
+                benefitsSubtitle={draft.home_benefits_subtitle || DEFAULT_CONTENT.home_benefits_subtitle}
+                finalCtaTitle={draft.home_final_cta_title || DEFAULT_CONTENT.home_final_cta_title}
               />
             </div>
           </CardContent>
-        </Card>
+        </Card>) : null}
       </div>
     </div>
   );

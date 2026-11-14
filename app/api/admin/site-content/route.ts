@@ -3,8 +3,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { ADMIN_COOKIE_NAME, getAdminPassword, verifyAdminToken } from '@/lib/admin-auth';
 
 function getSupabaseAdmin() {
-  const supabaseUrl =
-    process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://dutgxjwfjtqxmqonnjlp.supabase.co';
+  // Este panel administra el proyecto principal de Tacoplan. No heredar URL variables de otros despliegues.
+  const supabaseUrl = 'https://dutgxjwfjtqxmqonnjlp.supabase.co';
   const serviceRoleKey =
     process.env.SUPABASE_SERVICE_ROLE_KEY ||
     process.env.SUPABASE_SERVICE_ROLE ||
@@ -50,12 +50,14 @@ export async function GET(req: NextRequest) {
 
     const { data, error } = keys.length ? await query.in('key', keys) : await query;
     if (error) {
-      return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+      console.error('site-content GET Supabase', error);
+      return NextResponse.json({ ok: false, error: 'No se pudo acceder al contenido en Supabase. Comprueba las variables del servidor.' }, { status: 502 });
     }
     return NextResponse.json({ ok: true, data: data ?? [] }, { status: 200 });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
-    return NextResponse.json({ ok: false, error: message }, { status: 500 });
+    console.error('site-content GET error', message);
+    return NextResponse.json({ ok: false, error: 'Error de conexión con Supabase. Revisa la configuración del servidor.' }, { status: 502 });
   }
 }
 

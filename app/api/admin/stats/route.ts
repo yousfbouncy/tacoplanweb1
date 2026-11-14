@@ -12,7 +12,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
   }
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE;
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://dutgxjwfjtqxmqonnjlp.supabase.co';
+  const url = 'https://dutgxjwfjtqxmqonnjlp.supabase.co';
   if (!serviceKey) return NextResponse.json({ error: 'Falta configurar Supabase en el servidor' }, { status: 503 });
 
   try {
