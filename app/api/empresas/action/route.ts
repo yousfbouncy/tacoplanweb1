@@ -64,6 +64,7 @@ export async function POST(req:NextRequest){
   if(!invite||invite.revoked_at||new Date(invite.expires_at).getTime()<Date.now())
    return json({error:'Invitación caducada o revocada. Solicita una nueva'},410);
   if(cleanEmail(user.email)!==cleanEmail(invite.email))return json({error:'Inicia sesión con el correo electrónico al que se envió la invitación'},403);
+  if(!user.email_confirmed_at)return json({error:'Confirma tu dirección de correo electrónico antes de aceptar la invitación'},403);
   if(member&&member.company_id!==invite.company_id)return json({error:'Ya perteneces a otra empresa'},409);
   if(member&&member.role!==invite.role)return json({error:'Ya tienes un perfil distinto en esta empresa'},409);
   if(invite.accepted_at&&member)return json({ok:true,role:member.role,alreadyAccepted:true});
@@ -77,7 +78,7 @@ export async function POST(req:NextRequest){
    }
   }
   if(!member){
-   const inserted=await db.from('tp_company_members').insert({company_id:invite.company_id,user_id:user.id,username:invite.username,employee_name:name,role:invite.role});
+   const inserted=await db.from('tp_company_members').insert({company_id:invite.company_id,user_id:user.id,username:invite.username,employee_name:name,role:invite.role,active:false});
    if(inserted.error){
     const existing=await db.from('tp_company_members').select('company_id,role').eq('user_id',user.id).maybeSingle();
     if(existing.data?.company_id!==invite.company_id||existing.data?.role!==invite.role)return json({error:'Esta cuenta ya pertenece a otra empresa o el nombre de usuario está ocupado'},409);
@@ -99,6 +100,10 @@ export async function POST(req:NextRequest){
    const profile=await db.from('profiles').upsert({id:user.id,display_name:name,updated_at:new Date().toISOString()},{onConflict:'id'});
    if(profile.error)throw profile.error;
   }
+  // Activate membership only after the company configuration reaches native
+  // driver tables, so Traffic cannot see a half-configured employee.
+  const activated=await db.from('tp_company_members').update({employee_name:name,active:true}).eq('company_id',invite.company_id).eq('user_id',user.id);
+  if(activated.error)throw activated.error;
   const updated=await db.from('tp_company_invites').update({accepted_at:new Date().toISOString()}).eq('id',invite.id).is('accepted_at',null);
   if(updated.error)throw updated.error;
   await audit(db,invite.company_id,user.id,'member.accepted','member',user.id,null,{role:invite.role,username:invite.username,employee_name:name});
