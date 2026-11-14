@@ -15,7 +15,8 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
-import { Truck, Menu, X } from 'lucide-react';
+import { Menu, X } from 'lucide-react';
+import { TacoplanBrand } from '@/components/tacoplan-brand';
 import { useState } from 'react';
 
 function DownloadApkDialogButton({ className }: { className?: string }) {
@@ -106,9 +107,8 @@ export function Navbar() {
     <nav className="bg-white border-b sticky top-0 z-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between h-16 items-center">
-          <Link href="/" className="flex items-center space-x-2">
-            <Truck className="h-8 w-8 text-blue-600" />
-            <span className="text-2xl font-bold text-gray-900">Tacoplan</span>
+          <Link href="/" aria-label="Tacoplan - inicio" className="flex items-center shrink-0">
+            <TacoplanBrand />
           </Link>
 
           <div className="hidden md:flex items-center space-x-8">
