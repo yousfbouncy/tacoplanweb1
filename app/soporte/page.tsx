@@ -83,7 +83,7 @@ export default function SoportePage() {
                 ¿Cómo empiezo a usar Tacoplan?
               </AccordionTrigger>
               <AccordionContent className="text-gray-600">
-                Descarga Tacoplan desde Google Play, regístrate con tu email o cuenta de Google, y completa tu perfil. La aplicación te guiará paso a paso en la configuración inicial, incluyendo la configuración de tus dietas nacionales e internacionales.
+                Descarga Tacoplan desde los enlaces oficiales de esta web, regístrate con tu email o cuenta de Google y completa tu perfil. La aplicación te guiará paso a paso en la configuración inicial, incluyendo la configuración de tus dietas nacionales e internacionales.
               </AccordionContent>
             </AccordionItem>
 
@@ -101,7 +101,7 @@ export default function SoportePage() {
                 ¿Puedo usar Tacoplan sin conexión a Internet?
               </AccordionTrigger>
               <AccordionContent className="text-gray-600">
-                Sí, Tacoplan funciona completamente offline. Todos tus registros se guardan localmente en tu dispositivo y se sincronizan automáticamente con la nube cuando vuelvas a tener conexión. Así puedes trabajar en cualquier lugar sin preocuparte por la cobertura.
+                Sí, Tacoplan permite registrar información sin conexión en las funciones compatibles. Todos tus registros se guardan localmente en tu dispositivo y se sincronizan automáticamente con la nube cuando vuelvas a tener conexión. Así puedes trabajar en cualquier lugar sin preocuparte por la cobertura.
               </AccordionContent>
             </AccordionItem>
 
@@ -146,7 +146,7 @@ export default function SoportePage() {
                 ¿Es seguro guardar mis datos en Tacoplan?
               </AccordionTrigger>
               <AccordionContent className="text-gray-600">
-                Absolutamente. Todos tus datos se almacenan de forma segura y cifrada. Utilizamos servidores seguros y cumplimos con todas las regulaciones de protección de datos. Tus datos son solo tuyos y nunca los compartiremos con terceros sin tu consentimiento explícito.
+                Absolutamente. Protegemos los datos con medidas técnicas y organizativas. Consulta la política de privacidad para conocer su tratamiento y tus derechos.
               </AccordionContent>
             </AccordionItem>
 
@@ -168,7 +168,7 @@ export default function SoportePage() {
                 <a href="mailto:soporte@tacoplan.es" className="text-blue-600 hover:underline">
                   soporte@tacoplan.es
                 </a>
-                . Describe el problema con el máximo detalle posible e incluye capturas de pantalla si es necesario. Nuestro equipo responderá en menos de 24 horas laborables.
+                . Describe el problema con el máximo detalle posible e incluye capturas de pantalla si es necesario. Intentaremos responderte lo antes posible.
               </AccordionContent>
             </AccordionItem>
           </Accordion>

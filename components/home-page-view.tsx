@@ -1,270 +1,49 @@
 'use client';
 
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { HomeFinalCtaButton, HomeHeroActions } from '@/components/home-hero-actions';
-import {
-  Calculator,
-  CalendarDays,
-  CheckCircle2,
-  Clock,
-  Cloud,
-  MapPin,
-  ShieldCheck,
-  Smartphone,
-  Truck,
-  WifiOff,
-} from 'lucide-react';
+import { ArrowRight, BellRing, Calculator, CheckCircle2, Clock3, Coffee, Download, Gauge, MapPinned, ShieldAlert, Smartphone, Truck, Wallet } from 'lucide-react';
+import { HomeHeroActions, HomeFinalCtaButton } from '@/components/home-hero-actions';
 
-type HomePageViewProps = {
-  heroTitle: string;
-  heroSubtitle: string;
-  betaNotice: string;
-  aboutText: string;
-  benefitsTitle: string;
-  benefitsSubtitle: string;
-  finalCtaTitle: string;
-};
-
-export function HomePageView({
-  heroTitle,
-  heroSubtitle,
-  betaNotice,
-  aboutText,
-  benefitsTitle,
-  benefitsSubtitle,
-  finalCtaTitle,
-}: HomePageViewProps) {
-  const appStoreHref = 'https://apps.apple.com/es/app/tacoplan/id6767099789';
-  const apkHref =
-    process.env.NEXT_PUBLIC_APK_URL ||
-    'https://dutgxjwfjtqxmqonnjlp.supabase.co/storage/v1/object/public/apk/tacoplan%20version%202.2.2.apk';
-
-  const highlightIndex = heroTitle.toLowerCase().indexOf('para ');
-  const heroTitleBefore = highlightIndex >= 0 ? heroTitle.slice(0, highlightIndex) : heroTitle;
-  const heroTitleAfter = highlightIndex >= 0 ? heroTitle.slice(highlightIndex) : null;
-
-  return (
-    <div className="flex flex-col min-h-screen">
-      <section className="relative bg-gradient-to-br from-blue-700 via-blue-800 to-slate-900 py-24 px-6 text-white overflow-hidden">
-        <div className="max-w-7xl mx-auto relative z-10">
-          <div className="grid lg:grid-cols-2 gap-12 items-center">
-            <div className="text-center lg:text-left space-y-8">
-              <div className="inline-flex items-center px-4 py-2 rounded-full bg-blue-500/20 border border-blue-400/30 text-blue-100 text-sm font-medium animate-fade-in">
-                <Truck className="w-4 h-4 mr-2" />
-                Sustituye tu libreta tradicional hoy
-              </div>
-              <h1 className="text-5xl md:text-7xl font-extrabold tracking-tight leading-tight">
-                {heroTitleAfter ? (
-                  <>
-                    {heroTitleBefore}
-                    <span className="text-blue-400">{heroTitleAfter}</span>
-                  </>
-                ) : (
-                  heroTitle
-                )}
-              </h1>
-              <p className="text-xl md:text-2xl text-blue-100 max-w-2xl mx-auto lg:mx-0 leading-relaxed">
-                {heroSubtitle}
-              </p>
-              <p className="text-sm text-blue-200">{betaNotice}</p>
-              <HomeHeroActions />
-            </div>
-            <div className="hidden lg:flex justify-center items-center relative animate-float">
-              <div className="relative w-[320px] h-[640px] bg-slate-800 rounded-[3rem] border-[8px] border-slate-700 shadow-2xl overflow-hidden">
-                <div className="absolute top-0 w-full h-8 bg-slate-700 flex justify-center items-end pb-1">
-                  <div className="w-16 h-4 bg-slate-800 rounded-full"></div>
-                </div>
-                <div className="p-4 pt-12 space-y-4 bg-slate-900 h-full">
-                  <div className="h-20 bg-blue-600 rounded-xl opacity-40 animate-pulse"></div>
-                  <div className="h-4 bg-slate-700 rounded w-3/4"></div>
-                  <div className="h-4 bg-slate-700 rounded w-1/2"></div>
-                  <div className="grid grid-cols-2 gap-4 mt-8">
-                    <div className="h-24 bg-slate-800 rounded-xl"></div>
-                    <div className="h-24 bg-slate-800 rounded-xl"></div>
-                  </div>
-                </div>
-              </div>
-            </div>
+type Props = { heroTitle: string; heroSubtitle: string; betaNotice: string; aboutText: string; benefitsTitle: string; benefitsSubtitle: string; finalCtaTitle: string };
+const features = [
+  { icon: Clock3, title: 'Jornadas en segundos', text: 'Registra el inicio y el final de tu jornada sin depender de una libreta.' },
+  { icon: Gauge, title: 'Conducción y descansos', text: 'Consulta tus registros diarios, semanales y bisemanales desde el móvil.' },
+  { icon: ShieldAlert, title: 'Avisos preventivos', text: 'Recibe alertas de posibles excesos e incumplimientos según los datos registrados.' },
+  { icon: Coffee, title: 'Descansos y compensaciones', text: 'Ten controlados los descansos reducidos y las compensaciones pendientes.' },
+  { icon: Wallet, title: 'Dietas y pluses', text: 'Calcula importes con las tarifas que configures para tu trabajo.' },
+  { icon: Calculator, title: 'Estimación de nómina', text: 'Revisa una estimación de lo que te corresponde cobrar.' },
+];
+export function HomePageView({ heroTitle, heroSubtitle, betaNotice, aboutText, benefitsTitle, benefitsSubtitle, finalCtaTitle }: Props) {
+  return <div className="bg-[#081225] text-white">
+    <section className="relative overflow-hidden border-b border-white/10 px-5 pb-20 pt-16 sm:px-8 lg:pt-24">
+      <div className="pointer-events-none absolute -right-24 top-0 h-[450px] w-[450px] rounded-full bg-blue-600/25 blur-[110px]" />
+      <div className="pointer-events-none absolute -left-32 bottom-0 h-80 w-80 rounded-full bg-cyan-600/10 blur-[100px]" />
+      <div className="relative mx-auto grid max-w-6xl items-center gap-14 lg:grid-cols-2">
+        <div>
+          <span className="inline-flex items-center gap-2 rounded-full border border-blue-400/25 bg-blue-400/10 px-4 py-2 text-sm text-blue-200"><Truck className="h-4 w-4" /> Hecha por un camionero, para camioneros</span>
+          <h1 className="mt-7 max-w-xl text-4xl font-extrabold leading-[1.1] tracking-tight sm:text-5xl lg:text-6xl">{heroTitle || 'Tu jornada bajo control. Sin libreta ni cálculos manuales.'}</h1>
+          <p className="mt-6 max-w-xl text-lg leading-relaxed text-slate-300">{heroSubtitle || 'Controla tus tiempos de conducción, descansos y dietas desde el móvil. Tacoplan te ayuda a anticiparte a posibles infracciones.'}</p>
+          <div className="mt-8"><HomeHeroActions /></div>
+          <div className="mt-6 flex flex-wrap gap-x-5 gap-y-3 text-sm text-slate-300">
+            <span className="inline-flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-sky-400"/> Registro rápido</span>
+            <span className="inline-flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-sky-400"/> Avisos preventivos</span>
+            <span className="inline-flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-sky-400"/> iPhone y Android</span>
+          </div>
+          <p className="mt-6 text-xs text-slate-500">{betaNotice}</p>
+        </div>
+        <div className="relative mx-auto w-full max-w-[440px]" aria-label="Ilustración de las principales funciones de Tacoplan">
+          <div className="absolute -inset-6 rounded-[3rem] bg-gradient-to-tr from-blue-500/15 to-cyan-400/5 blur-2xl"/>
+          <div className="relative rounded-[2.5rem] border border-white/15 bg-[#111f39] p-5 shadow-[0_35px_90px_rgba(0,0,0,.4)] sm:p-7">
+            <div className="mb-7 flex items-center justify-between"><div className="flex items-center gap-3"><span className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-600"><Truck className="h-6 w-6"/></span><div><p className="font-bold">Tacoplan</p><p className="text-xs text-slate-400">Tu jornada a mano</p></div></div><Smartphone className="h-5 w-5 text-blue-300"/></div>
+            <div className="rounded-2xl border border-blue-400/20 bg-gradient-to-br from-blue-600/25 to-blue-900/10 p-5"><div className="flex items-center gap-2 text-blue-200"><Clock3 className="h-5 w-5"/><span className="font-semibold">Control de jornada</span></div><p className="mt-3 text-sm leading-relaxed text-slate-200">Consulta conducción, descansos y límites registrados estés donde estés.</p></div>
+            <div className="mt-4 grid gap-3 sm:grid-cols-2"><div className="rounded-2xl border border-white/10 bg-white/[.04] p-4"><ShieldAlert className="mb-3 h-6 w-6 text-amber-300"/><p className="font-semibold">Alertas</p><p className="mt-1 text-xs text-slate-400">Prevención de posibles infracciones</p></div><div className="rounded-2xl border border-white/10 bg-white/[.04] p-4"><Wallet className="mb-3 h-6 w-6 text-emerald-300"/><p className="font-semibold">Dietas</p><p className="mt-1 text-xs text-slate-400">Control de importes y pluses</p></div></div>
+            <p className="mt-5 text-center text-[11px] text-slate-500">Representación ilustrativa de funcionalidades</p>
           </div>
         </div>
-        <div className="absolute -bottom-24 -left-24 w-96 h-96 bg-blue-600 rounded-full mix-blend-multiply filter blur-3xl opacity-20"></div>
-        <div className="absolute -top-24 -right-24 w-96 h-96 bg-indigo-600 rounded-full mix-blend-multiply filter blur-3xl opacity-20"></div>
-      </section>
-
-      <section className="py-20 bg-white px-6">
-        <div className="max-w-4xl mx-auto text-center space-y-6">
-          <h2 className="text-3xl md:text-4xl font-bold text-slate-900">¿Qué es Tacoplan?</h2>
-          <div className="w-20 h-1.5 bg-blue-600 mx-auto rounded-full"></div>
-          <p className="text-lg md:text-xl text-slate-600 leading-relaxed whitespace-pre-wrap">{aboutText}</p>
-        </div>
-      </section>
-
-      <section className="py-20 bg-slate-50 px-6">
-        <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-16">
-            <h2 className="text-3xl md:text-5xl font-bold text-slate-900 mb-4">{benefitsTitle}</h2>
-            <p className="text-slate-600 text-lg whitespace-pre-wrap">{benefitsSubtitle}</p>
-          </div>
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-            <BenefitCard
-              icon={<CalendarDays className="w-8 h-8 text-blue-600" />}
-              title="Registro de jornadas"
-              description="Inicia y cierra tu jornada en segundos, sin libreta."
-            />
-            <BenefitCard
-              icon={<Clock className="w-8 h-8 text-blue-600" />}
-              title="Tiempos y descansos"
-              description="Control de conducción, disponibilidad y descansos diarios/semanales."
-            />
-            <BenefitCard
-              icon={<MapPin className="w-8 h-8 text-blue-600" />}
-              title="Rutas y base"
-              description="Registra viajes y base (nacional/internacional) de forma rápida."
-            />
-            <BenefitCard
-              icon={<Calculator className="w-8 h-8 text-blue-600" />}
-              title="Dietas en un clic"
-              description="Resumen de dietas en tiempo real, sin cálculos manuales."
-            />
-            <BenefitCard
-              icon={<WifiOff className="w-8 h-8 text-blue-600" />}
-              title="Uso offline"
-              description="¿Sin cobertura? Registra tus datos y se sincronizarán al recuperar red."
-            />
-            <BenefitCard
-              icon={<Cloud className="w-8 h-8 text-blue-600" />}
-              title="Resumen e informes"
-              description="Resumen semanal y bisemanal, exportación e histórico siempre a mano."
-            />
-          </div>
-        </div>
-      </section>
-
-      <section className="py-24 bg-white px-6">
-        <div className="max-w-7xl mx-auto">
-          <div className="grid lg:grid-cols-2 gap-16 items-center">
-            <div className="space-y-8">
-              <h2 className="text-4xl font-bold text-slate-900">Cómo funciona</h2>
-              <div className="space-y-6">
-                <StepItem
-                  number="1"
-                  title="Registra el inicio de jornada"
-                  description="Comienza tu día activando tu jornada con un botón. y descansos diarios es automatico."
-                />
-                <StepItem
-                  number="2"
-                  title="fin de jornada, Añade tu actividad"
-                  description="Registra lugar fin, hora automatico editable, conducción, selecciona tipo de ruta y deita."
-                />
-                <StepItem number="3" title="Guarda viajes y paradas" description="Anota tus rutas" />
-                <StepItem
-                  number="4"
-                  title="Consulta estadísticas"
-                  description="Visualiza tu historial de dietas, y tiempos totales."
-                />
-              </div>
-            </div>
-            <div className="bg-blue-50 p-12 rounded-[2.5rem] border border-blue-100 shadow-inner">
-              <div className="space-y-6">
-                <div className="flex items-center space-x-4 bg-white p-4 rounded-2xl shadow-sm border border-slate-100">
-                  <CheckCircle2 className="w-6 h-6 text-green-500" />
-                  <span className="font-semibold text-slate-700">Normativa actualizada</span>
-                </div>
-                <div className="flex items-center space-x-4 bg-white p-4 rounded-2xl shadow-sm border border-slate-100">
-                  <CheckCircle2 className="w-6 h-6 text-green-500" />
-                  <span className="font-semibold text-slate-700">Exportación de informes</span>
-                </div>
-                <div className="flex items-center space-x-4 bg-white p-4 rounded-2xl shadow-sm border border-slate-100">
-                  <CheckCircle2 className="w-6 h-6 text-green-500" />
-                  <span className="font-semibold text-slate-700">Soporte multi-idioma</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section className="py-16 bg-slate-900 text-white px-6">
-        <div className="max-w-5xl mx-auto text-center space-y-8">
-          <div className="flex justify-center mb-4 text-blue-400">
-            <ShieldCheck className="w-16 h-16" />
-          </div>
-          <p className="text-xl md:text-2xl font-light leading-relaxed italic text-slate-300">
-            “Tacoplan no sustituye al tacógrafo oficial ni al asesoramiento profesional. Es una herramienta de apoyo avanzada para registrar y organizar la información del conductor profesional.”
-          </p>
-          <div className="flex flex-wrap justify-center gap-6 pt-4 opacity-80 grayscale hover:grayscale-0 transition-all">
-            <a
-              href={appStoreHref}
-              target="_blank"
-              rel="noreferrer"
-              className="bg-slate-800 px-6 py-3 rounded-xl border border-slate-700 flex items-center space-x-3 hover:border-slate-600 transition"
-            >
-              <Smartphone className="w-6 h-6" />
-              <div className="text-left">
-                <p className="text-[10px] uppercase font-bold text-slate-400 leading-none">Disponible en</p>
-                <p className="text-sm font-bold">App Store</p>
-              </div>
-            </a>
-            <a
-              href={apkHref}
-              target="_blank"
-              rel="noreferrer"
-              className="bg-slate-800 px-6 py-3 rounded-xl border border-slate-700 flex items-center space-x-3 hover:border-slate-600 transition"
-            >
-              <Smartphone className="w-6 h-6" />
-              <div className="text-left">
-                <p className="text-[10px] uppercase font-bold text-slate-400 leading-none">Android</p>
-                <p className="text-sm font-bold">Descarga APK</p>
-              </div>
-            </a>
-          </div>
-        </div>
-      </section>
-
-      <section className="py-24 bg-blue-600 px-6 relative overflow-hidden text-white">
-        <div className="max-w-4xl mx-auto text-center relative z-10 space-y-8">
-          <h2 className="text-4xl md:text-5xl font-bold leading-tight whitespace-pre-line">{finalCtaTitle}</h2>
-          <HomeFinalCtaButton />
-        </div>
-        <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -mr-32 -mt-32"></div>
-        <div className="absolute bottom-0 left-0 w-64 h-64 bg-black/10 rounded-full -ml-32 -mb-32"></div>
-      </section>
-    </div>
-  );
-}
-
-function BenefitCard({
-  icon,
-  title,
-  description,
-}: {
-  icon: React.ReactNode;
-  title: string;
-  description: string;
-}) {
-  return (
-    <Card className="border-none shadow-sm hover:shadow-xl transition-shadow duration-300 rounded-3xl p-4 bg-white">
-      <CardHeader className="pb-2">
-        <div className="w-16 h-16 bg-blue-50 rounded-2xl flex items-center justify-center mb-4">{icon}</div>
-        <CardTitle className="text-xl font-bold text-slate-900">{title}</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <p className="text-slate-600 leading-relaxed">{description}</p>
-      </CardContent>
-    </Card>
-  );
-}
-
-function StepItem({ number, title, description }: { number: string; title: string; description: string }) {
-  return (
-    <div className="flex space-x-6">
-      <div className="flex-shrink-0 w-12 h-12 bg-blue-600 text-white rounded-2xl flex items-center justify-center text-xl font-bold shadow-lg shadow-blue-200">
-        {number}
       </div>
-      <div>
-        <h3 className="text-xl font-bold text-slate-900 mb-1">{title}</h3>
-        <p className="text-slate-600 whitespace-pre-wrap">{description}</p>
-      </div>
-    </div>
-  );
+    </section>
+    <section className="border-b border-white/10 bg-white/[.025] px-5 py-16 sm:px-8"><div className="mx-auto max-w-4xl text-center"><p className="text-sm font-bold uppercase tracking-[.2em] text-sky-400">Por qué existe Tacoplan</p><h2 className="mt-3 text-3xl font-bold sm:text-4xl">Menos tiempo calculando. Más tranquilidad en ruta.</h2><p className="mx-auto mt-5 max-w-3xl text-lg leading-relaxed text-slate-300">{aboutText || 'Tacoplan nació de la experiencia de un conductor internacional: tener jornadas, conducción y descansos a mano, evitar apuntes dispersos y detectar posibles errores antes de que se conviertan en un problema.'}</p></div></section>
+    <section id="funciones" className="px-5 py-20 sm:px-8"><div className="mx-auto max-w-6xl"><div className="max-w-3xl"><p className="text-sm font-bold uppercase tracking-[.2em] text-sky-400">Funciones para el día a día</p><h2 className="mt-3 text-3xl font-bold sm:text-4xl">{benefitsTitle || 'Todo lo importante en un solo lugar'}</h2><p className="mt-4 text-slate-300">{benefitsSubtitle || 'Datos accesibles y cálculos que te ahorran trabajo.'}</p></div><div className="mt-10 grid gap-4 md:grid-cols-2 lg:grid-cols-3">{features.map(({icon: Icon,title,text})=><article key={title} className="rounded-2xl border border-white/10 bg-white/[.04] p-6 transition hover:border-blue-400/40 hover:bg-white/[.07]"><div className="mb-5 flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-500/15 text-blue-300"><Icon className="h-6 w-6"/></div><h3 className="text-lg font-bold">{title}</h3><p className="mt-2 text-sm leading-relaxed text-slate-300">{text}</p></article>)}</div></div></section>
+    <section className="bg-[#101e36] px-5 py-20 sm:px-8"><div className="mx-auto max-w-6xl"><div className="max-w-3xl"><p className="text-sm font-bold uppercase tracking-[.2em] text-sky-400">Así de sencillo</p><h2 className="mt-3 text-3xl font-bold sm:text-4xl">Tu jornada en dos momentos</h2></div><div className="mt-9 grid gap-5 md:grid-cols-3"><div className="rounded-2xl bg-white/5 p-6"><span className="text-3xl font-black text-blue-300">01</span><h3 className="mt-4 text-xl font-bold">Inicia jornada</h3><p className="mt-2 text-slate-300">Registra cuándo empiezas a trabajar.</p></div><div className="rounded-2xl bg-white/5 p-6"><span className="text-3xl font-black text-blue-300">02</span><h3 className="mt-4 text-xl font-bold">Cierra jornada</h3><p className="mt-2 text-slate-300">Completa los datos necesarios cuando termines.</p></div><div className="rounded-2xl bg-white/5 p-6"><span className="text-3xl font-black text-blue-300">03</span><h3 className="mt-4 text-xl font-bold">Consulta el resumen</h3><p className="mt-2 text-slate-300">Revisa tus registros, descansos y estimaciones de dietas.</p></div></div><p className="mt-6 text-sm text-slate-400">Los cálculos dependen de la información registrada. Tacoplan no sustituye al tacógrafo oficial.</p></div></section>
+    <section className="px-5 py-20 text-center sm:px-8"><div className="mx-auto max-w-3xl"><div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-2xl bg-blue-500/15"><Download className="h-8 w-8 text-blue-300"/></div><h2 className="whitespace-pre-line text-3xl font-bold sm:text-5xl">{finalCtaTitle || 'Empieza a llevar tu jornada a mano'}</h2><p className="mt-5 text-slate-300">Descarga Tacoplan y descubre cómo puede ayudarte en carretera.</p><div className="mt-7 flex justify-center"><HomeFinalCtaButton/></div></div></section>
+  </div>;
 }

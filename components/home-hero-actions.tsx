@@ -15,9 +15,7 @@ import {
 
 export function HomeHeroActions() {
   const appStoreHref = 'https://apps.apple.com/es/app/tacoplan/id6767099789';
-  const apkHref =
-    process.env.NEXT_PUBLIC_APK_URL ||
-    'https://dutgxjwfjtqxmqonnjlp.supabase.co/storage/v1/object/public/apk/tacoplan%20version%202.2.2.apk';
+  const apkHref = process.env.NEXT_PUBLIC_APK_URL?.trim();
 
   return (
     <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start pt-4">
@@ -36,7 +34,7 @@ export function HomeHeroActions() {
             <AlertDialogDescription asChild>
               <div className="space-y-5">
                 <div className="space-y-2">
-                  <p className="text-sm">Tacoplan está disponible en App Store. En Android se descarga como APK.</p>
+                  <p className="text-sm">Tacoplan está disponible en App Store. Si hay un APK vigente, aparecerá aquí la descarga Android.</p>
                   <p className="text-sm">En Android es normal ver un aviso de seguridad al descargar/instalar.</p>
                 </div>
 
@@ -46,11 +44,11 @@ export function HomeHeroActions() {
                       Descargar en App Store
                     </a>
                   </Button>
-                  <Button asChild variant="outline" className="w-full sm:w-auto">
+                  {apkHref ? (<Button asChild variant="outline" className="w-full sm:w-auto">
                     <a href={apkHref} target="_blank" rel="noreferrer">
                       Descargar APK (Android)
                     </a>
-                  </Button>
+                  </Button>) : null}
                 </div>
 
                 <div className="space-y-2">
@@ -73,7 +71,7 @@ export function HomeHeroActions() {
                 </div>
 
                 <div className="text-sm">
-                  App en prueba pero funcional. Tus datos se guardan de forma segura. CUALQUIER ERROR, O COSAS A MEJORAR Y CORREGIR, HAGAMELO SABER CONTACTADOME.
+                  Tacoplan sigue mejorando. Si encuentras un error o tienes una sugerencia, contacta con soporte.
                 </div>
 
                 <div className="flex flex-col sm:flex-row gap-2">
@@ -93,7 +91,7 @@ export function HomeHeroActions() {
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
           </AlertDialogFooter>
           <div className="pt-2 text-center text-xs text-muted-foreground">
-            Disponible en App Store. Android disponible por APK (próximamente en Google Play).
+            Disponible en App Store. La descarga Android se mostrará cuando se configure un enlace APK actualizado.
           </div>
         </AlertDialogContent>
       </AlertDialog>
@@ -103,9 +101,7 @@ export function HomeHeroActions() {
 
 export function HomeFinalCtaButton() {
   const appStoreHref = 'https://apps.apple.com/es/app/tacoplan/id6767099789';
-  const apkHref =
-    process.env.NEXT_PUBLIC_APK_URL ||
-    'https://dutgxjwfjtqxmqonnjlp.supabase.co/storage/v1/object/public/apk/tacoplan%20version%202.2.2.apk';
+  const apkHref = process.env.NEXT_PUBLIC_APK_URL?.trim();
 
   return (
     <AlertDialog>
@@ -123,7 +119,7 @@ export function HomeFinalCtaButton() {
           <AlertDialogDescription asChild>
             <div className="space-y-5">
               <div className="space-y-2">
-                <p className="text-sm">Tacoplan está disponible en App Store. En Android se descarga como APK.</p>
+                <p className="text-sm">Tacoplan está disponible en App Store. Si hay un APK vigente, aparecerá aquí la descarga Android.</p>
                 <p className="text-sm">En Android es normal ver un aviso de seguridad al descargar/instalar.</p>
               </div>
 
@@ -133,11 +129,11 @@ export function HomeFinalCtaButton() {
                     Descargar en App Store
                   </a>
                 </Button>
-                <Button asChild variant="outline" className="w-full sm:w-auto">
+                {apkHref ? (<Button asChild variant="outline" className="w-full sm:w-auto">
                   <a href={apkHref} target="_blank" rel="noreferrer">
                     Descargar APK (Android)
                   </a>
-                </Button>
+                </Button>) : null}
               </div>
 
               <div className="space-y-2">
@@ -160,7 +156,7 @@ export function HomeFinalCtaButton() {
               </div>
 
               <div className="text-sm">
-                App en prueba pero funcional. Tus datos se guardan de forma segura. CUALQUIER ERROR, O COSAS A MEJORAR Y CORREGIR, HAGAMELO SABER CONTACTADOME.
+                Tacoplan sigue mejorando. Si encuentras un error o tienes una sugerencia, contacta con soporte.
               </div>
 
               <div className="flex flex-col sm:flex-row gap-2">
@@ -180,7 +176,7 @@ export function HomeFinalCtaButton() {
           <AlertDialogCancel>Cancelar</AlertDialogCancel>
         </AlertDialogFooter>
         <div className="pt-2 text-center text-xs text-muted-foreground">
-          Disponible en App Store. Android disponible por APK (próximamente en Google Play).
+          Disponible en App Store. La descarga Android se mostrará cuando se configure un enlace APK actualizado.
         </div>
       </AlertDialogContent>
     </AlertDialog>
