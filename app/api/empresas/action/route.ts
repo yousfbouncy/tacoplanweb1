@@ -115,13 +115,21 @@ export async function POST(req:NextRequest){
   const originalAmount=Number(String(journey.data.dieta_importe_eur||'0').replace(',','.'))||0;
   const mode=body.mode,reason=plain(body.reason,2000),observation=plain(body.observation,2000);
   if(mode==='propose'&&reason.length<10)return json({error:'Explica el motivo del cambio (mínimo 10 caracteres)'},400);
+  const originalPluses=Array.isArray(journey.data.plus_items)?journey.data.plus_items:[];
+  const proposedPluses=mode==='propose'?body.pluses:null;
+  if(mode==='propose'&&(!Array.isArray(proposedPluses)||proposedPluses.length>50))return json({error:'La lista de pluses no es válida'},400);
+  if(mode==='propose'&&proposedPluses.some((item:unknown)=>{
+   if(!item||typeof item!=='object'||Array.isArray(item))return true;
+   const p=item as Record<string,unknown>;
+   return typeof p.concepto!=='string'||p.concepto.trim().length===0||p.concepto.length>120||amount(p.importe)===null;
+  }))return json({error:'Revisa los conceptos e importes de los pluses'},400);
   const proposed=mode==='propose'?amount(body.amount):null;
   if(mode==='propose'&&proposed===null)return json({error:'Importe de dieta incorrecto'},400);
   const payload={company_id:companyId,driver_id:body.driverId,jornada_id:body.jornadaId,
    original_diet_type:journey.data.dieta_manual_tipo,jornada_date:journey.data.fecha_inicio||null,original_amount:Math.max(0,originalAmount),
-   original_pluses:Array.isArray(journey.data.plus_items)?journey.data.plus_items:[],
+   original_pluses:originalPluses,
    proposed_diet_type:mode==='propose'?plain(body.dietType,80)||journey.data.dieta_manual_tipo:null,
-   proposed_amount:proposed,status:mode==='confirm'?'confirmed':'awaiting_driver',
+   proposed_amount:proposed,proposed_pluses:mode==='propose'?proposedPluses:null,status:mode==='confirm'?'confirmed':'awaiting_driver',
    traffic_observation:observation||null,change_reason:mode==='propose'?reason:null,
    confirmed_at:mode==='confirm'?new Date().toISOString():null,
    confirmed_by:mode==='confirm'?user.id:null,updated_at:new Date().toISOString()};
