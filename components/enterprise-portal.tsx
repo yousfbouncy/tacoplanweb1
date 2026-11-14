@@ -216,6 +216,11 @@ export function EnterprisePortal(){
       const res=await action({action:'update_pending_invite',inviteId:pendingInviteId,employeeName:pendingInviteName,initialSettings:selected?.role==='driver'?pendingInviteConfig:null});
       if(res){setPendingInviteId('');setMessage('Invitación actualizada. El empleado puede abrir de nuevo su enlace para finalizar la activación.');}
      }}>Guardar datos de la invitación</button>
+     <button type="button" className="ml-2 rounded-xl border border-blue-600 px-4 py-2.5 text-sm font-semibold text-blue-700 disabled:opacity-50" disabled={busy} onClick={async()=>{
+      const r=await action({action:'renew_invite',inviteId:pendingInviteId});
+      if(r){setLatestInvite(r.url);setMessage('Nuevo enlace preparado. El enlace anterior deja de funcionar. Copia y envía el nuevo al empleado.');}
+     }}>Generar nuevo enlace</button>
+     {latestInvite?<div className="mt-3 rounded-lg bg-blue-50 p-3"><p className="text-xs font-semibold">Enlace actualizado de invitación</p><input readOnly className={input} value={latestInvite}/><button className="mt-2 text-sm font-semibold text-blue-700" type="button" onClick={()=>void navigator.clipboard.writeText(latestInvite)}>Copiar enlace</button></div>:null}
     </div>:null}
    </div>
    <div className="rounded-2xl border bg-white p-5 lg:col-span-2">
