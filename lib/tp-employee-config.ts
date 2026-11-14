@@ -128,9 +128,7 @@ export async function syncEmployeeConfig(db:any,driverId:string,name:string,cfg:
   offsite_weekly_complete_internacional:plus.offsite_weekly_complete_internacional??0,
  },{onConflict:'user_id'});
  if(extras.error)throw extras.error;
- if(cfg.ferry_config.crossesFerry){
-  const f=cfg.ferry_config;
-  const update=await db.from('user_ferry_config').upsert({user_id:driverId,crosses_ferry:f.crossesFerry,route_mode:f.routeMode,payment_mode:f.paymentMode,trip_rate:f.tripRate,pernight_rate:f.pernightRate,ferry_rest_enabled:f.ferryRestEnabled,updated_at:new Date().toISOString()},{onConflict:'user_id'});
-  if(update.error)throw update.error;
- }
+ const f=cfg.ferry_config;
+ const update=await db.from('user_ferry_config').upsert({user_id:driverId,crosses_ferry:f.crossesFerry,route_mode:f.routeMode,payment_mode:f.paymentMode,trip_rate:f.tripRate,pernight_rate:f.pernightRate,ferry_rest_enabled:f.ferryRestEnabled,updated_at:new Date().toISOString()},{onConflict:'user_id'});
+ if(update.error)throw update.error;
 }
