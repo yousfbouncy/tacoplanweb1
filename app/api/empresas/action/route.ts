@@ -6,6 +6,18 @@ const DAY=86_400_000;
 const json=enterpriseJson;
 const amount=(v:unknown):number|null=>typeof v==='number'&&Number.isFinite(v)&&v>=0&&v<=100000?Math.round(v*100)/100:null;
 const plain=(value:unknown,max=250)=>typeof value==='string'?value.trim().slice(0,max):'';
+const normalizeJornadaDate=(value:unknown):string|null=>{
+ if(typeof value!=='string')return null;
+ const v=value.trim();
+ let iso:string;
+ if(/^\\d{4}-\\d{2}-\\d{2}/.test(v))iso=v.slice(0,10);
+ else if(/^\\d{2}\/\\d{2}\/\\d{4}$/.test(v)){
+  const [d,m,y]=v.split('/');iso=y+'-'+m+'-'+d;
+ }else return null;
+ const parsed=new Date(iso+'T12:00:00Z');
+ return !Number.isNaN(parsed.getTime())&&parsed.toISOString().slice(0,10)===iso?iso:null;
+};
+
 function validSettings(value:unknown){
  if(!value||typeof value!=='object'||Array.isArray(value))return null;
  const raw=value as Record<string,unknown>;
@@ -126,7 +138,7 @@ export async function POST(req:NextRequest){
   const proposed=mode==='propose'?amount(body.amount):null;
   if(mode==='propose'&&proposed===null)return json({error:'Importe de dieta incorrecto'},400);
   const payload={company_id:companyId,driver_id:body.driverId,jornada_id:body.jornadaId,
-   original_diet_type:journey.data.dieta_manual_tipo,jornada_date:journey.data.fecha_inicio||null,original_amount:Math.max(0,originalAmount),
+   original_diet_type:journey.data.dieta_manual_tipo,jornada_date:normalizeJornadaDate(journey.data.fecha_inicio),original_amount:Math.max(0,originalAmount),
    original_pluses:originalPluses,
    proposed_diet_type:mode==='propose'?plain(body.dietType,80)||journey.data.dieta_manual_tipo:null,
    proposed_amount:proposed,proposed_pluses:mode==='propose'?proposedPluses:null,status:mode==='confirm'?'confirmed':'awaiting_driver',
