@@ -3,6 +3,7 @@ import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import { AuthProvider } from '@/lib/auth-context';
 import { Navbar } from '@/components/navbar';
+import { WebAnalyticsTracker } from '@/components/web-analytics-tracker';
 import { Footer } from '@/components/footer';
 
 export const dynamic = 'force-dynamic';
@@ -38,6 +39,7 @@ export default function RootLayout({
       <body className={inter.className}>
         <AuthProvider>
           <div className="flex flex-col min-h-screen">
+            <WebAnalyticsTracker />
             <Navbar />
             <main className="flex-grow">{children}</main>
             <Footer />

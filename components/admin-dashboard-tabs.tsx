@@ -1,0 +1,13 @@
+'use client';
+import { useState } from 'react';
+import { Activity, Users, Globe2 } from 'lucide-react';
+import { AdminStatsDashboard } from '@/components/admin-stats-dashboard';
+import { AdminUsersPanel } from '@/components/admin-users-panel';
+import { AdminAcquisitionPanel } from '@/components/admin-acquisition-panel';
+type Tab='users'|'acquisition'|'overview';
+export function AdminDashboardTabs(){
+ const [tab,setTab]=useState<Tab>('users');
+ return <div><div role="tablist" aria-label="Secciones de administración" className="mb-5 grid grid-cols-3 gap-1 rounded-xl bg-slate-200/70 p-1">
+ {([{id:'users',text:'Usuarios',Icon:Users},{id:'acquisition',text:'Web y altas',Icon:Globe2},{id:'overview',text:'Resumen',Icon:Activity}] as const).map(t=><button key={t.id} type="button" role="tab" aria-selected={tab===t.id} onClick={()=>setTab(t.id)} className={'flex items-center justify-center gap-1.5 rounded-lg px-2 py-3 text-xs font-semibold sm:text-sm '+(tab===t.id?'bg-white text-blue-700 shadow-sm':'text-slate-600')}><t.Icon className="h-4 w-4"/>{t.text}</button>)}</div>
+ {tab==='users'?<AdminUsersPanel/>:tab==='acquisition'?<AdminAcquisitionPanel/>:<AdminStatsDashboard/>}</div>;
+}

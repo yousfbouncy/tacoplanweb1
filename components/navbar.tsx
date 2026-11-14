@@ -1,3 +1,4 @@
+import { trackWebsiteEvent } from '@/components/web-analytics-tracker';
 'use client';
 
 import Link from 'next/link';
@@ -38,12 +39,12 @@ function DownloadApkDialogButton({ className }: { className?: string }) {
 
               <div className="flex flex-col sm:flex-row gap-2">
                 <Button asChild className="w-full sm:w-auto">
-                  <a href={appStoreHref} target="_blank" rel="noreferrer">
+                  <a href={appStoreHref} onClick={() => trackWebsiteEvent("store_click_ios")} target="_blank" rel="noreferrer">
                     Descargar en App Store
                   </a>
                 </Button>
                 {apkHref ? (<Button asChild variant="outline" className="w-full sm:w-auto">
-                  <a href={apkHref} target="_blank" rel="noreferrer">
+                  <a href={apkHref} onClick={() => trackWebsiteEvent("store_click_android")} target="_blank" rel="noreferrer">
                     Descargar APK (Android)
                   </a>
                 </Button>) : null}
