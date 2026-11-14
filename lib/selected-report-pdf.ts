@@ -1,4 +1,4 @@
-import { REPORT_FIELD_OPTIONS, SharedReportData, ReportField, labelValue, hours, money } from '@/lib/report-sharing';
+import { SharedReportData, ReportField, hours, money } from '@/lib/report-sharing';
 
 // Compact A4 report. All drawing coordinates are PDF points; every field is kept
 // inside the printable area and a new page is started only when needed.
@@ -67,37 +67,84 @@ export function buildSelectedReportPdf(report:SharedReportData):Uint8Array {
  y-=summaryHeight+18;
  text(38,y,'HISTORIAL DE VIAJES',10,true);y-=8;line(y);y-=12;
 
- const labels=Object.fromEntries(REPORT_FIELD_OPTIONS.map(x=>[x.key,x.label])) as Record<ReportField,string>;
- // The header already contains date, route type and optionally start/end times.
- const visible=fields.filter(f=>f!=='driver_name'&&f!=='route_type'&&f!=='start_end');
+ // Compact journey sections. Only authorised fields are rendered.
+ // The blue band contains start/end with locations and the diet type.
+ const has=(key:ReportField)=>fields.includes(key);
+ const wrap=(value:string,limit:number):string[]=>{
+  const source=latin(value);
+  if(source.length<=limit)return [source];
+  const words=source.split(' '),lines:string[]=[];
+  let current='';
+  for(const word of words){
+   if((current+' '+word).trim().length>limit&&current){lines.push(current);current=word;}
+   else current=(current+' '+word).trim();
+  }
+  if(current)lines.push(current);
+  return lines.length?lines:['-'];
+ };
  for(let index=0;index<report.rows.length;index++){
   const r=report.rows[index];
-  const rowLines=Math.ceil(visible.length/2);
-  const height=25+rowLines*13+10;
+  const blueLines:string[]=[];
+  const location=(v:string|null)=>has('locations')?(v||'Lugar no registrado'):'';
+  if(has('start_end')||has('locations')){
+   const startText='INICIO: '+(has('start_end')?dateTime(r.date,r.startTime):formattedDate(r.date))+(has('locations')?' | '+location(r.start):'');
+   const endText='FIN: '+(has('start_end')?dateTime(r.endDate||r.date,r.endTime):formattedDate(r.endDate||r.date))+(has('locations')?' | '+location(r.end):'');
+   blueLines.push(...wrap(startText,104),...wrap(endText,104));
+  }else{
+   blueLines.push('FECHA: '+formattedDate(r.date));
+  }
+  const dietParts:string[]=[];
+  if(has('diet_type'))dietParts.push('Dieta: '+(r.dietType||'Sin tipo registrado'));
+  if(has('diet_pct'))dietParts.push(r.dietPct===null?'Porcentaje: —':r.dietPct+'%');
+  if(has('route_type'))dietParts.push('Ruta: '+(r.routeType||'No registrada'));
+  if(dietParts.length)blueLines.push(...wrap(dietParts.join(' | '),104));
+
+  const detailLines:string[]=[];
+  if(has('availability'))detailLines.push('Disponibilidad: '+(r.availability===null?'Sin datos':hours(r.availability)));
+  if(has('driving'))detailLines.push('Conducción: '+(r.driving===null?'Sin datos':hours(r.driving)));
+  if(has('working'))detailLines.push('Jornada: '+(r.working===null?'Sin datos':hours(r.working)));
+  if(has('rest'))detailLines.push('Descanso anterior: '+(r.rest===null?'Sin datos':hours(r.rest)));
+  if(has('diet_rate'))detailLines.push('Tarifa dieta: '+(r.dietRate===null?'Sin datos':money(r.dietRate)));
+  if(has('diet_amount'))detailLines.push('Importe dieta: '+(r.dietAmount===null?'Sin datos':money(r.dietAmount)));
+  if(has('km'))detailLines.push('Kilómetros: '+(r.km===null?'Sin datos':r.km.toLocaleString('es-ES')+' km'));
+
+  // Only actual recorded pluses and special days are printed. Never infer a holiday.
+  const extras:string[]=[];
+  if(has('day_flags')&&/DOMINGO/i.test(r.dayFlag||''))extras.push('Domingo');
+  if(has('day_flags')&&/FESTIV|FIESTA|HOLIDAY/i.test(r.dayFlag||''))extras.push('Festivo');
+  if(has('pluses')){
+   for(const plus of r.plusItems){
+    extras.push(plus.concept+(has('plus_amount')&&plus.amount!==null?' ('+money(plus.amount)+')':''));
+   }
+  }
+  if(has('plus_amount')&&r.dayExtra!==null&&r.dayExtra>0){
+   extras.push('Plus día especial: '+money(r.dayExtra));
+  }
+  if(has('plus_amount')&&!has('pluses')){
+   const sum=r.plusItems.reduce((acc,p)=>acc+(p.amount||0),0);
+   if(sum>0)extras.push('Otros pluses: '+money(sum));
+  }
+  if(extras.length)detailLines.push('Pluses: '+extras.join(' · '));
+  const details=detailLines.flatMap(value=>wrap(value,49));
+  const headerHeight=10+blueLines.length*11;
+  const detailRows=Math.ceil(details.length/2);
+  const detailHeight=detailRows>0?10+detailRows*11:6;
+  const height=headerHeight+detailHeight;
   if(y-height<55){
    nextPage();
-   text(38,y,'HISTORIAL DE VIAJES · CONTINUACIÓN',9,true);y-=18;
+   text(38,y,'HISTORIAL DE VIAJES - CONTINUACIÓN',9,true);y-=18;
   }
   const top=y;
   paint(38,top-height,519,height,'0.965 0.976 0.991');
-  paint(38,top-25,519,25,'0.89 0.93 0.98');
-  let header=formattedDate(r.date);
-  if(fields.includes('route_type'))header+='  |  '+routeLabel(r.routeType);
-  text(46,top-16,truncate(header,54),9,true);
-  if(fields.includes('start_end')){
-   const starts=r.startTime||'--:--',ends=r.endTime||'--:--';
-   const isOtherDay=r.endDate&&r.endDate!==r.date;
-   const when=starts+' - '+(isOtherDay?formattedDate(r.endDate||'')+' ':'')+ends;
-   text(413,top-16,truncate(when,25),8,true,'0.21 0.34 0.55');
+  paint(38,top-headerHeight,519,headerHeight,'0.87 0.92 0.99');
+  for(let n=0;n<blueLines.length;n++){
+   text(46,top-15-n*11,blueLines[n],8.2,n===0||n===1,'0.12 0.24 0.43');
   }
-  for(let i=0;i<visible.length;i++){
-   const f=visible[i],col=i%2,row=Math.floor(i/2),xx=46+col*256,yy=top-40-row*13;
-   const val=labelValue(r,f);
-   // Single-line compact label/value. Missing values remain visible as dashes.
-   const shortened=truncate(labels[f]+': '+val,48);
-   text(xx,yy,shortened,7.6,false);
+  for(let n=0;n<details.length;n++){
+   const col=n%2,lineNo=Math.floor(n/2);
+   text(46+col*255,top-headerHeight-13-lineNo*11,details[n],7.5,false,'0.24 0.33 0.49');
   }
-  y-=height+7;
+  y-=height+6;
  }
  if(report.rows.length===0){text(38,y,'No hay jornadas en el periodo seleccionado.',9);y-=22;}
  if(y<82)nextPage();

@@ -4,6 +4,7 @@ export const REPORT_FIELD_OPTIONS=[
  {key:'locations',label:'Origen y destino'},
  {key:'route_type',label:'Tipo de ruta'},
  {key:'driving',label:'Horas de conducción'},
+ {key:'availability',label:'Disponibilidad del tacógrafo'},
  {key:'working',label:'Duración de la jornada'},
  {key:'diet_type',label:'Tipo de dieta'},
  {key:'diet_pct',label:'Porcentaje de dieta'},
@@ -17,12 +18,12 @@ export const REPORT_FIELD_OPTIONS=[
 ] as const;
 export type ReportField=typeof REPORT_FIELD_OPTIONS[number]['key'];
 export const ALL_REPORT_FIELDS=REPORT_FIELD_OPTIONS.map(v=>v.key);
-export const DEFAULT_REPORT_FIELDS:ReportField[]=['start_end','locations','route_type','diet_type','diet_pct','day_flags','pluses'];
+export const DEFAULT_REPORT_FIELDS:ReportField[]=['start_end','locations','route_type','diet_type','diet_pct','driving','availability','day_flags','pluses'];
 export type SharedReportRow={
  date:string;start:string|null;end:string|null;routeType:string|null;
  startTime:string|null;endTime:string|null;endDate:string|null;
  dayFlag:string|null;dayExtra:number|null;plusItems:{concept:string;amount:number|null}[];
- driving:number|null;working:number|null;dietType:string|null;dietPct:number|null;
+ driving:number|null;availability:number|null;working:number|null;dietType:string|null;dietPct:number|null;
  dietRate:number|null;dietAmount:number|null;km:number|null;rest:number|null;
 };
 export type SharedReportData={title:string;driverName:string|null;from:string;to:string;fields:ReportField[];rows:SharedReportRow[];generatedAt:string;};
@@ -40,14 +41,14 @@ export function parseAmount(v:unknown):number|null{
 export type RawReportJornada={
  fecha_inicio:string|null;created_at:string;fecha_fin:string|null;hora_inicio:string|null;hora_fin:string|null;
  lugar_inicio:string|null;lugar_fin:string|null;tipo_ruta:string|null;
- conduccion_min:number|null;tacho_driving_min:number|null;duracion_jornada_min:number|null;
+ conduccion_min:number|null;tacho_driving_min:number|null;tacho_available_min:number|null;duracion_jornada_min:number|null;
  dieta_manual_tipo:string|null;dieta_modo:string|null;dieta_manual_pct:number|null;dieta_percent:number|null;
  dieta_importe_eur:string|null;diet_base_eur:number|null;dietas_items:unknown;
  km_total:number|null;descanso_anterior_min:number|null;
  day_flag:string|null;day_extra_eur:string|null;plus_items:unknown;
  report_hide_amounts:boolean|null;report_hide_pluses:boolean|null;
 };
-export const REPORT_DB_COLUMNS='fecha_inicio,fecha_fin,hora_inicio,hora_fin,day_flag,day_extra_eur,plus_items,dietas_items,report_hide_amounts,report_hide_pluses,created_at,lugar_inicio,lugar_fin,tipo_ruta,conduccion_min,tacho_driving_min,duracion_jornada_min,dieta_manual_tipo,dieta_modo,dieta_manual_pct,dieta_percent,dieta_importe_eur,diet_base_eur,km_total,descanso_anterior_min';
+export const REPORT_DB_COLUMNS='fecha_inicio,fecha_fin,hora_inicio,hora_fin,day_flag,day_extra_eur,plus_items,dietas_items,report_hide_amounts,report_hide_pluses,created_at,lugar_inicio,lugar_fin,tipo_ruta,conduccion_min,tacho_driving_min,tacho_available_min,duracion_jornada_min,dieta_manual_tipo,dieta_modo,dieta_manual_pct,dieta_percent,dieta_importe_eur,diet_base_eur,km_total,descanso_anterior_min';
 export function mapReportRow(j:RawReportJornada):SharedReportRow{
  const dietItem=Array.isArray(j.dietas_items)?j.dietas_items.find(x=>x&&typeof x==='object'&&x.tipo):null;
  const plusItems=Array.isArray(j.plus_items)&&!j.report_hide_pluses
@@ -61,7 +62,7 @@ export function mapReportRow(j:RawReportJornada):SharedReportRow{
   startTime:time(j.hora_inicio),endTime:time(j.hora_fin),endDate:j.fecha_fin,
   dayFlag:j.day_flag,dayExtra:j.report_hide_amounts||j.report_hide_pluses?null:parseAmount(j.day_extra_eur),plusItems,
   driving:j.conduccion_min??(j.tacho_driving_min&&j.tacho_driving_min>0?j.tacho_driving_min:null),
-  working:j.duracion_jornada_min,
+  working:j.duracion_jornada_min,availability:j.tacho_available_min,
   dietType:j.dieta_manual_tipo||dietItem?.tipo||j.tipo_ruta||null,
   dietPct:j.dieta_manual_pct??j.dieta_percent??parseAmount(dietItem?.pct)??null,
   dietRate:j.report_hide_amounts?null:j.diet_base_eur,
@@ -79,7 +80,7 @@ export function redactRows(rows:SharedReportRow[],fields:ReportField[]):SharedRe
   dayFlag:show('day_flags')?r.dayFlag:null,
   dayExtra:show('plus_amount')?r.dayExtra:null,
   plusItems:show('pluses')||show('plus_amount')?r.plusItems.map(x=>({concept:show('pluses')?x.concept:'Plus',amount:show('plus_amount')?x.amount:null})):[],
-  driving:show('driving')?r.driving:null,working:show('working')?r.working:null,
+  driving:show('driving')?r.driving:null,availability:show('availability')?r.availability:null,working:show('working')?r.working:null,
   dietType:show('diet_type')?r.dietType:null,dietPct:show('diet_pct')?r.dietPct:null,
   dietRate:show('diet_rate')?r.dietRate:null,dietAmount:show('diet_amount')?r.dietAmount:null,
   km:show('km')?r.km:null,rest:show('rest')?r.rest:null
@@ -91,6 +92,7 @@ export function labelValue(r:SharedReportRow,key:ReportField):string{
  case 'locations':return [r.start||'—',r.end||'—'].join(' → ');
  case 'route_type':return r.routeType||'—';
  case 'driving':return r.driving==null?'—':hours(r.driving);
+ case 'availability':return r.availability==null?'—':hours(r.availability);
  case 'working':return r.working==null?'—':hours(r.working);
  case 'diet_type':return r.dietType||'—';
  case 'diet_pct':return r.dietPct==null?'—':r.dietPct+' %';
