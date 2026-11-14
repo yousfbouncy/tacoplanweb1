@@ -22,6 +22,7 @@ export function CompanyReport({token}:{token:string}){
  const [busy,setBusy]=useState(true),[error,setError]=useState('');
  const [from,setFrom]=useState(''),[to,setTo]=useState('');
  const [opened,setOpened]=useState<string|null>(null),[page,setPage]=useState(1);
+ const [dietFilter,setDietFilter]=useState<DietCategory|null>(null);
  const refresh=async()=>{
   setBusy(true);setError('');
   try{
@@ -34,8 +35,9 @@ export function CompanyReport({token}:{token:string}){
  };
  useEffect(()=>{void refresh()},[token]);
  const rows=useMemo(()=>report?.rows.filter(r=>r.date>=from&&r.date<=to)||[],[report,from,to]);
- const pages=Math.max(1,Math.ceil(rows.length/10));
- const shown=rows.slice((Math.min(page,pages)-1)*10,Math.min(page,pages)*10);
+ const filteredRows=useMemo(()=>dietFilter?rows.filter(r=>dietCategory(r.dietType)===dietFilter):rows,[rows,dietFilter]);
+ const pages=Math.max(1,Math.ceil(filteredRows.length/10));
+ const shown=filteredRows.slice((Math.min(page,pages)-1)*10,Math.min(page,pages)*10);
  const fields=report?.fields.filter(f=>f!=='driver_name')||[];
  const allowed=(f:ReportField)=>!!report?.fields.includes(f);
  const totals=useMemo(()=>{
@@ -65,7 +67,13 @@ export function CompanyReport({token}:{token:string}){
   const extra=rows.filter(r=>r.plusItems.length>0||(r.dayExtra!==null&&r.dayExtra>0)).length;
   return {countDiets,dietBreakdown,unclassified,unclassifiedAmount,sunday,holiday,extra,amountDiets:rows.reduce((sum,r)=>sum+(r.dietAmount||0),0),amountExtras:rows.reduce((sum,r)=>sum+plusTotal(r),0)};
  },[rows,report]);
- const download=()=>{if(!report)return;saveReportPdf({...report,from,to,rows,generatedAt:new Date().toISOString()});};
+ const chooseDiet=(category:DietCategory)=>{
+  setDietFilter(current=>current===category?null:category);
+  setPage(1);setOpened(null);
+  requestAnimationFrame(()=>document.getElementById('company-history')?.scrollIntoView({behavior:'smooth',block:'start'}));
+ };
+ const clearDiet=()=>{setDietFilter(null);setPage(1);setOpened(null);};
+ const download=()=>{if(!report)return;saveReportPdf({...report,from,to,rows:filteredRows,generatedAt:new Date().toISOString()});};
  const periodLabel=(r:SharedReportData['rows'][number])=>{
   const start=date(r.date)+(r.startTime?' '+r.startTime:' · Sin hora');
   const finish=r.endDate?date(r.endDate)+(r.endTime?' '+r.endTime:' · Sin hora'):'Fin sin registrar';
@@ -96,11 +104,12 @@ export function CompanyReport({token}:{token:string}){
       <div className="flex items-center justify-between gap-3"><p className="text-sm font-semibold text-slate-200">Dietas registradas</p><p className="text-2xl font-extrabold text-white">{totals.countDiets}</p></div>
       {allowed('diet_amount')?<p className="mt-1 text-right text-sm font-semibold text-emerald-300">Total: {money(totals.amountDiets)}</p>:null}
       {allowed('diet_type')?<div className="mt-3 grid grid-cols-3 gap-2">
-        {DIET_CATEGORIES.map(category=><div key={category} className="min-w-0 rounded-xl border border-[#344d70] bg-[#152b4a] p-2.5 sm:p-3">
+        {DIET_CATEGORIES.map(category=><button type="button" key={category} onClick={()=>chooseDiet(category)} aria-pressed={dietFilter===category} aria-label={'Mostrar solo jornadas con dieta '+category.toLowerCase()} className={'min-w-0 rounded-xl border p-2.5 text-left transition sm:p-3 '+(dietFilter===category?'border-blue-400 bg-[#24528a] ring-2 ring-blue-400':'border-[#344d70] bg-[#152b4a] hover:border-blue-400 hover:bg-[#203d63]')}>
           <p className="text-[11px] font-medium text-slate-300 sm:text-xs">{category}</p>
           <p className="mt-1 text-xl font-bold tabular-nums text-white">{totals.dietBreakdown[category].count}</p>
           {allowed('diet_amount')&&totals.dietBreakdown[category].amountCount>0?<p className="mt-1 text-xs font-semibold text-emerald-300">{money(totals.dietBreakdown[category].amount)}</p>:null}
-        </div>)}
+          <p className="mt-1 text-[10px] text-blue-200">{dietFilter===category?'Filtro activo':'Ver viajes'}</p>
+        </button>)}
       </div>:null}
       {allowed('diet_type')&&totals.unclassified>0?<p className="mt-3 text-xs text-slate-400">Sin tipo identificado: {totals.unclassified}{allowed('diet_amount')?' · '+money(totals.unclassifiedAmount):''}</p>:null}
       {!allowed('diet_type')?<p className="mt-2 text-xs text-slate-400">El conductor no ha autorizado mostrar los tipos de dieta.</p>:null}
@@ -110,9 +119,10 @@ export function CompanyReport({token}:{token:string}){
     </div>
     <div className="mt-4 flex flex-wrap gap-1.5">{fields.map(f=><span key={f} className="rounded-full bg-[#223956] px-3 py-1 text-xs text-blue-100">{label[f]}</span>)}</div>
    </section>
-   <section className="space-y-3">
-    <div className="flex items-center gap-2 px-1"><CalendarDays className="h-5 w-5 text-blue-400"/><div><h2 className="text-xl font-extrabold">Historial de viajes</h2><p className="mt-1 text-xs text-slate-400">Pulsa una jornada para ver el detalle autorizado.</p></div></div>
-    {!shown.length?<p className="rounded-2xl bg-[#12233f] p-6 text-slate-300">No hay jornadas para estas fechas.</p>:shown.map((r,i)=>{
+   <section id="company-history" className="space-y-3 scroll-mt-24">
+    <div className="flex flex-wrap items-center justify-between gap-3 px-1"><div className="flex items-center gap-2"><CalendarDays className="h-5 w-5 text-blue-400"/><div><h2 className="text-xl font-extrabold">Historial de viajes</h2><p className="mt-1 text-xs text-slate-400">{dietFilter?'Mostrando '+filteredRows.length+' jornadas de dieta '+dietFilter.toLowerCase()+' · pulsa de nuevo la categoría para quitar el filtro':'Pulsa una jornada para ver el detalle autorizado.'}</p></div></div>
+     {dietFilter?<button type="button" onClick={clearDiet} className="rounded-lg border border-blue-400 bg-[#17365e] px-3 py-2 text-xs font-semibold text-blue-100 hover:bg-[#244c7c]">Ver todas ({rows.length})</button>:null}</div>
+    {!shown.length?<p className="rounded-2xl bg-[#12233f] p-6 text-slate-300">{dietFilter?'No hay jornadas de dieta '+dietFilter.toLowerCase()+' en las fechas seleccionadas.':'No hay jornadas para estas fechas.'}</p>:shown.map((r,i)=>{
      const key=r.date+'-'+((page-1)*10+i),isOpen=opened===key,times=periodLabel(r);
      return <article key={key} className="overflow-hidden rounded-2xl border border-[#2d466a] bg-[#14243f] shadow-lg shadow-black/10">
       <button type="button" onClick={()=>setOpened(isOpen?null:key)} aria-expanded={isOpen} className="w-full p-4 text-left sm:p-5">
@@ -134,7 +144,7 @@ export function CompanyReport({token}:{token:string}){
       </div>:null}
      </article>;
     })}
-    <div className="flex items-center justify-between gap-3 px-2 py-2 text-xs text-slate-300"><span>Página {Math.min(page,pages)} de {pages}</span><div className="flex gap-2"><button className="rounded-lg border border-[#3a5579] px-3 py-2 disabled:opacity-30" disabled={page<=1} onClick={()=>{setPage(page-1);setOpened(null);}}>Anterior</button><button className="rounded-lg border border-[#3a5579] px-3 py-2 disabled:opacity-30" disabled={page>=pages} onClick={()=>{setPage(page+1);setOpened(null);}}>Siguiente</button></div></div>
+    <div className="flex items-center justify-between gap-3 px-2 py-2 text-xs text-slate-300"><span>{filteredRows.length} jornadas · Página {Math.min(page,pages)} de {pages}</span><div className="flex gap-2"><button className="rounded-lg border border-[#3a5579] px-3 py-2 disabled:opacity-30" disabled={page<=1} onClick={()=>{setPage(page-1);setOpened(null);}}>Anterior</button><button className="rounded-lg border border-[#3a5579] px-3 py-2 disabled:opacity-30" disabled={page>=pages} onClick={()=>{setPage(page+1);setOpened(null);}}>Siguiente</button></div></div>
    </section>
    <div className="flex items-start gap-3 rounded-xl border border-[#315078] bg-[#12233f] p-4 text-xs leading-relaxed text-slate-300"><ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-blue-400"/>La empresa solo puede consultar los campos y fechas autorizados. Los domingos y festivos proceden de las marcas guardadas, no de un calendario automático. El informe no sustituye al tacógrafo ni acredita cumplimiento legal.</div>
   </>:null}
