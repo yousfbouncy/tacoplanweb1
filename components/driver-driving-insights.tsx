@@ -31,7 +31,12 @@ const instant=(iso:string|null|undefined,date:string|null|undefined,time:string|
 };
 function parseMoney(j:DrivingJornada){
  const raw=j.dieta_importe_eur;
- if(raw){const value=Number(raw.trim().replace(/\s/g,'').replace(/\./g,'').replace(',','.'));if(Number.isFinite(value)&&value>=0)return value;}
+ if(raw){
+  let normalized=raw.trim().replace(/\s/g,'');
+  if(normalized.includes(','))normalized=normalized.replace(/\./g,'').replace(',','.');
+  const value=Number(normalized);
+  if(Number.isFinite(value)&&value>=0)return value;
+ }
  return typeof j.diet_base_eur==='number'&&Number.isFinite(j.diet_base_eur)?j.diet_base_eur:null;
 }
 const amount=(n:number)=>new Intl.NumberFormat('es-ES',{style:'currency',currency:'EUR'}).format(n);
