@@ -49,8 +49,8 @@ export function mapReportRow(j:RawReportJornada):SharedReportRow{
  start:j.lugar_inicio,end:j.lugar_fin,routeType:j.tipo_ruta,
  driving:j.conduccion_min??(j.tacho_driving_min&&j.tacho_driving_min>0?j.tacho_driving_min:null),
  working:j.duracion_jornada_min,
- dietType:j.dieta_manual_tipo||j.dieta_modo||null,
- dietPct:j.dieta_manual_pct??j.dieta_percent??null,
+ dietType:j.dieta_manual_tipo||dietItem?.tipo||j.tipo_ruta||null,
+ dietPct:j.dieta_manual_pct??j.dieta_percent??parseAmount(dietItem?.pct)??null,
  dietRate:j.diet_base_eur,
  dietAmount:parseAmount(j.dieta_importe_eur)??j.diet_base_eur,
  km:j.km_total,rest:j.descanso_anterior_min
