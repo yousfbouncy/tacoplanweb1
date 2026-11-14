@@ -37,8 +37,14 @@ export function EnterpriseDriverConfig({value,onChange,idPrefix='employee'}:{val
    <div className="grid gap-3 sm:grid-cols-2">
     {([{k:'base_name',l:'Base de trabajo',ph:'Abrera'},{k:'base_city',l:'Ciudad',ph:'Abrera'},{k:'base_country',l:'País',ph:'España'},{k:'base_address',l:'Dirección de base',ph:'Calle y número'}] as const).map(({k,l,ph})=>
      <label key={k} className="text-sm font-medium">{l}<input className={input} placeholder={ph} value={value[k]} onChange={e=>set(k,e.target.value)}/></label>)}
+    <label className="text-sm font-medium">Convenio aplicable<input className={input} placeholder="Convenio de transporte" value={value.agreement} onChange={e=>set('agreement',e.target.value)}/></label>
     <label className="text-sm font-medium">Radio de la base (km)<input type="number" className={input} min="0.1" max="999" step="0.1" value={value.base_radius_km} onChange={e=>set('base_radius_km',Number(e.target.value))}/></label>
    </div>
+   <button type="button" className="mt-3 text-xs font-semibold text-blue-700" onClick={()=>setShowAdvanced(!showAdvanced)}>{showAdvanced?'Ocultar coordenadas de la base':'Añadir coordenadas de la base (opcional)'}</button>
+   {showAdvanced?<div className="mt-2 grid grid-cols-2 gap-3">
+    <label className="text-sm">Latitud<input type="number" min="-90" max="90" step="any" className={input} value={value.base_latitude??''} onChange={e=>set('base_latitude',e.target.value===''?null:Number(e.target.value))}/></label>
+    <label className="text-sm">Longitud<input type="number" min="-180" max="180" step="any" className={input} value={value.base_longitude??''} onChange={e=>set('base_longitude',e.target.value===''?null:Number(e.target.value))}/></label>
+   </div>:null}
   </Group>
   <Group title="Periodo de liquidación">
    <label className="block text-sm font-medium">Periodo de nómina
@@ -67,6 +73,15 @@ export function EnterpriseDriverConfig({value,onChange,idPrefix='employee'}:{val
    {value.payment_mode==='km'?<div className="mt-3 grid gap-3 sm:grid-cols-3">{moneyNames.map(k=>rate('km_rates',k,titleFor[k]+' · €/km'))}</div>:null}
    {value.payment_mode==='viaje'?<div className="mt-3 grid gap-3 sm:grid-cols-3">{moneyNames.map(k=>rate('trip_rates',k,titleFor[k]+' · €/viaje'))}</div>:null}
   </Group>
+  {(value.driver_profile==='ferry'||value.driver_profile==='morocco')?<Group title="Configuración especial de ferry y Marruecos">
+   <label className="block text-sm font-medium">Modalidad de pago de ferry/Marruecos
+    <select className={input} value={value.ferry_config.paymentMode} onChange={e=>set('ferry_config',{...value.ferry_config,paymentMode:e.target.value as ConfigDraft['ferry_config']['paymentMode']})}>
+     <option value="morocco_diet">Dietas</option><option value="morocco_trip">Por viaje</option><option value="morocco_pernight">Por pernocta</option>
+    </select>
+   </label>
+   {value.ferry_config.paymentMode==='morocco_trip'?<label className="mt-2 block text-sm">Importe por viaje (€)<input type="number" min="0" step="0.01" className={input} value={value.ferry_config.tripRate} onChange={e=>set('ferry_config',{...value.ferry_config,tripRate:Number(e.target.value)})}/></label>:null}
+   {value.ferry_config.paymentMode==='morocco_pernight'?<label className="mt-2 block text-sm">Importe por pernocta (€)<input type="number" min="0" step="0.01" className={input} value={value.ferry_config.pernightRate} onChange={e=>set('ferry_config',{...value.ferry_config,pernightRate:Number(e.target.value)})}/></label>:null}
+  </Group>:null}
   <Group title="Pluses y descansos fuera">
    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
     {([{k:'sabado',l:'Sábado'},{k:'domingo',l:'Domingo'},{k:'festivo',l:'Festivo'},{k:'nocturnidad',l:'Nocturnidad'},{k:'pernocta',l:'Pernocta'},{k:'fin_semana_fuera',l:'Fin de semana fuera'},{k:'offsite_weekly_reduced_nacional',l:'Descanso reducido nacional'},{k:'offsite_weekly_reduced_internacional',l:'Descanso reducido internacional'},{k:'offsite_weekly_complete_nacional',l:'Descanso completo nacional'},{k:'offsite_weekly_complete_internacional',l:'Descanso completo internacional'}] as const).map(({k,l})=>rate('plus_rates',k,l))}
