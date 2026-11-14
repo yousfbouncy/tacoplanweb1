@@ -110,7 +110,7 @@ export async function POST(req:NextRequest){
  if(action==='update_settings'){
   if(!permitted(role,'owner'))return json({error:'Sin permiso para configurar'},403);
   if(!uuid(body.driverId))return json({error:'Conductor inválido'},400);
-  const {data:driver}=await db.from('tp_company_members').select('id').eq('company_id',companyId).eq('user_id',body.driverId).eq('role','driver').eq('active',true).maybeSingle();
+  const {data:driver}=await db.from('tp_company_members').select('id,joined_at').eq('company_id',companyId).eq('user_id',body.driverId).eq('role','driver').eq('active',true).maybeSingle();
   if(!driver)return json({error:'El conductor no pertenece a la empresa'},404);
   const settings=validSettings(body.settings);
   if(!settings)return json({error:'Configuración inválida'},400);
@@ -125,7 +125,7 @@ export async function POST(req:NextRequest){
   if(typeof body.jornadaId!=='string'||body.jornadaId.length<1||body.jornadaId.length>160||!uuid(body.driverId)||!['confirm','propose'].includes(body.mode))return json({error:'Datos inválidos'},400);
   const {data:driver}=await db.from('tp_company_members').select('id').eq('company_id',companyId).eq('user_id',body.driverId).eq('role','driver').eq('active',true).maybeSingle();
   if(!driver)return json({error:'Conductor no autorizado'},403);
-  const journey=await db.from('jornadas').select('id,user_id,fecha_inicio,dieta_manual_tipo,dieta_importe_eur,plus_items').eq('id',body.jornadaId).eq('user_id',body.driverId).maybeSingle();
+  const journey=await db.from('jornadas').select('id,user_id,created_at,fecha_inicio,dieta_manual_tipo,dieta_importe_eur,plus_items').eq('id',body.jornadaId).eq('user_id',body.driverId).gte('created_at',driver.joined_at).maybeSingle();
   if(journey.error||!journey.data)return json({error:'Jornada no encontrada'},404);
   const existing=await db.from('tp_diet_reviews').select('*').eq('company_id',companyId).eq('jornada_id',body.jornadaId).maybeSingle();
   if(existing.error)throw existing.error;
