@@ -111,11 +111,14 @@ export function buildSelectedReportPdf(report:SharedReportData):Uint8Array {
    if(route)blueRows.push(...wrap(route,104).map(left=>({left,bold:true})));
   }
 
+  // One compact row: conducción, disponibilidad real y descanso anterior.
+  const activityLines:string[]=[];
+  if(has('driving'))activityLines.push('Conducción: '+(r.driving===null?'Sin datos':hours(r.driving)));
+  if(has('availability'))activityLines.push('Disponibilidad: '+(r.availability===null?'Sin datos':hours(r.availability)));
+  if(has('rest'))activityLines.push('Descanso anterior: '+(r.rest===null?'Sin datos':hours(r.rest)));
   const detailLines:string[]=[];
-  if(has('availability'))detailLines.push('Disponibilidad: '+(r.availability===null?'Sin datos':hours(r.availability)));
-  if(has('driving'))detailLines.push('Conducción: '+(r.driving===null?'Sin datos':hours(r.driving)));
-  if(has('working'))detailLines.push('Jornada: '+(r.working===null?'Sin datos':hours(r.working)));
-  if(has('rest'))detailLines.push('Descanso anterior: '+(r.rest===null?'Sin datos':hours(r.rest)));
+  // Do not mislabel the total jornada duration as tachograph availability.
+  if(has('working')&&!has('availability'))detailLines.push('Jornada: '+(r.working===null?'Sin datos':hours(r.working)));
   if(has('diet_rate'))detailLines.push('Tarifa dieta: '+(r.dietRate===null?'Sin datos':money(r.dietRate)));
   if(has('diet_amount'))detailLines.push('Importe dieta: '+(r.dietAmount===null?'Sin datos':money(r.dietAmount)));
   if(has('km'))detailLines.push('Kilómetros: '+(r.km===null?'Sin datos':r.km.toLocaleString('es-ES')+' km'));
@@ -140,7 +143,8 @@ export function buildSelectedReportPdf(report:SharedReportData):Uint8Array {
   const details=detailLines.flatMap(value=>wrap(value,49));
   const headerHeight=10+blueRows.length*11;
   const detailRows=Math.ceil(details.length/2);
-  const detailHeight=detailRows>0?10+detailRows*11:6;
+  const activityHeight=activityLines.length?16:0;
+  const detailHeight=activityHeight+(detailRows>0?7+detailRows*11:6);
   const height=headerHeight+detailHeight;
   if(y-height<55){
    nextPage();
@@ -155,9 +159,15 @@ export function buildSelectedReportPdf(report:SharedReportData):Uint8Array {
    if(line.right)text(302,baseline,line.right,8.2,!!line.bold,'0.12 0.24 0.43');
    if(line.route)text(46+estimatedWidth(line.left)+16,baseline,line.route,8.2,true,'0.12 0.24 0.43');
   }
+  if(activityLines.length){
+   const width=508/activityLines.length;
+   for(let n=0;n<activityLines.length;n++){
+    text(46+n*width,top-headerHeight-13,activityLines[n],7.5,false,'0.24 0.33 0.49');
+   }
+  }
   for(let n=0;n<details.length;n++){
    const col=n%2,lineNo=Math.floor(n/2);
-   text(46+col*255,top-headerHeight-13-lineNo*11,details[n],7.5,false,'0.24 0.33 0.49');
+   text(46+col*255,top-headerHeight-activityHeight-11-lineNo*11,details[n],7.5,false,'0.24 0.33 0.49');
   }
   y-=height+6;
  }
