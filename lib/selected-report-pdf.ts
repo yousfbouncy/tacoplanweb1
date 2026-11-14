@@ -64,7 +64,38 @@ export function buildSelectedReportPdf(report:SharedReportData):Uint8Array {
   text(x,y-10-row*29,truncate(label.toUpperCase(),27),7,true,'0.37 0.46 0.60');
   text(x,y-24-row*29,truncate(value,24),10,true);
  }
- y-=summaryHeight+18;
+ y-=summaryHeight+12;
+ // Compact breakdown by recorded diet type, for the current authorised/filtered rows only.
+ if(fields.includes('diet_type')){
+  const categories=[
+   {label:'NACIONAL',test:(kind:string)=>kind.includes('NACIONAL')&&!kind.includes('INTERNACIONAL')},
+   {label:'INTERNACIONAL',test:(kind:string)=>kind.includes('INTERNACIONAL')||kind.includes('INTERNATIONAL')},
+   {label:'REGIONAL',test:(kind:string)=>kind.includes('REGIONAL')}
+  ];
+  const counts=categories.map(cat=>{
+   const matches=report.rows.filter(r=>cat.test((r.dietType||'').toUpperCase()));
+   return {label:cat.label,count:matches.length,amount:matches.reduce((sum,r)=>sum+(r.dietAmount||0),0)};
+  });
+  const classified=counts.reduce((sum,cat)=>sum+cat.count,0);
+  const recorded=report.rows.filter(r=>!!r.dietType||(fields.includes('diet_amount')&&r.dietAmount!==null));
+  const unknown=Math.max(0,recorded.length-classified);
+  const tableH=fields.includes('diet_amount')?49:38;
+  if(y-tableH<72)nextPage();
+  text(38,y,'CANTIDAD DE DIETAS POR TIPO',9,true);y-=9;
+  paint(38,y-tableH,519,tableH,'0.94 0.96 0.99');
+  const cells=[
+   ...counts,
+   {label:'TOTAL',count:recorded.length,amount:recorded.reduce((sum,r)=>sum+(r.dietAmount||0),0)}
+  ];
+  cells.forEach((cell,index)=>{
+   const xx=48+index*129;
+   text(xx,y-13,cell.label,7,true,'0.38 0.46 0.59');
+   text(xx,y-28,String(cell.count),12,true);
+   if(fields.includes('diet_amount'))text(xx,y-41,money(cell.amount),7,false,'0.14 0.40 0.31');
+  });
+  y-=tableH+11;
+  if(unknown>0){text(38,y,'Sin tipo identificado: '+unknown,7,false,'0.41 0.48 0.59');y-=13;}
+ }
  text(38,y,'HISTORIAL DE VIAJES',10,true);y-=8;line(y);y-=12;
 
  // Compact journey sections. Only authorised fields are rendered.
@@ -117,8 +148,8 @@ export function buildSelectedReportPdf(report:SharedReportData):Uint8Array {
   if(has('availability'))activityLines.push('Disponibilidad: '+(r.availability===null?'Sin datos':hours(r.availability)));
   if(has('rest'))activityLines.push('Descanso anterior: '+(r.rest===null?'Sin datos':hours(r.rest)));
   const detailLines:string[]=[];
-  // Do not mislabel the total jornada duration as tachograph availability.
-  if(has('working')&&!has('availability'))detailLines.push('Jornada: '+(r.working===null?'Sin datos':hours(r.working)));
+  // This PDF prioritises driving, actual availability and previous rest.
+  // Never replace missing availability with the full jornada duration.
   if(has('diet_rate'))detailLines.push('Tarifa dieta: '+(r.dietRate===null?'Sin datos':money(r.dietRate)));
   if(has('diet_amount'))detailLines.push('Importe dieta: '+(r.dietAmount===null?'Sin datos':money(r.dietAmount)));
   if(has('km'))detailLines.push('Kilómetros: '+(r.km===null?'Sin datos':r.km.toLocaleString('es-ES')+' km'));
