@@ -43,10 +43,10 @@ export async function GET(req:NextRequest){
   // double-count it as a second payment.
   const reviewRows=reviews.data||[];
   const jornadaIds=Array.from(new Set(reviewRows.map(r=>r.jornada_id).filter((id):id is string=>typeof id==='string')));
-  const linked=jornadaIds.length?await db.from('jornadas').select('id,day_extra_eur,day_flag').in('id',jornadaIds):{data:[],error:null};
+  const linked=jornadaIds.length?await db.from('jornadas').select('id,day_extra_eur,day_flag,diet_base_eur').in('id',jornadaIds):{data:[],error:null};
   if(linked.error)throw linked.error;
   const extras=new Map((linked.data||[]).map(j=>[j.id,{amount:Math.max(0,Number(String(j.day_extra_eur||0).replace(',','.'))||0),concept:String(j.day_flag||'Plus automático')}]));
-  const financialReviews=reviewRows.map(r=>({...r,automatic_plus:extras.get(r.jornada_id)?.amount||0,automatic_plus_concept:extras.get(r.jornada_id)?.concept||null}));
+  const financialReviews=reviewRows.map(r=>{const entry=extras.get(r.jornada_id);const extra=entry?.amount||0;const original=Number(r.original_amount)||0;const base=Number((linked.data||[]).find(j=>j.id===r.jornada_id)?.diet_base_eur)||0;return {...r,automatic_plus:extra>0&&original+0.01>=base+extra?extra:0,automatic_plus_concept:entry?.concept||null};});
   return enterpriseJson({company,member,drivers:drivers.data||[],trafficMembers:trafficMembers.data||[],assignments:assignments.data||[],reviews:financialReviews,closures:closures.data||[]});
  }
  if(role==='traffic'){
