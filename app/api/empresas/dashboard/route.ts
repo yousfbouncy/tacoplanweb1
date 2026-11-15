@@ -29,7 +29,7 @@ export async function GET(req:NextRequest){
  // HR does not receive route, location, individual jornada or traffic data.
  if(role==='hr'){
   const [reviews,closures,drivers,trafficMembers,assignments]=await Promise.all([
-   db.from('tp_diet_reviews').select('id,driver_id,jornada_date,status,original_diet_type,original_amount,original_pluses,proposed_diet_type,proposed_amount,proposed_pluses,driver_observation,traffic_observation,change_reason,confirmed_at,created_at')
+   db.from('tp_diet_reviews').select('id,driver_id,jornada_id,jornada_date,status,original_diet_type,original_amount,original_pluses,proposed_diet_type,proposed_amount,proposed_pluses,driver_observation,traffic_observation,change_reason,confirmed_at,created_at')
     .eq('company_id',companyId).order('created_at',{ascending:false}).limit(500),
    db.from('tp_payroll_closures').select('id,month,driver_id,total_diets,total_pluses,confirmed_count,pending_count,disputed_count,closed_at')
     .eq('company_id',companyId).order('closed_at',{ascending:false}).limit(200),
@@ -38,7 +38,16 @@ export async function GET(req:NextRequest){
    db.from('tp_traffic_driver_assignments').select('driver_id,traffic_user_id,assigned_at').eq('company_id',companyId)
   ]);
   for(const response of [reviews,closures,drivers,trafficMembers,assignments])if(response.error)throw response.error;
-  return enterpriseJson({company,member,drivers:drivers.data||[],trafficMembers:trafficMembers.data||[],assignments:assignments.data||[],reviews:reviews.data||[],closures:closures.data||[]});
+  // Payroll-only split of automatically registered Sunday/holiday amounts.
+  // The original jornada total already includes the automatic extra, so never
+  // double-count it as a second payment.
+  const reviewRows=reviews.data||[];
+  const jornadaIds=Array.from(new Set(reviewRows.map(r=>r.jornada_id).filter((id):id is string=>typeof id==='string')));
+  const linked=jornadaIds.length?await db.from('jornadas').select('id,day_extra_eur,day_flag').in('id',jornadaIds):{data:[],error:null};
+  if(linked.error)throw linked.error;
+  const extras=new Map((linked.data||[]).map(j=>[j.id,{amount:Math.max(0,Number(String(j.day_extra_eur||0).replace(',','.'))||0),concept:String(j.day_flag||'Plus automático')}]));
+  const financialReviews=reviewRows.map(r=>({...r,automatic_plus:extras.get(r.jornada_id)?.amount||0,automatic_plus_concept:extras.get(r.jornada_id)?.concept||null}));
+  return enterpriseJson({company,member,drivers:drivers.data||[],trafficMembers:trafficMembers.data||[],assignments:assignments.data||[],reviews:financialReviews,closures:closures.data||[]});
  }
  if(role==='traffic'){
   const [members,allocation]=await Promise.all([
