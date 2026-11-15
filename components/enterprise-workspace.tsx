@@ -16,17 +16,21 @@ function verifiedDutyLimit(j:Journey|undefined,computed:HistoryDutyLimit|undefin
  const n=computed.maximumMinutes;
  return n===900?{maximum:900,label:'15 h'}:n===780?{maximum:780,label:'13 h'}:null;
 }
-function tripDestination(trip:Trip):string|null{
+type TripStop={tipo?:string;lugar?:string;salidaConfirmada?:boolean;salidaReal?:string|null};
+function nextTripStop(trip:Trip):TripStop|null{
  if(!Array.isArray(trip.paradas))return null;
- const stop=trip.paradas.find((p:unknown)=>p&&typeof p==='object'&&!Array.isArray(p)&&['destino','destination','entrega'].includes(String((p as Record<string,unknown>).tipo||'').toLowerCase()))
-  || trip.paradas[trip.paradas.length-1];
- if(typeof stop==='string')return stop.trim()||null;
- if(!stop||typeof stop!=='object')return null;
- const p=stop as Record<string,unknown>;
- for(const key of ['destino','destination','lugar','localidad','direccion','ubicacion','nombre']){
-  const value=p[key];if(typeof value==='string'&&value.trim())return value.trim();
- }
- return null;
+ const stops=trip.paradas.filter((v):v is TripStop=>Boolean(v)&&typeof v==='object'&&!Array.isArray(v));
+ return stops.find(p=>!p.salidaConfirmada&&!p.salidaReal)||stops[stops.length-1]||null;
+}
+function tripDestination(trip:Trip):string|null{
+ const stop=nextTripStop(trip);
+ return typeof stop?.lugar==='string'&&stop.lugar.trim()?stop.lugar.trim():null;
+}
+function tripOperation(trip:Trip):string{
+ const kind=(nextTripStop(trip)?.tipo||trip.modo_viaje||'').toUpperCase();
+ if(kind==='CARGA'||kind==='SOLO_CARGA')return 'Carga';
+ if(kind==='DESCARGA'||kind==='SOLO_DESCARGA')return 'Descarga';
+ return 'Operación pendiente';
 }
 function currentTrip(trips:Trip[],userId:string):Trip|undefined{
  return trips.find(t=>t.user_id===userId&&/^(activo|activa|en curso|en_curso|in_progress|ongoing|iniciado|iniciada)$/i.test((t.estado||'').trim()));
@@ -121,7 +125,7 @@ export default function EnterpriseWorkspace({view,busy,loading,error,message,ref
     <div className="rounded-xl bg-white p-3"><p className="text-slate-500">Tiempo restante de jornada</p><p className="mt-1 text-base font-bold">{opened?(limit?limit.remaining:'Pendiente de verificar'):'Sin jornada activa'}</p>{limit&&opened?<p className="mt-1 text-slate-500">Límite {limit.label} según historial · hasta {limit.end}{limit.expired?' · límite superado':''}</p>:opened?<p className="mt-1 text-amber-700">13/15 h: {view.dutyLimits?.[d.user_id]?.reason||'historial pendiente de comprobar'}</p>:null}</div>
    </div>
    <div className="mt-3 rounded-xl bg-white p-3 text-xs"><p className="font-semibold text-slate-500">Actividad en curso</p><p className="mt-1 font-bold text-slate-900">{opened&&a&&a.fin===null&&Number.isFinite(new Date(a.updated_at).getTime())&&now-new Date(a.updated_at).getTime()<15*60000?status(j,a):'Sin actividad reciente sincronizada'}</p>{a?.updated_at?<p className="mt-1 text-slate-500">Última actualización: {new Date(a.updated_at).toLocaleString('es-ES')}</p>:null}</div>
-   <div className="mt-2 rounded-xl bg-white p-3 text-xs"><p className="font-semibold text-slate-500">Viaje en curso · Tacoplan móvil</p><p className="mt-1 font-bold text-slate-900">{t?'Destino: '+(tripDestination(t)||'No registrado'):'Sin viaje activo sincronizado'}</p>{t?.cliente?<p className="mt-1 text-slate-600">Cliente: {t.cliente}</p>:null}</div>
+   <div className="mt-2 rounded-xl bg-white p-3 text-xs"><p className="font-semibold text-slate-500">Viaje en curso · Tacoplan móvil</p><p className="mt-1 font-bold text-slate-900">{t?tripOperation(t)+' · '+(tripDestination(t)||'Destino no registrado'):'Sin viaje activo sincronizado'}</p>{t?.cliente?<p className="mt-1 text-slate-600">Cliente: {t.cliente}</p>:null}</div>
   </div>;
  };
  const active=drivers.filter(d=>{const s=state(d);return s==='Conduciendo'||s==='Disponibilidad'||s==='Descanso'||s==='Otros trabajos'||s==='Abierta · sin actividad actual'}).length;
@@ -186,7 +190,7 @@ export default function EnterpriseWorkspace({view,busy,loading,error,message,ref
   const j=latest.get(d.user_id);const start=validDate(dt(j?.fecha_inicio,j?.hora_inicio));const stop=validDate(dt(j?.fecha_fin,j?.hora_fin));const min=start&&start.getTime()<=Date.now()?Math.max(0,Math.round(((stop||new Date()).getTime()-start.getTime())/60000)):null;const limit=journeyLimit(d);const maximum=verifiedDutyLimit(j,view.dutyLimits?.[d.user_id])?.maximum;const pr=min!=null&&maximum?Math.min(100,Math.round(min/maximum*100)):0;
   return <tr key={d.user_id} className="hover:bg-slate-50/80"><td className="px-4 py-3"><div className="flex items-center gap-2.5"><span className={'flex h-9 w-9 items-center justify-center rounded-xl text-xs font-bold text-white '+(['bg-blue-600','bg-teal-600','bg-indigo-600','bg-amber-600'][i%4])}>{initials(display(d))}</span><span><strong className="block text-slate-800">{display(d)}</strong><span className="text-[11px] text-slate-400">@{d.username}</span></span></div></td>
    <td className="px-3 py-3"><Pill value={state(d)}/></td>
-   <td className="px-3 py-3"><strong className="block max-w-[200px] truncate text-slate-800">{tripFor(d)?'Viaje: '+(tripDestination(tripFor(d)!)||'Destino no registrado'):(j?.lugar_inicio||'Sin origen')+' → '+(j?.lugar_fin||'Pendiente')}</strong><span className="text-[11px] text-slate-400">Ubicación en vivo: no disponible</span></td>
+   <td className="px-3 py-3"><strong className="block max-w-[200px] truncate text-slate-800">{tripFor(d)?'Viaje: '+tripOperation(tripFor(d)!)+' · '+(tripDestination(tripFor(d)!)||'Destino no registrado'):(j?.lugar_inicio||'Sin origen')+' → '+(j?.lugar_fin||'Pendiente')}</strong><span className="text-[11px] text-slate-400">Ubicación en vivo: no disponible</span></td>
    <td className="px-3 py-3"><strong>{min==null?'—':hours(min)}</strong><span className="text-slate-400"> {limit?' / '+limit.label:' · cálculo pendiente'}</span><div className="mt-1.5 h-1.5 w-28 rounded-full bg-slate-100"><div className={'h-1.5 rounded-full '+(pr>85?'bg-amber-500':'bg-blue-500')} style={{width:pr+'%'}}/></div></td>
    <td className="px-3 py-3 text-slate-600">{j?.dieta_manual_tipo||j?.tipo_ruta||'No registrada'}{j?.dieta_percent?' '+j.dieta_percent+' %':''}</td>
    <td className="px-3 py-3"><button className={secondary+' !px-3 !py-1.5 !text-xs text-blue-600'} onClick={()=>{setDrawer(d.user_id);setSelectedJourney('');}}>Ver ficha</button></td>
