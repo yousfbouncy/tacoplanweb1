@@ -300,7 +300,7 @@ export async function POST(req:NextRequest){
   const assigned=await db.from('tp_traffic_driver_assignments').select('driver_id').eq('company_id',companyId).eq('driver_id',body.driverId).eq('traffic_user_id',user.id).maybeSingle();
   if(assigned.error)throw assigned.error;
   if(!assigned.data)return json({error:'El conductor no está asignado a tu usuario de Tráfico'},403);
-  const journey=await db.from('jornadas').select('id,user_id,created_at,fecha_inicio,dieta_manual_tipo,tipo_ruta,dieta_percent,dieta_importe_eur,diet_base_eur,day_extra_eur,plus_items').eq('id',body.jornadaId).eq('user_id',body.driverId).gte('created_at',driver.joined_at).maybeSingle();
+  const journey=await db.from('jornadas').select('id,user_id,created_at,fecha_inicio,dieta_manual_tipo,tipo_ruta,dieta_percent,dieta_importe_eur,diet_base_eur,day_extra_eur,day_flag,plus_items').eq('id',body.jornadaId).eq('user_id',body.driverId).gte('created_at',driver.joined_at).maybeSingle();
   if(journey.error||!journey.data)return json({error:'Jornada no encontrada'},404);
   const existing=await db.from('tp_diet_reviews').select('*').eq('company_id',companyId).eq('jornada_id',body.jornadaId).maybeSingle();
   if(existing.error)throw existing.error;
