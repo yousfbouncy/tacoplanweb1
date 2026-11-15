@@ -337,7 +337,7 @@ export async function POST(req:NextRequest){
    proposedAmount=Math.round((newBase+nonDietComponent)*100)/100;
    proposedDietType=(dietTypes as string[]).join(' + ')||'SIN_DIETA';
    proposedPluses=[];
-   for(const concept of new Set(plusTypes as string[])){
+   for(const concept of Array.from(new Set(plusTypes as string[]))){
     const rate=amount(plusRates[concept]);
     if(rate===null)return json({error:'El plus '+concept+' no tiene tarifa configurada'},409);
     proposedPluses.push({concepto:concept,importe:rate});
