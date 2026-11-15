@@ -211,11 +211,40 @@ export async function POST(req:NextRequest){
   await audit(db,companyId,user.id,'driver.settings.updated','driver',body.driverId,prev.data,cfg,plain(body.reason,500));
   return json({ok:true});
  }
+ if(action==='assign_driver'){
+  if(!permitted(role,'hr'))return json({error:'Solo Recursos Humanos puede asignar conductores a Tráfico'},403);
+  const driverId=body.driverId,trafficId=body.trafficUserId;
+  if(!uuid(driverId)||(trafficId!==null&&!uuid(trafficId)))return json({error:'Selecciona un conductor y un usuario de Tráfico válido'},400);
+  const driver=await db.from('tp_company_members').select('user_id').eq('company_id',companyId).eq('user_id',driverId).eq('role','driver').eq('active',true).maybeSingle();
+  if(driver.error)throw driver.error;
+  if(!driver.data)return json({error:'El conductor no pertenece a la empresa'},403);
+  if(trafficId!==null){
+   const traffic=await db.from('tp_company_members').select('user_id').eq('company_id',companyId).eq('user_id',trafficId).eq('role','traffic').eq('active',true).maybeSingle();
+   if(traffic.error)throw traffic.error;
+   if(!traffic.data)return json({error:'El empleado seleccionado no pertenece al departamento de Tráfico'},403);
+  }
+  const previous=await db.from('tp_traffic_driver_assignments').select('traffic_user_id').eq('company_id',companyId).eq('driver_id',driverId).maybeSingle();
+  if(previous.error)throw previous.error;
+  if(trafficId===null){
+   const removed=await db.from('tp_traffic_driver_assignments').delete().eq('company_id',companyId).eq('driver_id',driverId);
+   if(removed.error)throw removed.error;
+  }else{
+   const saved=await db.from('tp_traffic_driver_assignments').upsert({
+    company_id:companyId,driver_id:driverId,traffic_user_id:trafficId,assigned_by:user.id,assigned_at:new Date().toISOString()
+   },{onConflict:'company_id,driver_id'});
+   if(saved.error)throw saved.error;
+  }
+  await audit(db,companyId,user.id,'traffic.driver_assignment_changed','assignment',driverId,previous.data,{traffic_user_id:trafficId});
+  return json({ok:true});
+ }
  if(action==='review'){
   if(!permitted(role,'traffic'))return json({error:'Solo Tráfico revisa dietas'},403);
   if(typeof body.jornadaId!=='string'||body.jornadaId.length<1||body.jornadaId.length>160||!uuid(body.driverId)||!['confirm','propose'].includes(body.mode))return json({error:'Datos inválidos'},400);
   const {data:driver}=await db.from('tp_company_members').select('id,joined_at').eq('company_id',companyId).eq('user_id',body.driverId).eq('role','driver').eq('active',true).maybeSingle();
   if(!driver)return json({error:'Conductor no autorizado'},403);
+  const assigned=await db.from('tp_traffic_driver_assignments').select('driver_id').eq('company_id',companyId).eq('driver_id',body.driverId).eq('traffic_user_id',user.id).maybeSingle();
+  if(assigned.error)throw assigned.error;
+  if(!assigned.data)return json({error:'El conductor no está asignado a tu usuario de Tráfico'},403);
   const journey=await db.from('jornadas').select('id,user_id,created_at,fecha_inicio,dieta_manual_tipo,dieta_importe_eur,plus_items').eq('id',body.jornadaId).eq('user_id',body.driverId).gte('created_at',driver.joined_at).maybeSingle();
   if(journey.error||!journey.data)return json({error:'Jornada no encontrada'},404);
   const existing=await db.from('tp_diet_reviews').select('*').eq('company_id',companyId).eq('jornada_id',body.jornadaId).maybeSingle();
