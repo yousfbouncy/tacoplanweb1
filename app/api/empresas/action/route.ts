@@ -338,6 +338,8 @@ export async function POST(req:NextRequest){
    proposedDietType=(dietTypes as string[]).join(' + ')||'SIN_DIETA';
    proposedPluses=[];
    for(const concept of Array.from(new Set(plusTypes as string[]))){
+    // Automatic Sunday/holiday extras are already embedded in the jornada total.
+    if((Number(journey.data.day_extra_eur)||0)>0&&concept.toUpperCase()===String(journey.data.day_flag||'').toUpperCase())continue;
     const rate=amount(plusRates[concept]);
     if(rate===null)return json({error:'El plus '+concept+' no tiene tarifa configurada'},409);
     proposedPluses.push({concepto:concept,importe:rate});
