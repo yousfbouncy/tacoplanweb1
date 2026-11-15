@@ -32,11 +32,16 @@ export async function POST(req:NextRequest){
  if(staffOnly&&!['traffic','hr'].includes(found.data.role))return enterpriseJson({error:'Esta cuenta no tiene acceso de empleado'},403);
  const foundUser=await db.auth.admin.getUserById(found.data.user_id);
  if(foundUser.error||!foundUser.data.user?.email)return enterpriseJson({error:'Credenciales incorrectas'},401);
- const anonKey=process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY||process.env.SUPABASE_ANON_KEY||SUPABASE_ANON_KEY;
- if(!anonKey)return enterpriseJson({error:'Configura SUPABASE_ANON_KEY en el servidor para acceso por usuario'},503);
- const client=createClient(SUPABASE_URL,anonKey,{auth:{persistSession:false,autoRefreshToken:false}});
+ // The public website client uses this fixed Supabase project and its matching
+ // publishable/anon key. Do not override the key from unrelated deployment envs:
+ // a key from a different Supabase project causes all password attempts to fail.
+ const client=createClient(SUPABASE_URL,SUPABASE_ANON_KEY,{auth:{persistSession:false,autoRefreshToken:false}});
  const signin=await client.auth.signInWithPassword({email:foundUser.data.user.email,password});
- if(signin.error||!signin.data.session)return enterpriseJson({error:'Credenciales incorrectas'},401);
+ if(signin.error||!signin.data.session){
+  // Log only technical error metadata, never credentials, tokens or emails.
+  console.error('tp staff username auth failed',{code:signin.error?.code||'missing_session',status:signin.error?.status||null});
+  return enterpriseJson({error:'Credenciales incorrectas'},401);
+ }
  return enterpriseJson({access_token:signin.data.session.access_token,refresh_token:signin.data.session.refresh_token,
   expires_in:signin.data.session.expires_in});
 }
