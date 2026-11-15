@@ -2,6 +2,7 @@
 import {useCallback,useEffect,useMemo,useRef,useState} from 'react';
 import {Building2,Users,Truck,Wallet,ShieldCheck,LogOut,Plus,RefreshCw,CheckCircle,AlertCircle,Copy,LockKeyhole,LayoutDashboard,UserRoundPlus,Mail,Settings2,UserRoundCog} from 'lucide-react';
 import {useAuth} from '@/lib/auth-context';
+import EnterpriseWorkspace from '@/components/enterprise-workspace';
 import {supabase} from '@/lib/supabase';
 import {PLAN_PRICES} from '@/lib/tp-enterprise-plans';
 import {EnterpriseDriverConfig,blankCompanyConfig} from '@/components/enterprise-driver-config';
@@ -130,6 +131,7 @@ export function EnterprisePortal(){
  const dietChoices=['REGIONAL','NACIONAL','INTERNACIONAL'].flatMap(t=>[30,60,100].map(p=>({value:t+'_'+p,label:t.charAt(0)+t.slice(1).toLowerCase()+' '+p+' %'})));
  const duration=(min:number|null|undefined)=>min==null?'Sin datos':Math.floor(min/60)+' h '+String(min%60).padStart(2,'0')+' min';
  const total=payable.reduce((v,r)=>v+(r.status==='accepted'?r.proposed_amount??r.original_amount:r.original_amount),0);
+ if(member&&(member.role==='traffic'||member.role==='hr'))return <EnterpriseWorkspace view={view as any} busy={busy} loading={loading} error={error} message={message} refresh={load} onAction={action} signOut={signOut}/>;
  const renderError=error?<p role="alert" className="rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</p>:null;
  return <main className="min-h-screen bg-slate-50 px-4 py-8 sm:py-12"><div className="mx-auto max-w-6xl space-y-5">
   <header className="rounded-2xl bg-gradient-to-r from-[#071b38] to-[#174477] p-6 text-white"><div className="flex items-center gap-2 text-sm font-bold text-blue-200"><Building2 className="h-5 w-5"/>TACOPLAN EMPRESAS</div><h1 className="mt-3 text-2xl font-extrabold">{title}</h1>
