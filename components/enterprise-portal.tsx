@@ -293,23 +293,48 @@ export function EnterprisePortal(){
    </div>:null}
    </div>
   </section>:null}
-  {member.role==='traffic'?<section className="space-y-4"><div className="grid grid-cols-3 gap-2">{[{label:'Conductores',value:view?.drivers?.length||0},{label:'Jornadas recientes',value:view?.jornadas?.length||0},{label:'Cambios pendientes',value:pending.length}].map(x=><div key={x.label} className="rounded-xl bg-white p-4"><p className="text-2xl font-bold">{x.value}</p><p className="mt-1 text-xs text-slate-500">{x.label}</p></div>)}</div>
-    <div className="rounded-2xl border bg-white p-5"><h2 className="flex items-center gap-2 font-bold"><Truck className="h-5 w-5 text-blue-600"/>Jornadas y dietas por conductor</h2><p className="mt-1 text-xs text-slate-500">Solo conductores de tu empresa.</p><div className="mt-3 max-h-80 overflow-y-auto divide-y">{(view?.jornadas||[]).slice(0,80).map(j=><button type="button" key={j.id} onClick={()=>{setReviewJornada(j.id);setDriverId(j.user_id);setNewDietAmount(j.dieta_importe_eur||'0');setProposedPluses(Array.isArray(j.plus_items)?j.plus_items.map(x=>({concepto:String(x.concepto||''),importe:Number(x.importe)||0})):[]);}} className={'w-full py-3 text-left text-sm '+(reviewJornada===j.id?'text-blue-700 font-bold':'text-slate-700')}><span>{driverName(j.user_id)} · {j.fecha_inicio||'Sin fecha'} · {j.lugar_inicio||'—'} → {j.lugar_fin||'—'}</span><span className="block text-xs text-slate-500">Dieta {j.dieta_manual_tipo||j.tipo_ruta||'—'} · {j.dieta_importe_eur||'—'} €</span></button>)}</div></div>
-    <div className="rounded-2xl border bg-white p-5"><h2 className="font-bold">Revisar dieta seleccionada</h2><p className="mt-1 text-xs text-slate-500">Jornada: {reviewJornada||'Elige una jornada arriba'}</p><div className="mt-3 flex flex-wrap gap-3"><label className="text-sm"><input type="radio" checked={mode==='confirm'} onChange={()=>setMode('confirm')}/> Confirmar sin cambios</label><label className="text-sm"><input type="radio" checked={mode==='propose'} onChange={()=>setMode('propose')}/> Proponer modificación</label></div>
-    {mode==='propose'?<><label className="mt-3 block text-sm">Importe propuesto<input type="number" min="0" step="0.01" value={newDietAmount} onChange={e=>setNewDietAmount(e.target.value)} className={input+' mt-1'}/></label>
-    <div className="mt-4 rounded-xl border p-3"><p className="text-sm font-bold">Pluses propuestos</p><p className="mt-1 text-xs text-slate-500">Puedes añadir, modificar o retirar conceptos. Todos los cambios requieren justificar el motivo y la aceptación del conductor.</p>
-    {proposedPluses.map((p,index)=><div className="mt-2 flex items-center gap-2" key={index}>
-      <input aria-label={'Concepto '+(index+1)} className={input+' min-w-0 flex-1'} value={p.concepto} onChange={e=>setProposedPluses(v=>v.map((x,i)=>i===index?{...x,concepto:e.target.value}:x))} placeholder="Concepto"/>
-      <input aria-label={'Importe '+(index+1)} type="number" min="0" step="0.01" className={input+' w-28'} value={p.importe} onChange={e=>setProposedPluses(v=>v.map((x,i)=>i===index?{...x,importe:Number(e.target.value)}:x))}/>
-      <button aria-label={'Quitar plus '+(index+1)} type="button" onClick={()=>setProposedPluses(v=>v.filter((_,i)=>i!==index))} className="rounded-lg border px-3 py-2 text-red-700">Quitar</button>
-    </div>)}
-    <button type="button" className="mt-3 rounded-lg border px-3 py-2 text-sm font-semibold text-blue-700" onClick={()=>setProposedPluses(v=>[...v,{concepto:'',importe:0}])}>Añadir plus</button>
-    </div>
-    <textarea value={reason} onChange={e=>setReason(e.target.value)} className={input+' mt-2'} placeholder="Motivo obligatorio del cambio (mínimo 10 caracteres)" rows={3}/></>:null}
-    <textarea className={input+' mt-3'} rows={2} placeholder="Observación opcional" value={observation} onChange={e=>setObservation(e.target.value)}/>
-    <button disabled={!reviewJornada||busy} className={button+' mt-3'} onClick={async()=>{const res=await action({action:'review',jornadaId:reviewJornada,driverId,mode,amount:Number(newDietAmount),pluses:proposedPluses,reason,observation});if(res){setReviewJornada('');setMessage(mode==='confirm'?'Dieta confirmada y conductor avisado.':'Propuesta registrada y enviada al conductor.');}}}>{mode==='confirm'?'Confirmar dieta':'Enviar propuesta al conductor'}</button>
-    </div></section>:null}
-  {member.role==='hr'?<section className="space-y-4">
+  {member.role==='traffic'?<section className="space-y-4">
+ <div className="grid grid-cols-3 gap-2">{[{label:'Conductores asignados',value:view?.drivers?.length||0},{label:'Jornadas registradas',value:view?.jornadas?.length||0},{label:'Cambios pendientes',value:pending.length}].map(x=><div key={x.label} className="rounded-xl bg-white p-4"><p className="text-2xl font-bold">{x.value}</p><p className="mt-1 text-xs text-slate-500">{x.label}</p></div>)}</div>
+ <div className="rounded-2xl border bg-white p-5">
+  <h2 className="flex items-center gap-2 font-bold"><Truck className="h-5 w-5 text-blue-600"/>Jornadas de conductores asignados</h2>
+  <p className="mt-1 text-xs text-slate-500">Horas de inicio y fin, estado de cierre y tiempos de actividad registrados. Las actividades no sincronizadas se muestran como «Sin datos»; no son un seguimiento del tacógrafo en directo.</p>
+  <div className="mt-3 max-h-[32rem] divide-y overflow-y-auto">
+  {(view?.jornadas||[]).slice(0,120).map(j=><button type="button" key={j.id} onClick={()=>{
+   setReviewJornada(j.id);setDriverId(j.user_id);setDietTypes([(j.dieta_manual_tipo||j.tipo_ruta||'').toUpperCase()+'_'+(j.dieta_percent||100)].filter(x=>dietChoices.some(d=>d.value===x)));setPlusTypes([]);setMode('confirm');setReason('');setObservation('');
+  }} className={'w-full py-3 text-left text-sm '+(reviewJornada===j.id?'text-blue-700 font-bold':'text-slate-700')}>
+   <span className="font-semibold">{driverName(j.user_id)} · {j.fecha_inicio||'Sin fecha'} {j.hora_inicio||'—'} → {j.fecha_fin||'Sin cierre'} {j.hora_fin||''}</span>
+   <span className="mt-1 block text-xs text-slate-600">{j.lugar_inicio||'Origen no indicado'} → {j.lugar_fin||'Destino pendiente'} · {j.fecha_fin&&j.hora_fin?'Finalizada':'Sin cierre registrado'}</span>
+   <span className="mt-1 block text-xs">Dieta: {j.dieta_manual_tipo||j.tipo_ruta||'Sin tipo'}{j.dieta_percent?' · '+j.dieta_percent+' %':''}</span>
+   <span className="mt-1 block text-xs text-slate-500">Conducción: {duration(j.tacho_driving_min??j.conduccion_min)} · Disponibilidad: {duration(j.tacho_available_min)} · Otros trabajos: {duration(j.tacho_work_min)} · Descanso: {duration(j.tacho_rest_min)}</span>
+  </button>)}
+  {!(view?.jornadas||[]).length?<p className="py-3 text-sm text-slate-500">No hay jornadas disponibles de los conductores asignados.</p>:null}
+  </div>
+ </div>
+ <div className="rounded-2xl border bg-white p-5">
+  <h2 className="font-bold">Revisar dieta y pluses</h2>
+  <p className="mt-1 text-xs text-slate-500">Jornada: {reviewJornada||'Selecciona una jornada arriba'}. Los importes económicos no son accesibles para Tráfico.</p>
+  <div className="mt-3 flex flex-wrap gap-3"><label className="text-sm"><input type="radio" checked={mode==='confirm'} onChange={()=>setMode('confirm')}/> Confirmar sin cambios</label><label className="text-sm"><input type="radio" checked={mode==='propose'} onChange={()=>setMode('propose')}/> Proponer modificación</label></div>
+  {mode==='propose'?<>
+   <div className="mt-4 rounded-xl border p-3">
+    <p className="text-sm font-bold">Tipos de dieta</p><p className="mt-1 text-xs text-slate-500">Modifica el tipo o añade otra dieta. El conductor revisará la propuesta.</p>
+    {dietTypes.map((selected,i)=><div key={i} className="mt-2 flex gap-2"><select aria-label={'Dieta '+(i+1)} className={input} value={selected} onChange={e=>setDietTypes(v=>v.map((x,n)=>n===i?e.target.value:x))}>{dietChoices.map(x=><option key={x.value} value={x.value}>{x.label}</option>)}</select><button type="button" className="rounded-xl border px-3 text-sm text-red-700" onClick={()=>setDietTypes(v=>v.filter((_,n)=>n!==i))}>Quitar</button></div>)}
+    <button type="button" disabled={dietTypes.length>=8} className="mt-2 rounded-lg border px-3 py-2 text-sm text-blue-700 disabled:opacity-50" onClick={()=>setDietTypes(v=>[...v,'NACIONAL_100'])}>Añadir dieta</button>
+   </div>
+   <div className="mt-3 rounded-xl border p-3">
+    <p className="text-sm font-bold">Pluses</p><p className="mt-1 text-xs text-slate-500">Selecciona conceptos previamente configurados por la empresa.</p>
+    {(view?.plusOptions?.[driverId]||[]).map(concept=><label key={concept} className="mt-2 flex items-center gap-2 text-sm"><input type="checkbox" checked={plusTypes.includes(concept)} onChange={e=>setPlusTypes(v=>e.target.checked?[...v,concept]:v.filter(x=>x!==concept))}/>{concept.replace(/_/g,' ')}</label>)}
+    {!(view?.plusOptions?.[driverId]||[]).length?<p className="mt-2 text-xs text-amber-700">No hay pluses configurados para este conductor.</p>:null}
+   </div>
+   <textarea value={reason} onChange={e=>setReason(e.target.value)} className={input+' mt-3'} placeholder="Motivo obligatorio del cambio (mínimo 10 caracteres)" rows={3}/>
+  </>:null}
+  <textarea className={input+' mt-3'} rows={2} placeholder="Observación opcional" value={observation} onChange={e=>setObservation(e.target.value)}/>
+  <button disabled={!reviewJornada||busy||(mode==='propose'&&reason.trim().length<10)} className={button+' mt-3'} onClick={async()=>{
+   const res=await action({action:'review',jornadaId:reviewJornada,driverId,mode,dietTypes,plusTypes,reason,observation});
+   if(res){setReviewJornada('');setMessage(mode==='confirm'?'Dieta confirmada y conductor avisado.':'Propuesta enviada al conductor para su aceptación.');}
+  }}>{mode==='confirm'?'Confirmar dieta':'Enviar propuesta al conductor'}</button>
+ </div>
+</section>:null}
+   {member.role==='hr'?<section className="space-y-4">
     <nav className="flex flex-wrap gap-2 rounded-2xl border bg-white p-3" aria-label="Secciones de Recursos Humanos">
       <button type="button" className={'rounded-xl px-4 py-2 text-sm font-semibold '+(hrTab==='liquidacion'?'bg-blue-700 text-white':'bg-slate-100 text-slate-700')} onClick={()=>setHrTab('liquidacion')}>Liquidación mensual</button>
       <button type="button" className={'rounded-xl px-4 py-2 text-sm font-semibold '+(hrTab==='asignaciones'?'bg-blue-700 text-white':'bg-slate-100 text-slate-700')} onClick={()=>setHrTab('asignaciones')}>Asignar conductores a Tráfico</button>
