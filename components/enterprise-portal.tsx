@@ -30,6 +30,7 @@ export function EnterprisePortal(){
  const [companyName,setCompanyName]=useState(''),[ownerUsername,setOwnerUsername]=useState(''),[planId,setPlanId]=useState<string>(PLAN_PRICES[0].priceId);
  const [staffEmail,setStaffEmail]=useState(''),[staffUsername,setStaffUsername]=useState(''),[staffName,setStaffName]=useState(''),[staffRole,setStaffRole]=useState('');
  const [staffPassword,setStaffPassword]=useState(''),[staffPasswordConfirm,setStaffPasswordConfirm]=useState('');
+ const [resetStaffId,setResetStaffId]=useState(''),[resetStaffPassword,setResetStaffPassword]=useState(''),[resetStaffConfirm,setResetStaffConfirm]=useState('');
  const [staffConfig,setStaffConfig]=useState<InitialEmployeeConfig>(blankCompanyConfig);
  const [pendingInviteId,setPendingInviteId]=useState(''),[pendingInviteName,setPendingInviteName]=useState(''),[pendingInviteConfig,setPendingInviteConfig]=useState<InitialEmployeeConfig>(blankCompanyConfig);
  const [latestInvite,setLatestInvite]=useState('');
@@ -228,9 +229,24 @@ export function EnterprisePortal(){
    </div>:null}
    {ownerTab==='empleados'?<div className="rounded-2xl border bg-white p-5 lg:col-span-2">
     <h2 className="text-lg font-bold">Personal de empresa</h2>
-    <div className="mt-3 space-y-2">{(view?.team||[]).map(x=><div className="flex items-center justify-between gap-3 rounded-xl border p-3" key={x.user_id}>
+    <div className="mt-3 space-y-2">{(view?.team||[]).map(x=><div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border p-3" key={x.user_id}>
      <div><p className="text-sm font-semibold">{x.employee_name||x.username}</p><p className="text-xs text-slate-500">@{x.username}</p></div>
-     <span className="text-xs text-slate-500">{roleLabels[x.role as keyof typeof roleLabels]||x.role}</span>
+     <div className="flex items-center gap-2">
+      <span className="text-xs text-slate-500">{roleLabels[x.role as keyof typeof roleLabels]||x.role}</span>
+      {(x.role==='traffic'||x.role==='hr')?<button type="button" className="rounded-lg border border-blue-200 px-2 py-1 text-xs font-semibold text-blue-700 hover:bg-blue-50" onClick={()=>{setResetStaffId(resetStaffId===x.user_id?'':x.user_id);setResetStaffPassword('');setResetStaffConfirm('');}}>Cambiar contraseña</button>:null}
+     </div>
+     {resetStaffId===x.user_id?<div className="w-full basis-full space-y-2 rounded-xl border border-blue-100 bg-blue-50 p-3">
+       <p className="text-xs font-semibold text-blue-950">Nueva contraseña para @{x.username} (mínimo 12 caracteres)</p>
+       <div className="grid gap-2 sm:grid-cols-2">
+        <input type="password" autoComplete="new-password" className={input} placeholder="Nueva contraseña" value={resetStaffPassword} onChange={e=>setResetStaffPassword(e.target.value)}/>
+        <input type="password" autoComplete="new-password" className={input} placeholder="Confirmar contraseña" value={resetStaffConfirm} onChange={e=>setResetStaffConfirm(e.target.value)}/>
+       </div>
+       <button type="button" className={button} disabled={busy||resetStaffPassword.length<12||resetStaffPassword!==resetStaffConfirm} onClick={async()=>{
+         const result=await action({action:'reset_staff_password',staffId:x.user_id,password:resetStaffPassword});
+         if(result){setResetStaffId('');setResetStaffPassword('');setResetStaffConfirm('');setMessage('Contraseña cambiada para @'+x.username+'. El empleado puede entrar con la nueva contraseña.');}
+       }}>Guardar nueva contraseña</button>
+       <p className="text-xs text-blue-900">No se modifica su cuenta, su empresa ni los conductores asignados.</p>
+      </div>:null}
     </div>)}</div>
    </div>:null}
    {ownerTab==='invitaciones'?<div className="rounded-2xl border bg-white p-5 lg:col-span-2">

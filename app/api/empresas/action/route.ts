@@ -116,6 +116,21 @@ export async function POST(req:NextRequest){
   if(state.error||!isPaidAccess(state.data))return json({error:'La prueba gratuita o la suscripción de la empresa no está activa'},402);
  }
 
+ if(action==='reset_staff_password'){
+  if(!permitted(role,'owner'))return json({error:'Solo el administrador puede cambiar contraseñas de empleados'},403);
+  const staffId=body.staffId;
+  const newPassword=typeof body.password==='string'?body.password:'';
+  if(!uuid(staffId)||newPassword.length<12||newPassword.length>256)
+   return json({error:'Selecciona un empleado y una contraseña de al menos 12 caracteres'},400);
+  const found=await db.from('tp_company_members').select('user_id,role,username,active')
+   .eq('company_id',companyId).eq('user_id',staffId).in('role',['traffic','hr']).maybeSingle();
+  if(found.error)throw found.error;
+  if(!found.data||!found.data.active)return json({error:'Empleado de Tráfico o RRHH no encontrado o inactivo'},404);
+  const updated=await db.auth.admin.updateUserById(staffId,{password:newPassword});
+  if(updated.error)return json({error:'No se pudo cambiar la contraseña del empleado'},500);
+  await audit(db,companyId,user.id,'staff.password_reset','member',staffId,null,{username:found.data.username,role:found.data.role});
+  return json({ok:true});
+ }
  if(action==='create_staff'){
   if(!permitted(role,'owner'))return json({error:'Solo el administrador puede crear empleados'},403);
   const username=cleanUsername(body.username),employeeName=plain(body.employeeName,120);
