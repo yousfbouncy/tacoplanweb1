@@ -60,6 +60,7 @@ export function EnterprisePortal(){
  try{const t=await token();const r=await fetch('/api/empresas/dashboard',{cache:'no-store',headers:{Authorization:'Bearer '+t}});const j=await r.json();if(!r.ok)throw Error(j.error||'No se pudo cargar');setView(j);}
  catch(e:unknown){setError(e instanceof Error?e.message:'Error al cargar');}finally{setLoading(false);}},[user?.id]);
  useEffect(()=>{void load();},[load]);
+ useEffect(()=>{if(view?.member?.role!=='traffic')return;const id=window.setInterval(()=>{void load();},60000);return()=>window.clearInterval(id);},[view?.member?.role,load]);
  const action=async(body:Record<string,unknown>)=>{setBusy(true);setError('');setMessage('');
  try{const t=await token();const r=await fetch('/api/empresas/action',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+t},body:JSON.stringify(body)});const j=await r.json();if(!r.ok)throw Error(j.error||'No se pudo guardar');await load();return j;}
  catch(e:unknown){setError(e instanceof Error?e.message:'Error');return null;}finally{setBusy(false);}};
@@ -295,6 +296,18 @@ export function EnterprisePortal(){
   </section>:null}
   {member.role==='traffic'?<section className="space-y-4">
  <div className="grid grid-cols-3 gap-2">{[{label:'Conductores asignados',value:view?.drivers?.length||0},{label:'Jornadas registradas',value:view?.jornadas?.length||0},{label:'Cambios pendientes',value:pending.length}].map(x=><div key={x.label} className="rounded-xl bg-white p-4"><p className="text-2xl font-bold">{x.value}</p><p className="mt-1 text-xs text-slate-500">{x.label}</p></div>)}</div>
+ <div className="rounded-2xl border border-blue-200 bg-white p-5">
+  <h2 className="font-bold text-slate-900">Jornadas abiertas y sin cierre</h2>
+  <p className="mt-1 text-xs text-slate-500">Datos de Tacoplan actualizados aproximadamente cada minuto mientras este panel esté abierto. Una jornada sin hora de fin no garantiza que el conductor siga trabajando. La actividad actual requiere sincronización desde la app.</p>
+  <div className="mt-3 grid gap-3 sm:grid-cols-2">{(view?.jornadas||[]).filter(j=>!j.fecha_fin&&!j.hora_fin).slice(0,20).map(j=><div className="rounded-xl bg-blue-50 p-4" key={j.id}>
+   <p className="font-semibold">{driverName(j.user_id)}</p>
+   <p className="mt-1 text-sm">{j.fecha_inicio||'Sin fecha'} · Inicio {j.hora_inicio||'Sin hora'}</p>
+   <p className="mt-1 text-xs text-slate-700">Conducción registrada: {duration(j.tacho_driving_min??j.conduccion_min)} · Disponibilidad: {duration(j.tacho_available_min)}</p>
+   <p className="mt-1 text-xs text-slate-500">Última actividad en directo: no disponible sin sincronización</p>
+  </div>)}
+  {!(view?.jornadas||[]).some(j=>!j.fecha_fin&&!j.hora_fin)?<p className="text-sm text-slate-500">No hay jornadas pendientes de cierre.</p>:null}
+  </div>
+ </div>
  <div className="rounded-2xl border bg-white p-5">
   <h2 className="flex items-center gap-2 font-bold"><Truck className="h-5 w-5 text-blue-600"/>Jornadas de conductores asignados</h2>
   <p className="mt-1 text-xs text-slate-500">Horas de inicio y fin, estado de cierre y tiempos de actividad registrados. Las actividades no sincronizadas se muestran como «Sin datos»; no son un seguimiento del tacógrafo en directo.</p>
