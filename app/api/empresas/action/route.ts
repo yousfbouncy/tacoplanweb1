@@ -304,7 +304,8 @@ export async function POST(req:NextRequest){
   if(journey.error||!journey.data)return json({error:'Jornada no encontrada'},404);
   const existing=await db.from('tp_diet_reviews').select('*').eq('company_id',companyId).eq('jornada_id',body.jornadaId).maybeSingle();
   if(existing.error)throw existing.error;
-  if(existing.data&&['confirmed','awaiting_driver','accepted','disputed','closed'].includes(existing.data.status))return json({error:'Ya existe una revisión. No se puede sobrescribir el historial'},409);
+  if(existing.data&&['awaiting_driver','accepted','disputed','closed'].includes(existing.data.status))return json({error:'Ya existe una revisión pendiente, aceptada o cerrada. No se puede sobrescribir su historial'},409);
+  if(existing.data&&existing.data.status==='confirmed'&&body.mode==='confirm')return json({error:'Esta jornada ya está confirmada. Para proponer un cambio, utiliza «Proponer modificación»'},409);
   const originalAmount=Number(String(journey.data.dieta_importe_eur||'0').replace(',','.'))||0;
   const mode=body.mode,reason=plain(body.reason,2000),observation=plain(body.observation,2000);
   if(mode==='propose'&&reason.length<10)return json({error:'Explica el motivo del cambio (mínimo 10 caracteres)'},400);
