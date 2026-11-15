@@ -9,7 +9,7 @@ const moneyNames=['nacional','internacional','regional'] as const;
 const titleFor:Record<string,string>={nacional:'Nacional',internacional:'Internacional',regional:'Regional'};
 const num=(s:unknown)=>s===undefined||s===null?'':String(s);
 const asAmount=(v:string)=>v.trim()===''?undefined:v;
-function Group({title,children}:{title:string;children:React.ReactNode}){return <section className="rounded-xl border border-slate-200 bg-white p-4"><h3 className="mb-3 font-semibold text-slate-900">{title}</h3>{children}</section>;}
+function Group({title,children}:{title:string;children:React.ReactNode}){return <details className="group overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"><summary className="flex cursor-pointer list-none items-center justify-between px-4 py-4 text-sm font-bold text-slate-900 marker:hidden hover:bg-blue-50 sm:px-5"><span>{title}</span><span aria-hidden="true" className="text-blue-600 transition-transform group-open:rotate-180">⌄</span></summary><div className="border-t border-slate-100 px-4 pb-5 pt-4 sm:px-5">{children}</div></details>;}
 export function EnterpriseDriverConfig({value,onChange,idPrefix='employee'}:{value:ConfigDraft;onChange:(value:ConfigDraft)=>void;idPrefix?:string}){
  const [showAdvanced,setShowAdvanced]=useState(false);
  const set=<K extends keyof ConfigDraft>(k:K,v:ConfigDraft[K])=>onChange({...value,[k]:v});
@@ -21,7 +21,7 @@ export function EnterpriseDriverConfig({value,onChange,idPrefix='employee'}:{val
   <label key={section+key} className="text-sm font-medium text-slate-700">{label}
    <div className="relative"><input aria-label={label} type="number" inputMode="decimal" min="0" max="100000" step="0.01" className={input+' pr-8'} value={num(value[section][key])} onChange={e=>mapRate(section,key,e.target.value)} placeholder="0,00"/><span className="absolute right-3 top-3 text-xs text-slate-500">{suffix}</span></div>
   </label>;
- return <div className="space-y-4">
+ return <div className="space-y-3"><p className="rounded-xl bg-blue-50 p-3 text-sm text-blue-900">Abre solo la sección que quieras configurar. Los datos que escribas se conservan al cerrar cada apartado.</p>
   <Group title="Perfil y tipos de viaje">
    <div className="grid gap-3 sm:grid-cols-2">
     <label className="text-sm font-medium">Perfil del conductor<select className={input} value={value.driver_profile} onChange={e=>set('driver_profile',e.target.value as ConfigDraft['driver_profile'])}><option value="standard">Transporte estándar</option><option value="morocco">Marruecos</option><option value="ferry">Ferry</option></select></label>

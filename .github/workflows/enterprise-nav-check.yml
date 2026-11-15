@@ -1,0 +1,19 @@
+name: Enterprise navigation and access checks
+on:
+  push:
+    branches:
+      - feat/enterprise-navigation-traffic-assignments-20261115
+  workflow_dispatch:
+jobs:
+  typecheck:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npm run typecheck
