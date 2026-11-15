@@ -265,6 +265,9 @@ export async function POST(req:NextRequest){
  }
  if(action==='assign_driver'){
   if(!permitted(role,'hr'))return json({error:'Solo Recursos Humanos puede asignar conductores a Tráfico'},403);
+  const companyState=await db.from('tp_companies').select('subscription_status,trial_ends_at').eq('id',companyId).single();
+  if(companyState.error)throw companyState.error;
+  if(!isPaidAccess(companyState.data))return json({error:'La suscripción está pendiente o inactiva. Puedes consultar las asignaciones, pero no modificarlas hasta activar el acceso empresarial.'},402);
   const driverId=body.driverId,trafficId=body.trafficUserId;
   if(!uuid(driverId)||(trafficId!==null&&!uuid(trafficId)))return json({error:'Selecciona un conductor y un usuario de Tráfico válido'},400);
   const driver=await db.from('tp_company_members').select('user_id').eq('company_id',companyId).eq('user_id',driverId).eq('role','driver').eq('active',true).maybeSingle();
