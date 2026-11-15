@@ -292,15 +292,29 @@ export async function POST(req:NextRequest){
   await audit(db,companyId,user.id,'traffic.driver_assignment_changed','assignment',driverId,previous.data,{traffic_user_id:trafficId});
   return json({ok:true});
  }
+ if(action==='share_journey_history'){
+  if(!member||member.role!=='driver')return json({error:'Solo el conductor puede autorizar que se comparta su historial'},403);
+  if(typeof body.enabled!=='boolean')return json({error:'Selecciona una opción de consentimiento válida'},400);
+  // Consent is explicit, reversible, and scoped to this driver's membership
+  // in this company; no other driver's history or account is affected.
+  const sharing=await db.from('tp_company_members')
+   .update({history_shared_from:body.enabled?'1970-01-01T00:00:00.000Z':null})
+   .eq('company_id',companyId).eq('user_id',user.id).eq('role','driver').eq('active',true)
+   .select('history_shared_from').maybeSingle();
+  if(sharing.error)throw sharing.error;
+  if(!sharing.data)return json({error:'No se pudo actualizar el permiso de historial'},404);
+  await audit(db,companyId,user.id,'driver.history_sharing','member',user.id,null,{enabled:body.enabled});
+  return json({ok:true,enabled:body.enabled});
+ }
  if(action==='review'){
   if(!permitted(role,'traffic'))return json({error:'Solo Tráfico revisa dietas'},403);
   if(typeof body.jornadaId!=='string'||body.jornadaId.length<1||body.jornadaId.length>160||!uuid(body.driverId)||!['confirm','propose'].includes(body.mode))return json({error:'Datos inválidos'},400);
-  const {data:driver}=await db.from('tp_company_members').select('id,joined_at').eq('company_id',companyId).eq('user_id',body.driverId).eq('role','driver').eq('active',true).maybeSingle();
+  const {data:driver}=await db.from('tp_company_members').select('id,joined_at,history_shared_from').eq('company_id',companyId).eq('user_id',body.driverId).eq('role','driver').eq('active',true).maybeSingle();
   if(!driver)return json({error:'Conductor no autorizado'},403);
   const assigned=await db.from('tp_traffic_driver_assignments').select('driver_id').eq('company_id',companyId).eq('driver_id',body.driverId).eq('traffic_user_id',user.id).maybeSingle();
   if(assigned.error)throw assigned.error;
   if(!assigned.data)return json({error:'El conductor no está asignado a tu usuario de Tráfico'},403);
-  const journey=await db.from('jornadas').select('id,user_id,created_at,fecha_inicio,dieta_manual_tipo,tipo_ruta,dieta_percent,dieta_importe_eur,diet_base_eur,day_extra_eur,day_flag,plus_items').eq('id',body.jornadaId).eq('user_id',body.driverId).gte('created_at',driver.joined_at).maybeSingle();
+  const journey=await db.from('jornadas').select('id,user_id,created_at,fecha_inicio,dieta_manual_tipo,tipo_ruta,dieta_percent,dieta_importe_eur,diet_base_eur,day_extra_eur,day_flag,plus_items').eq('id',body.jornadaId).eq('user_id',body.driverId).gte('created_at',driver.history_shared_from||driver.joined_at).maybeSingle();
   if(journey.error||!journey.data)return json({error:'Jornada no encontrada'},404);
   const existing=await db.from('tp_diet_reviews').select('*').eq('company_id',companyId).eq('jornada_id',body.jornadaId).maybeSingle();
   if(existing.error)throw existing.error;
