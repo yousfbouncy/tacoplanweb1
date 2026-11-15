@@ -304,7 +304,8 @@ export async function POST(req:NextRequest){
   if(journey.error||!journey.data)return json({error:'Jornada no encontrada'},404);
   const existing=await db.from('tp_diet_reviews').select('*').eq('company_id',companyId).eq('jornada_id',body.jornadaId).maybeSingle();
   if(existing.error)throw existing.error;
-  if(existing.data&&['confirmed','awaiting_driver','accepted','disputed','closed'].includes(existing.data.status))return json({error:'Ya existe una revi  const originalAmount=Number(String(journey.data.dieta_importe_eur||'0').replace(',','.'))||0;
+  if(existing.data&&['confirmed','awaiting_driver','accepted','disputed','closed'].includes(existing.data.status))return json({error:'Ya existe una revisión. No se puede sobrescribir el historial'},409);
+  const originalAmount=Number(String(journey.data.dieta_importe_eur||'0').replace(',','.'))||0;
   const mode=body.mode,reason=plain(body.reason,2000),observation=plain(body.observation,2000);
   if(mode==='propose'&&reason.length<10)return json({error:'Explica el motivo del cambio (mínimo 10 caracteres)'},400);
   const originalPluses=Array.isArray(journey.data.plus_items)?journey.data.plus_items:[];
@@ -349,7 +350,6 @@ export async function POST(req:NextRequest){
    traffic_observation:observation||null,change_reason:mode==='propose'?reason:null,
    confirmed_at:mode==='confirm'?new Date().toISOString():null,
    confirmed_by:mode==='confirm'?user.id:null,updated_at:new Date().toISOString()};
-?user.id:null,updated_at:new Date().toISOString()};
   const result=await db.from('tp_diet_reviews').upsert(payload,{onConflict:'company_id,jornada_id'}).select('id').single();
   if(result.error)throw result.error;
   await audit(db,companyId,user.id,mode==='confirm'?'diet.confirmed':'diet.change_proposed','review',result.data.id,existing.data,payload,reason||observation);
