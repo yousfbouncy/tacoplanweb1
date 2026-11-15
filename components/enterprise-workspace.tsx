@@ -25,7 +25,7 @@ function tripDestination(trip:Trip):string|null{
  if(!stop||typeof stop!=='object')return null;
  const p=stop as Record<string,unknown>;
  for(const key of ['destino','destination','lugar','localidad','direccion','ubicacion','nombre']){
-  if(typeof p[key]==='string'&&p[key].trim())return p[key].trim();
+  const value=p[key];if(typeof value==='string'&&value.trim())return value.trim();
  }
  return null;
 }
@@ -112,7 +112,7 @@ export default function EnterpriseWorkspace({view,busy,loading,error,message,ref
  const tripFor=(d:Driver)=>currentTrip(trips,d.user_id);
  const operating=(d:Driver)=>{
   const j=latest.get(d.user_id),a=latestActivities.get(d.user_id),t=tripFor(d),limit=journeyLimit(d),s=state(d);
-  const opened=Boolean(j)&&!j?.fecha_fin&&!j?.hora_fin&&s!=='Sin cierre (antigua)'&&s!=='Pendiente de inicio';
+  const opened=Boolean(j)&&!(j?.fecha_fin&&j?.hora_fin)&&s!=='Sin cierre (antigua)'&&s!=='Pendiente de inicio';
   return <div className="rounded-2xl border border-blue-100 bg-gradient-to-br from-white to-blue-50/50 p-4">
    <div className="flex flex-wrap items-center justify-between gap-2"><strong className="text-sm text-slate-900">{display(d)}</strong><Pill value={s}/></div>
    <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
