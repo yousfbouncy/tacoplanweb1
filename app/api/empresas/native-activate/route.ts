@@ -12,7 +12,7 @@ export async function POST(req:NextRequest){
  const {db,user}=auth;
  if(!user.email||!user.email_confirmed_at)return enterpriseJson({error:'Confirma tu correo primero'},403);
  try{
-  const current=await db.from('tp_company_members').select('company_id,role,active').eq('user_id',user.id).maybeSingle();
+  const current=await db.from('tp_company_members').select('company_id,role,active,employee_name').eq('user_id',user.id).maybeSingle();
   if(current.error)throw current.error;
   if(current.data?.active){
    if(current.data.role!=='driver')return enterpriseJson({managed:false});
@@ -23,7 +23,7 @@ export async function POST(req:NextRequest){
    if(settings.error)throw settings.error;
    if(settings.data?.initial_config&&Object.keys(settings.data.initial_config).length){
     const cfg=normalizeEmployeeConfig(settings.data.initial_config);
-    const name=(user.user_metadata?.name||user.user_metadata?.full_name||user.email?.split('@')[0]||'Conductor').toString();
+    const name=(current.data.employee_name||user.user_metadata?.name||user.user_metadata?.full_name||user.email?.split('@')[0]||'Conductor').toString();
     await syncEmployeeConfig(db,user.id,name,cfg);
    }
    return enterpriseJson({managed:true,linked:true});
