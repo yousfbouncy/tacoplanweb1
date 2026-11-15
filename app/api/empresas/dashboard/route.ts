@@ -51,7 +51,7 @@ export async function GET(req:NextRequest){
  }
  if(role==='traffic'){
   const [members,allocation]=await Promise.all([
-   db.from('tp_company_members').select('user_id,username,employee_name,joined_at').eq('company_id',companyId).eq('active',true).eq('role','driver'),
+   db.from('tp_company_members').select('user_id,username,employee_name,joined_at,history_shared_from').eq('company_id',companyId).eq('active',true).eq('role','driver'),
    db.from('tp_traffic_driver_assignments').select('driver_id').eq('company_id',companyId).eq('traffic_user_id',user.id)
   ]);
   if(members.error||allocation.error)throw members.error||allocation.error;
@@ -59,7 +59,7 @@ export async function GET(req:NextRequest){
   const myDrivers=(members.data||[]).filter(x=>assigned.has(x.user_id));
   const ids=myDrivers.map(x=>x.user_id);
   // Joining an employer never shares a conductor's prior personal history.
-  const joinedAt=new Map(myDrivers.map(m=>[m.user_id,new Date(m.joined_at).getTime()]));
+  const joinedAt=new Map(myDrivers.map(m=>[m.user_id,m.history_shared_from?Math.min(new Date(m.joined_at).getTime(),new Date(m.history_shared_from).getTime()):new Date(m.joined_at).getTime()]));
   const [jornadas,reviews,plusSettings,activityRows]=await Promise.all([
    ids.length?db.from('jornadas').select('id,user_id,created_at,fecha_inicio,fecha_fin,hora_inicio,hora_fin,lugar_inicio,lugar_fin,tipo_ruta,dieta_manual_tipo,dieta_percent,conduccion_min,tacho_driving_min,tacho_work_min,tacho_available_min,tacho_rest_min,start_at,end_at').in('user_id',ids).order('created_at',{ascending:false}).limit(1500):Promise.resolve({data:[],error:null}),
    db.from('tp_diet_reviews').select('id,jornada_id,jornada_date,driver_id,status,original_diet_type,proposed_diet_type,traffic_observation,change_reason,driver_observation,created_at').eq('company_id',companyId).in('driver_id',ids.length?ids:['00000000-0000-0000-0000-000000000000']).order('created_at',{ascending:false}).limit(1000),
@@ -70,13 +70,14 @@ export async function GET(req:NextRequest){
   return enterpriseJson({company,member,drivers:myDrivers,activities:(activityRows.data||[]).filter(a=>{const joined=joinedAt.get(a.user_id);return joined!==undefined&&new Date(a.inicio).getTime()>=joined;}),plusOptions:Object.fromEntries((plusSettings.data||[]).map(s=>[s.driver_id,Object.keys(s.plus_rates||{})])),jornadas:(jornadas.data||[]).filter(j=>{const joined=joinedAt.get(j.user_id);return joined!==undefined&&new Date(j.created_at).getTime()>=joined;}),reviews:reviews.data||[]});
  }
  if(role==='driver'){
-  const [settings,reviews]=await Promise.all([
+  const [settings,reviews,sharing]=await Promise.all([
    db.from('tp_driver_settings').select('base_name,workplace,agreement,diet_rates,plus_rates,payroll_terms,effective_from').eq('company_id',companyId).eq('driver_id',user.id).maybeSingle(),
+   db.from('tp_company_members').select('history_shared_from,joined_at').eq('company_id',companyId).eq('user_id',user.id).eq('role','driver').single(),
    db.from('tp_diet_reviews').select('id,status,original_diet_type,original_amount,original_pluses,proposed_diet_type,proposed_amount,proposed_pluses,change_reason,traffic_observation,driver_observation,created_at')
     .eq('company_id',companyId).eq('driver_id',user.id).order('created_at',{ascending:false}).limit(250)
   ]);
-  if(settings.error||reviews.error)throw settings.error||reviews.error;
-  return enterpriseJson({company,member,driverSettings:settings.data,reviews:reviews.data||[]});
+  if(settings.error||reviews.error||sharing.error)throw settings.error||reviews.error||sharing.error;
+  return enterpriseJson({company,member,driverSettings:settings.data,historySharing:{enabled:sharing.data?.history_shared_from!=null,joinedAt:sharing.data?.joined_at||null},reviews:reviews.data||[]});
  }
  // Owner manages identity, plan and configuration, but does not automatically
  // receive traffic routes, GPS or HR payroll figures.
