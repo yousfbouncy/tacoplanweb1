@@ -18,12 +18,20 @@ export async function POST(req:NextRequest){
    if(current.data.role!=='driver')return enterpriseJson({managed:false});
    const c=await db.from('tp_driver_settings').select('driver_id').eq('company_id',current.data.company_id).eq('driver_id',user.id).maybeSingle();
    if(c.error)throw c.error;
-   return enterpriseJson({managed:Boolean(c.data),linked:true});
+   if(!c.data)return enterpriseJson({managed:false,linked:true,error:'Falta configuración del conductor'});
+   const settings=await db.from('tp_driver_settings').select('initial_config').eq('company_id',current.data.company_id).eq('driver_id',user.id).single();
+   if(settings.error)throw settings.error;
+   if(settings.data?.initial_config&&Object.keys(settings.data.initial_config).length){
+    const cfg=normalizeEmployeeConfig(settings.data.initial_config);
+    const name=(user.user_metadata?.name||user.user_metadata?.full_name||user.email?.split('@')[0]||'Conductor').toString();
+    await syncEmployeeConfig(db,user.id,name,cfg);
+   }
+   return enterpriseJson({managed:true,linked:true});
   }
   if(current.data&&current.data.role!=='driver')return enterpriseJson({managed:false});
   // Match only the exact verified email in Auth. Never infer employer from app settings.
   const candidates=await db.from('tp_company_invites').select('id,company_id,email,username,employee_name,initial_settings,invited_by,expires_at,accepted_at,revoked_at')
-   .eq('role','driver').ilike('email',cleanEmail(user.email)).is('accepted_at',null).is('revoked_at',null)
+   .eq('role','driver').eq('email',cleanEmail(user.email)).is('accepted_at',null).is('revoked_at',null)
    .gt('expires_at',new Date().toISOString()).limit(3);
   if(candidates.error)throw candidates.error;
   const matches=(candidates.data||[]).filter(x=>cleanEmail(user.email)===cleanEmail((x as any).email??user.email));
