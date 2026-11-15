@@ -34,7 +34,7 @@ export async function audit(db:any,company:string,actor:string,action:string,ent
 
 export function isPaidAccess(company:{subscription_status:string;trial_ends_at?:string|null}|null|undefined){
  if(!company)return false;
- if(company.subscription_status==='active')return true;
+ if(company.subscription_status==='active'||company.subscription_status==='free')return true;
  if(company.subscription_status==='trialing'){
   return Boolean(company.trial_ends_at&&new Date(company.trial_ends_at).getTime()>Date.now());
  }
