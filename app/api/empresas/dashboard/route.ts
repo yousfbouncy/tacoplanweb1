@@ -70,7 +70,7 @@ export async function GET(req:NextRequest){
   return enterpriseJson({company,member,drivers:myDrivers,activities:(activityRows.data||[]).filter(a=>{const joined=joinedAt.get(a.user_id);return joined!==undefined&&new Date(a.inicio).getTime()>=joined;}),plusOptions:Object.fromEntries((plusSettings.data||[]).map(s=>[s.driver_id,Object.keys(s.plus_rates||{})])),jornadas:(jornadas.data||[]).filter(j=>{const joined=joinedAt.get(j.user_id);return joined!==undefined&&new Date(j.created_at).getTime()>=joined;}),reviews:reviews.data||[]});
  }
  if(role==='driver'){
-  const [settings,reviews,sharing]=await Promise.all([
+  const [settings,sharing,reviews]=await Promise.all([
    db.from('tp_driver_settings').select('base_name,workplace,agreement,diet_rates,plus_rates,payroll_terms,effective_from').eq('company_id',companyId).eq('driver_id',user.id).maybeSingle(),
    db.from('tp_company_members').select('history_shared_from,joined_at').eq('company_id',companyId).eq('user_id',user.id).eq('role','driver').single(),
    db.from('tp_diet_reviews').select('id,status,original_diet_type,original_amount,original_pluses,proposed_diet_type,proposed_amount,proposed_pluses,change_reason,traffic_observation,driver_observation,created_at')
