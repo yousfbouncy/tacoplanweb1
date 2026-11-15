@@ -1,6 +1,6 @@
 'use client';
 import {useCallback,useEffect,useMemo,useRef,useState} from 'react';
-import {Building2,Users,Truck,Wallet,ShieldCheck,LogOut,Plus,RefreshCw,CheckCircle,AlertCircle,Copy,LockKeyhole} from 'lucide-react';
+import {Building2,Users,Truck,Wallet,ShieldCheck,LogOut,Plus,RefreshCw,CheckCircle,AlertCircle,Copy,LockKeyhole,LayoutDashboard,UserRoundPlus,Mail,Settings2,UserRoundCog} from 'lucide-react';
 import {useAuth} from '@/lib/auth-context';
 import {supabase} from '@/lib/supabase';
 import {PLAN_PRICES} from '@/lib/tp-enterprise-plans';
@@ -8,7 +8,7 @@ import {EnterpriseDriverConfig,blankCompanyConfig} from '@/components/enterprise
 import type {InitialEmployeeConfig} from '@/lib/tp-employee-config';
 type Member={company_id:string;username:string;role:'owner'|'traffic'|'hr'|'driver'};
 type Review={id:string;driver_id:string;jornada_id?:string;jornada_date?:string;status:string;original_diet_type:string|null;original_amount:number;proposed_diet_type:string|null;proposed_amount:number|null;original_pluses?:Array<{concepto:string;importe:number}>;proposed_pluses?:Array<{concepto:string;importe:number}>|null;change_reason:string|null;driver_observation:string|null;traffic_observation:string|null;created_at:string};
-type Dashboard={member:Member|null;company?:{id:string;name:string;subscription_status:string;trial_ends_at:string|null;plan_price_id:string|null};team?:Array<{user_id:string;username:string;employee_name?:string;role:string;active?:boolean}>;drivers?:Array<{user_id:string;username:string;employee_name?:string|null}>;invites?:Array<{id:string;username:string;employee_name?:string;role:string;email:string;accepted_at:string|null;initial_settings?:InitialEmployeeConfig}>;settings?:Array<{driver_id:string;base_name:string|null;workplace?:string|null;agreement:string|null;initial_config?:InitialEmployeeConfig;diet_rates?:Record<string,unknown>;plus_rates?:Record<string,unknown>;payroll_terms?:Record<string,unknown>}>;driverSettings?:{base_name:string|null;agreement:string|null};jornadas?:Array<{id:string;user_id:string;fecha_inicio:string|null;hora_inicio:string|null;hora_fin:string|null;lugar_inicio:string|null;lugar_fin:string|null;tipo_ruta:string|null;dieta_manual_tipo:string|null;dieta_importe_eur:string|null;plus_items?:Array<{concepto:string;importe:number}>}>;reviews?:Review[];closures?:Array<{id:string;month:string;driver_id:string;total_diets:number;closed_at:string}>};
+type Dashboard={member:Member|null;company?:{id:string;name:string;subscription_status:string;trial_ends_at:string|null;plan_price_id:string|null};team?:Array<{user_id:string;username:string;employee_name?:string;role:string;active?:boolean}>;drivers?:Array<{user_id:string;username:string;employee_name?:string|null}>;trafficMembers?:Array<{user_id:string;username:string;employee_name?:string|null}>;assignments?:Array<{driver_id:string;traffic_user_id:string;assigned_at:string}>;invites?:Array<{id:string;username:string;employee_name?:string;role:string;email:string;accepted_at:string|null;initial_settings?:InitialEmployeeConfig}>;settings?:Array<{driver_id:string;base_name:string|null;workplace?:string|null;agreement:string|null;initial_config?:InitialEmployeeConfig;diet_rates?:Record<string,unknown>;plus_rates?:Record<string,unknown>;payroll_terms?:Record<string,unknown>}>;driverSettings?:{base_name:string|null;agreement:string|null};jornadas?:Array<{id:string;user_id:string;fecha_inicio:string|null;hora_inicio:string|null;hora_fin:string|null;lugar_inicio:string|null;lugar_fin:string|null;tipo_ruta:string|null;dieta_manual_tipo:string|null;dieta_importe_eur:string|null;plus_items?:Array<{concepto:string;importe:number}>}>;reviews?:Review[];closures?:Array<{id:string;month:string;driver_id:string;total_diets:number;closed_at:string}>};
 const roleLabels={owner:'Administrador de empresa',traffic:'Departamento de Tráfico',hr:'Recursos Humanos',driver:'Conductor'};
 const monthNow=()=>new Date().toISOString().slice(0,7);
 const euro=(n:number)=>new Intl.NumberFormat('es-ES',{style:'currency',currency:'EUR'}).format(n);
@@ -33,6 +33,9 @@ export function EnterprisePortal(){
  const [pendingInviteId,setPendingInviteId]=useState(''),[pendingInviteName,setPendingInviteName]=useState(''),[pendingInviteConfig,setPendingInviteConfig]=useState<InitialEmployeeConfig>(blankCompanyConfig);
  const [latestInvite,setLatestInvite]=useState('');
  const [driverId,setDriverId]=useState('');
+ const [ownerTab,setOwnerTab]=useState<'resumen'|'empleados'|'invitaciones'|'configuracion'|'nuevo'>('resumen');
+ const [hrTab,setHrTab]=useState<'liquidacion'|'asignaciones'>('liquidacion');
+ const [assignedDriver,setAssignedDriver]=useState(''),[assignedTraffic,setAssignedTraffic]=useState('');
  const [editDriverConfig,setEditDriverConfig]=useState<InitialEmployeeConfig>(blankCompanyConfig);
  const [proposedPluses,setProposedPluses]=useState<Array<{concepto:string;importe:number}>>([]);
  const [reviewJornada,setReviewJornada]=useState(''),[mode,setMode]=useState('confirm'),[newDietAmount,setNewDietAmount]=useState(''),[reason,setReason]=useState(''),[observation,setObservation]=useState('');
@@ -171,8 +174,24 @@ export function EnterprisePortal(){
    <p className="mt-2 text-sm text-slate-600">La prueba gratuita de 7 días no requiere tarjeta y no se renueva automáticamente. Para contratar un plan, contacta con el equipo de Tacoplan mientras terminamos de habilitar la facturación segura de Stripe.</p>
    <a href="/contacto" className="mt-4 inline-flex rounded-xl bg-blue-700 px-4 py-2.5 text-sm font-semibold text-white">Contactar para activar un plan</a>
   </section>:null}
-  {member.role==='owner'?<section className="grid gap-4 lg:grid-cols-2">
-   <div className="rounded-2xl border bg-white p-5 lg:col-span-2">
+  {member.role==='owner'?<section className="space-y-4">
+    <nav className="flex flex-wrap gap-2 rounded-2xl border border-slate-200 bg-white p-3" aria-label="Secciones de la empresa">
+     {([{id:'resumen',label:'Resumen',Icon:LayoutDashboard},{id:'empleados',label:'Empleados',Icon:Users},{id:'invitaciones',label:'Invitaciones',Icon:Mail},{id:'configuracion',label:'Configuración',Icon:Settings2},{id:'nuevo',label:'Nuevo empleado',Icon:UserRoundPlus}] as const).map(({id,label,Icon})=>
+      <button type="button" key={id} onClick={()=>setOwnerTab(id)} aria-current={ownerTab===id?'page':undefined} className={'inline-flex items-center gap-2 rounded-xl px-3 py-2.5 text-sm font-semibold transition '+(ownerTab===id?'bg-blue-700 text-white':'bg-slate-50 text-slate-700 hover:bg-blue-50')}>
+       <Icon className="h-4 w-4"/>{label}
+      </button>)}
+    </nav>
+    {ownerTab==='resumen'?<div className="space-y-4">
+     <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      {([{label:'Personal activo',count:view?.team?.length||0,Icon:Users},{label:'Conductores',count:(view?.team||[]).filter(m=>m.role==='driver').length,Icon:Truck},{label:'Invitaciones pendientes',count:(view?.invites||[]).filter(i=>!i.accepted_at).length,Icon:Mail},{label:'Departamentos',count:(view?.team||[]).filter(m=>m.role==='traffic'||m.role==='hr').length,Icon:ShieldCheck}] as const).map(({label,count,Icon})=>
+       <div className="rounded-2xl border border-slate-200 bg-white p-4" key={label}><Icon className="h-5 w-5 text-blue-600"/><p className="mt-3 text-2xl font-bold text-slate-900">{count}</p><p className="text-sm text-slate-500">{label}</p></div>)}
+     </div>
+     <div className="rounded-2xl border border-slate-200 bg-white p-5"><h2 className="text-lg font-bold">Accesos rápidos</h2>
+       <div className="mt-3 flex flex-wrap gap-3"><button className={button} type="button" onClick={()=>setOwnerTab('nuevo')}>+ Nuevo empleado</button><button className="rounded-xl border px-4 py-2 text-sm font-semibold" type="button" onClick={()=>setOwnerTab('invitaciones')}>Ver invitaciones</button><button className="rounded-xl border px-4 py-2 text-sm font-semibold" type="button" onClick={()=>setOwnerTab('configuracion')}>Configurar conductores</button></div>
+     </div>
+    </div>:null}
+    <div className="grid gap-4 lg:grid-cols-2">
+   {ownerTab==='nuevo'?<div className="rounded-2xl border bg-white p-5 lg:col-span-2">
     <h2 className="flex items-center gap-2 text-lg font-bold"><Users className="h-5 w-5 text-blue-600"/>Alta de empleado</h2>
     <p className="mt-2 text-sm text-slate-600">Primero selecciona el tipo de empleado. Si es conductor, configura todas sus condiciones antes de crear la invitación.</p>
     <label className="mt-4 block text-sm font-semibold">Tipo de empleado <span className="text-red-600">*</span>
@@ -196,14 +215,16 @@ export function EnterprisePortal(){
      if(result){setLatestInvite(result.url);setStaffName('');setStaffEmail('');setStaffUsername('');setStaffRole('');setStaffConfig(blankCompanyConfig());setMessage('Invitación creada y configuración guardada en Supabase. Comparte el enlace con el empleado.');}
     }}><Plus className="mr-1 inline h-4 w-4"/>Crear invitación de empleado</button>:null}
     {latestInvite?<div className="mt-3 rounded-xl border border-blue-200 bg-blue-50 p-3"><p className="text-xs font-semibold text-blue-900">Invitación privada · válida 7 días</p><input readOnly className={input+' mt-2 text-xs'} value={latestInvite}/><button type="button" className="mt-2 flex items-center gap-2 text-sm font-semibold text-blue-700" onClick={()=>void navigator.clipboard.writeText(latestInvite)}><Copy className="h-4 w-4"/>Copiar enlace</button></div>:null}
-   </div>
-   <div className="rounded-2xl border bg-white p-5 lg:col-span-2">
+   </div>:null}
+   {ownerTab==='empleados'?<div className="rounded-2xl border bg-white p-5 lg:col-span-2">
     <h2 className="text-lg font-bold">Personal de empresa</h2>
     <div className="mt-3 space-y-2">{(view?.team||[]).map(x=><div className="flex items-center justify-between gap-3 rounded-xl border p-3" key={x.user_id}>
      <div><p className="text-sm font-semibold">{x.employee_name||x.username}</p><p className="text-xs text-slate-500">@{x.username}</p></div>
      <span className="text-xs text-slate-500">{roleLabels[x.role as keyof typeof roleLabels]||x.role}</span>
     </div>)}</div>
-    <h3 className="mt-5 font-bold">Invitaciones pendientes de activación</h3>
+   </div>:null}
+   {ownerTab==='invitaciones'?<div className="rounded-2xl border bg-white p-5 lg:col-span-2">
+    <h2 className="text-lg font-bold">Invitaciones pendientes de activación</h2>
     <p className="mt-1 text-xs text-slate-500">Una invitación no equivale a un empleado activo. Si el conductor ya ha creado su acceso, debe volver al enlace y finalizar la vinculación.</p>
     <div className="mt-3 space-y-2">{(view?.invites||[]).filter(x=>!x.accepted_at).map(x=><button type="button" key={x.id} className={'w-full rounded-xl border p-3 text-left text-sm '+(pendingInviteId===x.id?'border-blue-500 bg-blue-50':'')} onClick={()=>selectInvite(x.id)}>
       <strong>{x.employee_name||x.username}</strong> · @{x.username} · {roleLabels[x.role as keyof typeof roleLabels]||x.role}<span className="block text-xs text-amber-700">Pendiente — configurar o corregir antes de activar</span>
@@ -222,8 +243,8 @@ export function EnterprisePortal(){
      }}>Generar nuevo enlace</button>
      {latestInvite?<div className="mt-3 rounded-lg bg-blue-50 p-3"><p className="text-xs font-semibold">Enlace actualizado de invitación</p><input readOnly className={input} value={latestInvite}/><button className="mt-2 text-sm font-semibold text-blue-700" type="button" onClick={()=>void navigator.clipboard.writeText(latestInvite)}>Copiar enlace</button></div>:null}
     </div>:null}
-   </div>
-   <div className="rounded-2xl border bg-white p-5 lg:col-span-2">
+   </div>:null}
+   {ownerTab==='configuracion'?<div className="rounded-2xl border bg-white p-5 lg:col-span-2">
     <h2 className="text-lg font-bold">Configuración de conductores activos</h2>
     <p className="mt-1 text-sm text-slate-600">El formulario siguiente es el mismo que se rellena al dar de alta. Los cambios quedan guardados y sincronizados para Tacoplan móvil.</p>
     <label className="mt-4 block text-sm font-semibold">Conductor activo<select className={input+' mt-1'} value={driverId} onChange={e=>selectDriver(e.target.value)}>
@@ -237,6 +258,7 @@ export function EnterprisePortal(){
        if(res)setMessage('Configuración guardada y sincronizada con Tacoplan del conductor.');
       }}>Guardar y sincronizar configuración</button>
     </div>}
+   </div>:null}
    </div>
   </section>:null}
   {member.role==='traffic'?<section className="space-y-4"><div className="grid grid-cols-3 gap-2">{[{label:'Conductores',value:view?.drivers?.length||0},{label:'Jornadas recientes',value:view?.jornadas?.length||0},{label:'Cambios pendientes',value:pending.length}].map(x=><div key={x.label} className="rounded-xl bg-white p-4"><p className="text-2xl font-bold">{x.value}</p><p className="mt-1 text-xs text-slate-500">{x.label}</p></div>)}</div>
@@ -255,12 +277,51 @@ export function EnterprisePortal(){
     <textarea className={input+' mt-3'} rows={2} placeholder="Observación opcional" value={observation} onChange={e=>setObservation(e.target.value)}/>
     <button disabled={!reviewJornada||busy} className={button+' mt-3'} onClick={async()=>{const res=await action({action:'review',jornadaId:reviewJornada,driverId,mode,amount:Number(newDietAmount),pluses:proposedPluses,reason,observation});if(res){setReviewJornada('');setMessage(mode==='confirm'?'Dieta confirmada y conductor avisado.':'Propuesta registrada y enviada al conductor.');}}}>{mode==='confirm'?'Confirmar dieta':'Enviar propuesta al conductor'}</button>
     </div></section>:null}
-  {member.role==='hr'?<section className="space-y-4"><div className="rounded-2xl border bg-white p-5"><h2 className="flex items-center gap-2 text-xl font-bold"><Wallet className="h-5 w-5 text-blue-600"/>Liquidación de dietas y pluses</h2><p className="mt-1 text-sm text-slate-500">Solo conceptos confirmados. Sin acceso a ubicaciones ni al panel de Tráfico.</p>
+  {member.role==='hr'?<section className="space-y-4">
+    <nav className="flex flex-wrap gap-2 rounded-2xl border bg-white p-3" aria-label="Secciones de Recursos Humanos">
+      <button type="button" className={'rounded-xl px-4 py-2 text-sm font-semibold '+(hrTab==='liquidacion'?'bg-blue-700 text-white':'bg-slate-100 text-slate-700')} onClick={()=>setHrTab('liquidacion')}>Liquidación mensual</button>
+      <button type="button" className={'rounded-xl px-4 py-2 text-sm font-semibold '+(hrTab==='asignaciones'?'bg-blue-700 text-white':'bg-slate-100 text-slate-700')} onClick={()=>setHrTab('asignaciones')}>Asignar conductores a Tráfico</button>
+    </nav>
+    {hrTab==='liquidacion'?<div className="space-y-4"><div className="rounded-2xl border bg-white p-5"><h2 className="flex items-center gap-2 text-xl font-bold"><Wallet className="h-5 w-5 text-blue-600"/>Liquidación de dietas y pluses</h2><p className="mt-1 text-sm text-slate-500">Solo conceptos confirmados. Sin acceso a ubicaciones ni al panel de Tráfico.</p>
    <label className="mt-4 block text-sm font-semibold">Mes<input type="month" value={month} onChange={e=>setMonth(e.target.value)} className={input+' mt-1 max-w-xs'}/></label><div className="mt-4 grid grid-cols-3 gap-2">{[{label:'Confirmadas',value:payable.length},{label:'Pendientes',value:hrReviews.filter(r=>r.status==='awaiting_driver').length},{label:'En discrepancia',value:hrReviews.filter(r=>r.status==='disputed').length}].map(x=><div key={x.label} className="rounded-xl bg-slate-50 p-3"><p className="text-2xl font-bold">{x.value}</p><p className="text-xs text-slate-500">{x.label}</p></div>)}</div><p className="mt-3 text-xl font-bold">Dietas a liquidar: {euro(total)}</p><div className="mt-4 flex flex-wrap items-center gap-3"><button type="button" disabled={busy||!active||hrReviews.length===0||!!view?.closures?.some(x=>x.month===month)} className={button} onClick={async()=>{
     if(!window.confirm('Cerrar el mes '+month+' con las dietas confirmadas? Las pendientes y discrepancias quedarán identificadas. Este cierre no podrá sobrescribirse.'))return;
     setBusy(true);setError('');try{const t=await token();const r=await fetch('/api/empresas/payroll',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+t},body:JSON.stringify({month})});const j=await r.json();if(!r.ok)throw Error(j.error||'No se pudo cerrar el mes');setMessage('Cierre mensual guardado para '+j.drivers+' conductores.');await load();}catch(e:unknown){setError(e instanceof Error?e.message:'Error de cierre');}finally{setBusy(false);}
    }}>Cerrar mes confirmado</button>{view?.closures?.some(x=>x.month===month)?<span className="text-xs font-semibold text-emerald-700">Mes ya cerrado</span>:null}</div><p className="text-xs text-slate-500">Las cantidades no confirmadas no desaparecen; siguen identificadas como pendientes o discrepantes.</p></div>
-   <div className="rounded-2xl border bg-white p-5"><h3 className="font-bold">Revisiones y observaciones</h3><div className="mt-3 divide-y">{hrReviews.map(r=><div key={r.id} className="py-3 text-sm"><p className="font-semibold">{driverName(r.driver_id)} · {r.jornada_date||'Sin fecha'} · {r.status}</p><p className="text-slate-600">{r.original_diet_type||'Dieta'}: {euro(Number(r.original_amount))}{r.proposed_amount!==null?' → '+euro(Number(r.proposed_amount)):''}</p>{r.change_reason?<p className="text-xs text-amber-800">Motivo: {r.change_reason}</p>:null}{r.proposed_pluses?<p className="text-xs text-slate-600">Pluses propuestos: {r.proposed_pluses.map(p=>p.concepto+' ('+euro(Number(p.importe))+')').join(', ')||'Eliminados'}</p>:null}{r.driver_observation?<p className="text-xs text-blue-800">Conductor: {r.driver_observation}</p>:null}</div>)}</div></div></section>:null}
+   <div className="rounded-2xl border bg-white p-5"><h3 className="font-bold">Revisiones y observaciones</h3><div className="mt-3 divide-y">{hrReviews.map(r=><div key={r.id} className="py-3 text-sm"><p className="font-semibold">{driverName(r.driver_id)} · {r.jornada_date||'Sin fecha'} · {r.status}</p><p className="text-slate-600">{r.original_diet_type||'Dieta'}: {euro(Number(r.original_amount))}{r.proposed_amount!==null?' → '+euro(Number(r.proposed_amount)):''}</p>{r.change_reason?<p className="text-xs text-amber-800">Motivo: {r.change_reason}</p>:null}{r.proposed_pluses?<p className="text-xs text-slate-600">Pluses propuestos: {r.proposed_pluses.map(p=>p.concepto+' ('+euro(Number(p.importe))+')').join(', ')||'Eliminados'}</p>:null}{r.driver_observation?<p className="text-xs text-blue-800">Conductor: {r.driver_observation}</p>:null}</div>)}</div></div></div>:null}
+    {hrTab==='asignaciones'?<div className="rounded-2xl border border-slate-200 bg-white p-5">
+      <h2 className="flex items-center gap-2 text-lg font-bold text-slate-900"><UserRoundCog className="h-5 w-5 text-blue-600"/>Responsables de Tráfico</h2>
+      <p className="mt-2 text-sm text-slate-600">Asigna cada conductor a un usuario de Tráfico. Solo ese responsable podrá ver sus jornadas y revisar sus dietas. Puedes cambiarlo o dejarlo sin asignar.</p>
+      <div className="mt-4 grid gap-3 sm:grid-cols-2">
+        <label className="text-sm font-semibold">Conductor
+          <select className={input+' mt-2'} value={assignedDriver} onChange={e=>{setAssignedDriver(e.target.value);setAssignedTraffic((view?.assignments||[]).find(a=>a.driver_id===e.target.value)?.traffic_user_id||'');}}>
+            <option value="">Selecciona conductor</option>
+            {(view?.drivers||[]).map(d=><option key={d.user_id} value={d.user_id}>{d.employee_name||d.username}</option>)}
+          </select>
+        </label>
+        <label className="text-sm font-semibold">Responsable de Tráfico
+          <select className={input+' mt-2'} value={assignedTraffic} onChange={e=>setAssignedTraffic(e.target.value)}>
+            <option value="">Sin asignar</option>
+            {(view?.trafficMembers||[]).map(t=><option key={t.user_id} value={t.user_id}>{t.employee_name||t.username}</option>)}
+          </select>
+        </label>
+      </div>
+      <button type="button" disabled={!assignedDriver||busy} className={button+' mt-4'} onClick={async()=>{
+        const res=await action({action:'assign_driver',driverId:assignedDriver,trafficUserId:assignedTraffic||null});
+        if(res)setMessage(assignedTraffic?'Responsable de Tráfico asignado correctamente.':'Conductor sin responsable asignado.');
+      }}>Guardar asignación</button>
+      <h3 className="mt-6 font-semibold">Distribución actual</h3>
+      <div className="mt-3 divide-y rounded-xl border">
+        {(view?.drivers||[]).map(d=>{
+          const assignment=(view?.assignments||[]).find(a=>a.driver_id===d.user_id);
+          const manager=(view?.trafficMembers||[]).find(t=>t.user_id===assignment?.traffic_user_id);
+          return <div key={d.user_id} className="flex flex-wrap items-center justify-between gap-2 p-3 text-sm">
+           <span className="font-semibold">{d.employee_name||d.username}</span><span className={manager?'text-blue-700':'text-amber-700'}>{manager?'Tráfico: '+(manager.employee_name||manager.username):'Sin asignar'}</span>
+          </div>;
+        })}
+      </div>
+      {!(view?.trafficMembers||[]).length?<p className="mt-3 text-sm text-amber-700">Primero el administrador debe invitar y activar al personal de Tráfico con su cuenta y contraseña.</p>:null}
+    </div>:null}
+  </section>:null}
   {member.role==='driver'?<section className="space-y-4"><div className="rounded-2xl border bg-white p-5"><h2 className="font-bold">Mis condiciones de empresa</h2><p className="mt-2 text-sm">Base: {view?.driverSettings?.base_name||'Pendiente'} · Convenio: {view?.driverSettings?.agreement||'Pendiente'}</p><p className="mt-2 text-xs text-slate-500">Gestionadas por la empresa. Puedes solicitar correcciones mediante una observación.</p></div>
    <div className="rounded-2xl border bg-white p-5"><h2 className="text-lg font-bold">Revisiones de mis dietas</h2><div className="mt-3 space-y-3">{reviews.map(r=><div key={r.id} className="rounded-xl border p-4"><p className="text-sm font-bold">{r.original_diet_type||'Dieta'} · {euro(Number(r.original_amount))}{r.proposed_amount!==null?' → '+euro(Number(r.proposed_amount)):''}</p><p className="mt-1 text-xs text-slate-500">Estado: {r.status}</p>{r.change_reason?<p className="mt-2 text-sm text-slate-700">Motivo de Tráfico: {r.change_reason}</p>:null}{r.proposed_pluses?<p className="mt-2 text-xs text-slate-600">Pluses propuestos: {r.proposed_pluses.map(p=>p.concepto+' ('+euro(Number(p.importe))+')').join(', ')||'Eliminados'}</p>:null}
     {r.status==='awaiting_driver'?<div className="mt-3 space-y-2"><textarea className={input} rows={2} value={responseTexts[r.id]||''} onChange={e=>setResponseTexts({...responseTexts,[r.id]:e.target.value})} placeholder="Observación opcional al aceptar, obligatoria al discrepar"/><div className="flex flex-wrap gap-2"><button disabled={busy} className={button} onClick={()=>void action({action:'respond',reviewId:r.id,response:'accept',observation:responseTexts[r.id]||''})}>Aceptar cambio</button><button disabled={busy} className="rounded-xl border border-red-300 px-4 py-2 text-sm font-semibold text-red-700" onClick={()=>void action({action:'respond',reviewId:r.id,response:'dispute',observation:responseTexts[r.id]||''})}>No estoy conforme</button></div></div>:null}
