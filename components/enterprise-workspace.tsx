@@ -31,6 +31,7 @@ function tripOperation(trip:Trip):string{
  const kind=(nextTripStop(trip)?.tipo||trip.modo_viaje||'').toUpperCase();
  if(kind==='CARGA'||kind==='SOLO_CARGA')return 'Carga';
  if(kind==='DESCARGA'||kind==='SOLO_DESCARGA')return 'Descarga';
+ if(kind==='ENTREGA_REMOLQUE')return 'Soltar remolque';
  return 'Operación pendiente';
 }
 function currentTrip(trips:Trip[],userId:string):Trip|undefined{
