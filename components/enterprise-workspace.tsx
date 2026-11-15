@@ -4,10 +4,43 @@ import {Activity,AlertCircle,ArrowRight,BarChart3,CheckCircle2,ChevronDown,Clock
 import {supabase} from '@/lib/supabase';
 
 type Driver={user_id:string;username:string;employee_name?:string|null;joined_at?:string};
-type Journey={id:string;user_id:string;fecha_inicio?:string|null;fecha_fin?:string|null;hora_inicio?:string|null;hora_fin?:string|null;start_at?:string|null;end_at?:string|null;lugar_inicio?:string|null;lugar_fin?:string|null;tipo_ruta?:string|null;dieta_manual_tipo?:string|null;dieta_percent?:number|null;conduccion_min?:number|null;tacho_driving_min?:number|null;tacho_work_min?:number|null;tacho_available_min?:number|null;tacho_rest_min?:number|null};
+type Journey={id:string;user_id:string;fecha_inicio?:string|null;fecha_fin?:string|null;hora_inicio?:string|null;hora_fin?:string|null;start_at?:string|null;end_at?:string|null;lugar_inicio?:string|null;lugar_fin?:string|null;tipo_ruta?:string|null;dieta_manual_tipo?:string|null;dieta_percent?:number|null;conduccion_min?:number|null;tacho_driving_min?:number|null;tacho_work_min?:number|null;tacho_available_min?:number|null;tacho_rest_min?:number|null;planned_rest_min?:number|null;planned_rest_type?:string|null;legal_summary?:LegalInfo|null};
 type Review={id:string;driver_id:string;jornada_id?:string;jornada_date?:string|null;status:string;original_diet_type?:string|null;proposed_diet_type?:string|null;original_amount?:number;proposed_amount?:number|null;automatic_plus?:number;automatic_plus_concept?:string|null;original_pluses?:Array<{concepto:string;importe:number}>;proposed_pluses?:Array<{concepto:string;importe:number}>|null;traffic_observation?:string|null;driver_observation?:string|null;change_reason?:string|null};
 type ActivityRow={user_id:string;tipo:string;inicio:string;fin:string|null;updated_at:string};
-type WorkspaceView={member:{role:'traffic'|'hr';username:string;company_id:string};company?:{name:string;subscription_status:string};drivers?:Driver[];trafficMembers?:Driver[];assignments?:Array<{driver_id:string;traffic_user_id:string}>;jornadas?:Journey[];activities?:ActivityRow[];reviews?:Review[];closures?:Array<{id:string;driver_id:string;month:string;total_diets:number;total_pluses?:number;closed_at:string}>;plusOptions?:Record<string,string[]>;blocked?:boolean};
+type Trip={id:string;user_id:string;cliente?:string|null;modo_viaje?:string|null;fin_lugar?:string|null;estado?:string|null;paradas?:unknown;created_at:string;updated_at?:string|null};
+type LegalInfo={jornada_maxima_min?:number;max_jornada_min?:number;jornadaMaximaMin?:number;limit_verified?:boolean};
+type OperationalLimit={maximum:780|900;label:string}|null;
+// Never infer an authorized 15-hour duty window from the number of reduced rests alone.
+function verifiedDutyLimit(j?:Journey):OperationalLimit{
+ const legal=j?.legal_summary;
+ if(!legal||legal.limit_verified!==true)return null;
+ const n=Number(legal.jornada_maxima_min??legal.max_jornada_min??legal.jornadaMaximaMin);
+ return n===900?{maximum:900,label:'15 h'}:n===780?{maximum:780,label:'13 h'}:null;
+}
+function tripDestination(trip:Trip):string|null{
+ if(!Array.isArray(trip.paradas))return null;
+ const stop=trip.paradas.find((p:unknown)=>p&&typeof p==='object'&&!Array.isArray(p)&&['destino','destination','entrega'].includes(String((p as Record<string,unknown>).tipo||'').toLowerCase()))
+  || trip.paradas[trip.paradas.length-1];
+ if(typeof stop==='string')return stop.trim()||null;
+ if(!stop||typeof stop!=='object')return null;
+ const p=stop as Record<string,unknown>;
+ for(const key of ['destino','destination','lugar','localidad','direccion','ubicacion','nombre']){
+  if(typeof p[key]==='string'&&p[key].trim())return p[key].trim();
+ }
+ return null;
+}
+function currentTrip(trips:Trip[],userId:string):Trip|undefined{
+ return trips.find(t=>t.user_id===userId&&/^(activo|activa|en curso|en_curso|in_progress|ongoing|iniciado|iniciada)$/i.test((t.estado||'').trim()));
+}
+function dutyCountdown(j:Journey|undefined,now:number){
+ if(!j||j.fecha_fin&&j.hora_fin)return null;
+ const limit=verifiedDutyLimit(j);
+ const start=validDate(dt(j.fecha_inicio,j.hora_inicio));
+ if(!start||!limit)return null;
+ const left=Math.max(0,limit.maximum-Math.floor((now-start.getTime())/60000));
+ return {label:limit.label,remaining:hours(left),end:new Date(start.getTime()+limit.maximum*60000).toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'}),expired:now>start.getTime()+limit.maximum*60000};
+}
+type WorkspaceView={member:{role:'traffic'|'hr';username:string;company_id:string};company?:{name:string;subscription_status:string};drivers?:Driver[];trafficMembers?:Driver[];assignments?:Array<{driver_id:string;traffic_user_id:string}>;jornadas?:Journey[];activities?:ActivityRow[];trips?:Trip[];reviews?:Review[];closures?:Array<{id:string;driver_id:string;month:string;total_diets:number;total_pluses?:number;closed_at:string}>;plusOptions?:Record<string,string[]>;blocked?:boolean};
 type Props={view:WorkspaceView;busy:boolean;loading:boolean;error:string;message:string;refresh:()=>Promise<void>;onAction:(body:Record<string,unknown>)=>Promise<unknown>;signOut:()=>Promise<unknown>|void};
 type Page='resumen'|'conductores'|'jornadas'|'dietas'|'informes'|'asignaciones';
 const euro=(n:number)=>new Intl.NumberFormat('es-ES',{style:'currency',currency:'EUR'}).format(n);
@@ -65,7 +98,9 @@ export default function EnterpriseWorkspace({view,busy,loading,error,message,ref
  const [chosenAssignment,setChosenAssignment]=useState<Record<string,string>>({});
  const [notice,setNotice]=useState('');
  const [closing,setClosing]=useState(false);
- const drivers=view.drivers||[],journeys=view.jornadas||[],reviews=view.reviews||[],activities=view.activities||[];
+ const [now,setNow]=useState(()=>Date.now());
+ useEffect(()=>{const timer=window.setInterval(()=>setNow(Date.now()),30000);return()=>window.clearInterval(timer);},[]);
+ const drivers=view.drivers||[],journeys=view.jornadas||[],reviews=view.reviews||[],activities=view.activities||[],trips=view.trips||[];
  const display=(d:Driver)=>d.employee_name||d.username;
  const byId=(id:string)=>drivers.find(d=>d.user_id===id);
  const latest=new Map<string,Journey>();
@@ -73,6 +108,21 @@ export default function EnterpriseWorkspace({view,busy,loading,error,message,ref
  const latestActivities=new Map<string,ActivityRow>();
  for(const a of activities)if(!latestActivities.has(a.user_id))latestActivities.set(a.user_id,a);
  const state=(d:Driver)=>status(latest.get(d.user_id),latestActivities.get(d.user_id));
+ const journeyLimit=(d:Driver)=>dutyCountdown(latest.get(d.user_id),now);
+ const tripFor=(d:Driver)=>currentTrip(trips,d.user_id);
+ const operating=(d:Driver)=>{
+  const j=latest.get(d.user_id),a=latestActivities.get(d.user_id),t=tripFor(d),limit=journeyLimit(d),s=state(d);
+  const opened=Boolean(j)&&!j?.fecha_fin&&!j?.hora_fin&&s!=='Sin cierre (antigua)'&&s!=='Pendiente de inicio';
+  return <div className="rounded-2xl border border-blue-100 bg-gradient-to-br from-white to-blue-50/50 p-4">
+   <div className="flex flex-wrap items-center justify-between gap-2"><strong className="text-sm text-slate-900">{display(d)}</strong><Pill value={s}/></div>
+   <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+    <div className="rounded-xl bg-white p-3"><p className="text-slate-500">Inicio de jornada</p><p className="mt-1 font-bold">{j?.fecha_inicio||'—'} · {j?.hora_inicio||'—'}</p></div>
+    <div className="rounded-xl bg-white p-3"><p className="text-slate-500">Tiempo restante de jornada</p><p className="mt-1 text-base font-bold">{opened?(limit?limit.remaining:'Pendiente de verificar'):'Sin jornada activa'}</p>{limit&&opened?<p className="mt-1 text-slate-500">Límite {limit.label} · hasta {limit.end}{limit.expired?' · límite superado':''}</p>:opened?<p className="mt-1 text-amber-700">13/15 h: falta límite legal sincronizado</p>:null}</div>
+   </div>
+   <div className="mt-3 rounded-xl bg-white p-3 text-xs"><p className="font-semibold text-slate-500">Actividad en curso</p><p className="mt-1 font-bold text-slate-900">{opened&&a&&a.fin===null&&Number.isFinite(new Date(a.updated_at).getTime())&&now-new Date(a.updated_at).getTime()<15*60000?status(j,a):'Sin actividad reciente sincronizada'}</p>{a?.updated_at?<p className="mt-1 text-slate-500">Última actualización: {new Date(a.updated_at).toLocaleString('es-ES')}</p>:null}</div>
+   <div className="mt-2 rounded-xl bg-white p-3 text-xs"><p className="font-semibold text-slate-500">Viaje en curso · Tacoplan móvil</p><p className="mt-1 font-bold text-slate-900">{t?'Destino: '+(tripDestination(t)||'No registrado'):'Sin viaje activo sincronizado'}</p>{t?.cliente?<p className="mt-1 text-slate-600">Cliente: {t.cliente}</p>:null}</div>
+  </div>;
+ };
  const active=drivers.filter(d=>{const s=state(d);return s==='Conduciendo'||s==='Disponibilidad'||s==='Descanso'||s==='Otros trabajos'||s==='Abierta · sin actividad actual'}).length;
  const driving=drivers.filter(d=>state(d)==='Conduciendo').length;
  const available=drivers.filter(d=>state(d)==='Disponibilidad').length;
@@ -132,11 +182,11 @@ export default function EnterpriseWorkspace({view,busy,loading,error,message,ref
   <div className="flex flex-wrap items-start justify-between gap-3 p-5"><div><h2 className="text-base font-bold text-slate-900">Equipo de conductores</h2><p className="mt-1 text-xs text-slate-500">Consulta únicamente los conductores que tienes asignados.</p></div><span className="text-xs text-slate-500">{filtered.length} de {drivers.length} conductores</span></div>
   <div className="flex flex-wrap gap-3 px-5 pb-4"><div className="relative min-w-[200px] flex-1 sm:max-w-xs"><Search size={16} className="absolute left-3 top-3 text-slate-400"/><input className={field+' pl-9'} value={q} onChange={e=>setQ(e.target.value)} placeholder="Buscar conductor o trayecto…"/></div><select className={field+' !w-auto'} value={filter} onChange={e=>setFilter(e.target.value)}><option value="todos">Todos los estados</option><option value="activa">Jornadas abiertas</option><option value="finalizada">Finalizadas</option><option value="sincronizar">Sin actividad actual</option></select></div>
   <div className="overflow-x-auto"><table className="w-full min-w-[900px] text-left text-xs"><thead className="bg-slate-50 text-[10px] font-semibold uppercase tracking-wider text-slate-500"><tr><th className="px-4 py-3">Conductor</th><th className="px-3 py-3">Actividad actual</th><th className="px-3 py-3">Trayecto / localización</th><th className="px-3 py-3">Jornada / referencia</th><th className="px-3 py-3">Dieta</th><th className="px-3 py-3">Acción</th></tr></thead><tbody className="divide-y divide-slate-100">{filtered.map((d,i)=>{
-  const j=latest.get(d.user_id);const start=validDate(dt(j?.fecha_inicio,j?.hora_inicio));const stop=validDate(dt(j?.fecha_fin,j?.hora_fin));const min=start&&start.getTime()<=Date.now()?Math.max(0,Math.round(((stop||new Date()).getTime()-start.getTime())/60000)):null;const pr=min!=null?Math.min(100,Math.round(min/780*100)):0;
+  const j=latest.get(d.user_id);const start=validDate(dt(j?.fecha_inicio,j?.hora_inicio));const stop=validDate(dt(j?.fecha_fin,j?.hora_fin));const min=start&&start.getTime()<=Date.now()?Math.max(0,Math.round(((stop||new Date()).getTime()-start.getTime())/60000)):null;const limit=journeyLimit(d);const maximum=verifiedDutyLimit(j)?.maximum;const pr=min!=null&&maximum?Math.min(100,Math.round(min/maximum*100)):0;
   return <tr key={d.user_id} className="hover:bg-slate-50/80"><td className="px-4 py-3"><div className="flex items-center gap-2.5"><span className={'flex h-9 w-9 items-center justify-center rounded-xl text-xs font-bold text-white '+(['bg-blue-600','bg-teal-600','bg-indigo-600','bg-amber-600'][i%4])}>{initials(display(d))}</span><span><strong className="block text-slate-800">{display(d)}</strong><span className="text-[11px] text-slate-400">@{d.username}</span></span></div></td>
    <td className="px-3 py-3"><Pill value={state(d)}/></td>
-   <td className="px-3 py-3"><strong className="block max-w-[200px] truncate text-slate-800">{j?.lugar_inicio||'Sin origen'} → {j?.lugar_fin||'Pendiente'}</strong><span className="text-[11px] text-slate-400">Ubicación en vivo: no disponible</span></td>
-   <td className="px-3 py-3"><strong>{min==null?'—':hours(min)}</strong><span className="text-slate-400"> / 13 h ref.</span><div className="mt-1.5 h-1.5 w-28 rounded-full bg-slate-100"><div className={'h-1.5 rounded-full '+(pr>85?'bg-amber-500':'bg-blue-500')} style={{width:pr+'%'}}/></div></td>
+   <td className="px-3 py-3"><strong className="block max-w-[200px] truncate text-slate-800">{tripFor(d)?'Viaje: '+(tripDestination(tripFor(d)!)||'Destino no registrado'):(j?.lugar_inicio||'Sin origen')+' → '+(j?.lugar_fin||'Pendiente')}</strong><span className="text-[11px] text-slate-400">Ubicación en vivo: no disponible</span></td>
+   <td className="px-3 py-3"><strong>{min==null?'—':hours(min)}</strong><span className="text-slate-400"> {limit?' / '+limit.label:' · límite sin verificar'}</span><div className="mt-1.5 h-1.5 w-28 rounded-full bg-slate-100"><div className={'h-1.5 rounded-full '+(pr>85?'bg-amber-500':'bg-blue-500')} style={{width:pr+'%'}}/></div></td>
    <td className="px-3 py-3 text-slate-600">{j?.dieta_manual_tipo||j?.tipo_ruta||'No registrada'}{j?.dieta_percent?' '+j.dieta_percent+' %':''}</td>
    <td className="px-3 py-3"><button className={secondary+' !px-3 !py-1.5 !text-xs text-blue-600'} onClick={()=>{setDrawer(d.user_id);setSelectedJourney('');}}>Ver ficha</button></td>
   </tr>;
@@ -150,6 +200,7 @@ export default function EnterpriseWorkspace({view,busy,loading,error,message,ref
  </div>;
  const assigned=<div className={card}><h2 className="text-base font-bold">Asignar conductores a Tráfico</h2><p className="mt-1 text-xs text-slate-500">Solo RRHH puede cambiar los responsables. Cada usuario de Tráfico accede exclusivamente a los conductores asignados.</p><div className="mt-4 space-y-3">{drivers.map(d=>{const current=view.assignments?.find(a=>a.driver_id===d.user_id)?.traffic_user_id||'';return <div key={d.user_id} className="flex flex-wrap items-center gap-3 rounded-xl border border-slate-100 bg-slate-50/60 p-3"><span className="min-w-[170px] flex-1 text-sm font-semibold">{display(d)}</span><select className={field+' sm:!w-64'} value={chosenAssignment[d.user_id]??current} onChange={e=>setChosenAssignment(v=>({...v,[d.user_id]:e.target.value}))}><option value="">Sin asignar</option>{(view.trafficMembers||[]).map(m=><option key={m.user_id} value={m.user_id}>{display(m)}</option>)}</select><button className={primary} disabled={busy||view.blocked} onClick={()=>void saveAssignment(d.user_id)}>Guardar</button></div>})}</div>{!drivers.length?<p className="mt-4 text-sm text-slate-500">No hay conductores vinculados.</p>:null}</div>;
  const summaryTraffic=<>
+  <div className={card}><div className="flex flex-wrap items-center justify-between gap-2"><div><h2 className="font-bold">Seguimiento de jornadas y viajes</h2><p className="mt-1 text-xs text-slate-500">Tiempo de jornada, actividad y viajes registrados en la app del conductor</p></div><span className="text-xs text-slate-400">Actualización de datos cada minuto</span></div><div className="mt-4 grid gap-3 lg:grid-cols-2">{drivers.filter(d=>{const s=state(d);return s!== 'Finalizada'&&s!=='Sin jornada'&&s!=='Sin cierre (antigua)';}).map(d=><div key={d.user_id}>{operating(d)}</div>)}{!drivers.some(d=>{const s=state(d);return s!== 'Finalizada'&&s!=='Sin jornada'&&s!=='Sin cierre (antigua)';})?<p className="text-sm text-slate-500">No hay jornadas activas recientes en este equipo.</p>:null}</div></div>
   <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"><Stat icon={Users} label="Conductores asignados" value={drivers.length} sub="Solo tu equipo asignado"/><Stat icon={Activity} label="Jornadas abiertas recientes" value={active} sub="No implica actividad confirmada"/><Stat icon={Truck} label="En conducción" value={driving} sub="Con actividad reciente sincronizada"/><Stat icon={Clock3} label="En disponibilidad" value={available} sub="Con actividad reciente sincronizada"/></div>
   <div className="grid gap-4 xl:grid-cols-[1.6fr_1fr]"><div className={card}><div className="flex items-center justify-between gap-3"><div><h2 className="font-bold">Seguimiento de actividad</h2><p className="mt-1 text-xs text-slate-500">Últimas jornadas registradas de tu equipo</p></div><button className="text-xs font-semibold text-blue-600" onClick={()=>navigate('jornadas')}>Ver todas →</button></div>
   <div className="mt-4 space-y-2">{drivers.filter(d=>state(d)!=='Finalizada'&&state(d)!=='Sin jornada').slice(0,5).map(d=><div key={d.user_id} className="flex flex-wrap items-center gap-3 rounded-xl border border-slate-100 bg-slate-50/60 p-3"><span className="rounded-lg bg-blue-50 p-2 text-blue-600"><Truck size={18}/></span><div className="min-w-[150px] flex-1"><p className="text-sm font-semibold">{display(d)}</p><p className="text-xs text-slate-400">{latest.get(d.user_id)?.lugar_inicio||'Sin origen'} → {latest.get(d.user_id)?.lugar_fin||'Sin destino'}</p></div><Pill value={state(d)}/><button className={secondary+' !px-3 !py-1.5 !text-xs'} onClick={()=>setDrawer(d.user_id)}>Abrir</button></div>)}{!drivers.length?<p className="py-5 text-sm text-slate-500">RRHH todavía no te ha asignado conductores.</p>:null}</div>
@@ -165,7 +216,7 @@ export default function EnterpriseWorkspace({view,busy,loading,error,message,ref
  const drawerContent=selectedDriver?<div className="fixed inset-0 z-[100] flex justify-end bg-[#06132d]/55" onClick={()=>{setDrawer(null);setSelectedJourney('');}}><div role="dialog" aria-modal="true" aria-label={'Ficha de '+display(selectedDriver)} onClick={e=>e.stopPropagation()} className="flex h-full w-full max-w-xl flex-col bg-white shadow-2xl">
   <div className="flex items-start justify-between gap-3 border-b border-slate-100 px-5 py-4"><div><p className="text-xs font-bold uppercase tracking-wide text-blue-600">{traffic?'Ficha operativa':'Liquidación individual'}</p><h2 className="mt-1 text-xl font-bold">{display(selectedDriver)}</h2><p className="text-xs text-slate-500">@{selectedDriver.username}</p></div><button aria-label="Cerrar ficha" className={secondary+' !p-2'} onClick={()=>{setDrawer(null);setSelectedJourney('');}}><X size={18}/></button></div>
   <div className="flex-1 space-y-5 overflow-y-auto p-5">{traffic?<>
-   <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-slate-50 p-4"><p className="text-sm font-semibold">Estado de la última jornada</p><Pill value={state(selectedDriver)}/></div>
+   {operating(selectedDriver)}
    <div><h3 className="font-bold">Jornadas y actividades registradas</h3><div className="mt-3 space-y-2">{driverJourneys.slice(0,35).map(j=><button onClick={()=>chooseJourney(j)} key={j.id} className={'w-full rounded-xl border p-3 text-left text-sm '+(selectedJourney===j.id?'border-blue-400 bg-blue-50':'border-slate-200 hover:bg-slate-50')}>
     <p className="font-semibold">{j.fecha_inicio||'Sin fecha'} · {j.hora_inicio||'—'} → {j.fecha_fin||'Sin cierre'} · {j.hora_fin||'—'}</p><p className="mt-1 text-xs text-slate-500">{j.lugar_inicio||'Origen pendiente'} → {j.lugar_fin||'Destino pendiente'}</p><p className="mt-1 text-xs">Conducción: {hours(j.tacho_driving_min??j.conduccion_min)} · Disponibilidad: {hours(j.tacho_available_min)} · Descanso: {hours(j.tacho_rest_min)} · Otros trabajos: {hours(j.tacho_work_min)}</p><p className="mt-1 text-xs text-blue-700">Dieta: {j.dieta_manual_tipo||j.tipo_ruta||'Sin tipo'} {j.dieta_percent||''}{j.dieta_percent?' %':''}</p></button>)}{!driverJourneys.length?<p className="text-sm text-slate-500">Sin jornadas disponibles.</p>:null}</div></div>
    {chosen&&chosen.user_id===selectedDriver.user_id?<div className="rounded-xl border border-blue-200 p-4"><h3 className="font-bold">Revisión de dieta y pluses</h3><p className="mt-1 text-xs text-slate-500">No se muestran importes. Las tarifas se calculan en el servidor.</p><div className="mt-3 flex flex-wrap gap-3 text-sm"><label><input type="radio" checked={mode==='confirm'} onChange={()=>setMode('confirm')}/> Confirmar sin cambios</label><label><input type="radio" checked={mode==='propose'} onChange={()=>setMode('propose')}/> Proponer modificación</label></div>
