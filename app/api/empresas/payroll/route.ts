@@ -29,7 +29,7 @@ async function payroll(req:NextRequest,month:string){
  ]);
  if(reviews.error||drivers.error)throw reviews.error||drivers.error;
  const jornadaIds=Array.from(new Set((reviews.data||[]).map(r=>r.jornada_id).filter((id):id is string=>typeof id==='string')));
- const extrasQuery=jornadaIds.length?await db.from('jornadas').select('id,day_extra_eur').in('id',jornadaIds):{data:[],error:null};
+ const extrasQuery=jornadaIds.length?await db.from('jornadas').select('id,day_extra_eur,diet_base_eur').in('id',jornadaIds):{data:[],error:null};
  if(extrasQuery.error)throw extrasQuery.error;
  const extras=new Map((extrasQuery.data||[]).map(j=>[j.id,Math.max(0,Number(String(j.day_extra_eur||0).replace(',','.'))||0)]));
  const byDriver=new Map<string,{id:string;username:string;diets:number;pluses:number;confirmed:number;pending:number;disputed:number;lines:unknown[]}>();
@@ -38,7 +38,7 @@ async function payroll(req:NextRequest,month:string){
   const target=byDriver.get(r.driver_id);if(!target)continue;
   if(['confirmed','accepted','closed'].includes(r.status)){
    const gross=parseAmount(r.status==='accepted'?r.proposed_amount??r.original_amount:r.original_amount);
-   const auto=Math.min(gross,extras.get(r.jornada_id)||0);
+   const extra=extras.get(r.jornada_id)||0;const original=Number(r.original_amount)||0;const base=Number((extrasQuery.data||[]).find(j=>j.id===r.jornada_id)?.diet_base_eur)||0;const auto=extra>0&&original+0.01>=base+extra?Math.min(gross,extra):0;
    const value=Math.max(0,gross-auto);
    const plus=calcPlus(r.status==='accepted'&&r.proposed_pluses!==null?r.proposed_pluses:r.original_pluses)+auto;target.diets+=value;target.pluses+=plus;target.confirmed++;
    target.lines.push({review_id:r.id,date:r.jornada_date,diet:value,plus,status:r.status});
