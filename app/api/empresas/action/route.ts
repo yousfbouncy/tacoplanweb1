@@ -300,32 +300,56 @@ export async function POST(req:NextRequest){
   const assigned=await db.from('tp_traffic_driver_assignments').select('driver_id').eq('company_id',companyId).eq('driver_id',body.driverId).eq('traffic_user_id',user.id).maybeSingle();
   if(assigned.error)throw assigned.error;
   if(!assigned.data)return json({error:'El conductor no está asignado a tu usuario de Tráfico'},403);
-  const journey=await db.from('jornadas').select('id,user_id,created_at,fecha_inicio,dieta_manual_tipo,dieta_importe_eur,plus_items').eq('id',body.jornadaId).eq('user_id',body.driverId).gte('created_at',driver.joined_at).maybeSingle();
+  const journey=await db.from('jornadas').select('id,user_id,created_at,fecha_inicio,dieta_manual_tipo,tipo_ruta,dieta_percent,dieta_importe_eur,diet_base_eur,day_extra_eur,plus_items').eq('id',body.jornadaId).eq('user_id',body.driverId).gte('created_at',driver.joined_at).maybeSingle();
   if(journey.error||!journey.data)return json({error:'Jornada no encontrada'},404);
   const existing=await db.from('tp_diet_reviews').select('*').eq('company_id',companyId).eq('jornada_id',body.jornadaId).maybeSingle();
   if(existing.error)throw existing.error;
-  if(existing.data&&['confirmed','awaiting_driver','accepted','disputed','closed'].includes(existing.data.status))return json({error:'Ya existe una revisión. No se puede sobrescribir el historial'},409);
-  const originalAmount=Number(String(journey.data.dieta_importe_eur||'0').replace(',','.'))||0;
+  if(existing.data&&['confirmed','awaiting_driver','accepted','disputed','closed'].includes(existing.data.status))return json({error:'Ya existe una revi  const originalAmount=Number(String(journey.data.dieta_importe_eur||'0').replace(',','.'))||0;
   const mode=body.mode,reason=plain(body.reason,2000),observation=plain(body.observation,2000);
   if(mode==='propose'&&reason.length<10)return json({error:'Explica el motivo del cambio (mínimo 10 caracteres)'},400);
   const originalPluses=Array.isArray(journey.data.plus_items)?journey.data.plus_items:[];
-  const proposedPluses=mode==='propose'?body.pluses:null;
-  if(mode==='propose'&&(!Array.isArray(proposedPluses)||proposedPluses.length>50))return json({error:'La lista de pluses no es válida'},400);
-  if(mode==='propose'&&proposedPluses.some((item:unknown)=>{
-   if(!item||typeof item!=='object'||Array.isArray(item))return true;
-   const p=item as Record<string,unknown>;
-   return typeof p.concepto!=='string'||p.concepto.trim().length===0||p.concepto.length>120||amount(p.importe)===null;
-  }))return json({error:'Revisa los conceptos e importes de los pluses'},400);
-  const proposed=mode==='propose'?amount(body.amount):null;
-  if(mode==='propose'&&proposed===null)return json({error:'Importe de dieta incorrecto'},400);
+  let proposedAmount:number|null=null,proposedPluses:Array<{concepto:string;importe:number}>|null=null,proposedDietType:string|null=null;
+  if(mode==='propose'){
+   // Tráfico may choose diet categories and plus concepts, but never supplies
+   // monetary values. The server resolves the rates configured by the company.
+   const dietTypes=body.dietTypes;
+   const plusTypes=body.plusTypes;
+   if(!Array.isArray(dietTypes)||dietTypes.length>8||!dietTypes.every((s:unknown)=>typeof s==='string'&&/^(REGIONAL|NACIONAL|INTERNACIONAL)_(30|60|100)$/.test(s)))
+    return json({error:'Selecciona categorías de dieta válidas'},400);
+   if(!Array.isArray(plusTypes)||plusTypes.length>30||!plusTypes.every((s:unknown)=>typeof s==='string'&&/^[a-z0-9_-]{1,50}$/.test(s)))
+    return json({error:'Selecciona pluses válidos'},400);
+   const settings=await db.from('tp_driver_settings').select('diet_rates,plus_rates').eq('company_id',companyId).eq('driver_id',body.driverId).maybeSingle();
+   if(settings.error)throw settings.error;
+   if(!settings.data)return json({error:'El conductor no tiene configuradas sus dietas y pluses'},409);
+   const dietRates=(settings.data.diet_rates||{}) as Record<string,unknown>;
+   const plusRates=(settings.data.plus_rates||{}) as Record<string,unknown>;
+   let newBase=0;
+   for(const code of dietTypes as string[]){
+    const rate=amount(dietRates[code.toLowerCase()]);
+    if(rate===null)return json({error:'La dieta '+code+' no tiene tarifa configurada. Pide a la empresa que la configure.'},409);
+    newBase+=rate;
+   }
+   const previousBase=Number(journey.data.diet_base_eur??0)||0;
+   // Preserve automatic Sunday/holiday extras that are already included in the
+   // driver's original total; avoid silently dropping them when changing diet type.
+   const nonDietComponent=Math.max(0,originalAmount-previousBase);
+   proposedAmount=Math.round((newBase+nonDietComponent)*100)/100;
+   proposedDietType=(dietTypes as string[]).join(' + ')||'SIN_DIETA';
+   proposedPluses=[];
+   for(const concept of new Set(plusTypes as string[])){
+    const rate=amount(plusRates[concept]);
+    if(rate===null)return json({error:'El plus '+concept+' no tiene tarifa configurada'},409);
+    proposedPluses.push({concepto:concept,importe:rate});
+   }
+  }
   const payload={company_id:companyId,driver_id:body.driverId,jornada_id:body.jornadaId,
-   original_diet_type:journey.data.dieta_manual_tipo,jornada_date:normalizeJornadaDate(journey.data.fecha_inicio),original_amount:Math.max(0,originalAmount),
+   original_diet_type:journey.data.dieta_manual_tipo||journey.data.tipo_ruta||null,jornada_date:normalizeJornadaDate(journey.data.fecha_inicio),original_amount:Math.max(0,originalAmount),
    original_pluses:originalPluses,
-   proposed_diet_type:mode==='propose'?plain(body.dietType,80)||journey.data.dieta_manual_tipo:null,
-   proposed_amount:proposed,proposed_pluses:mode==='propose'?proposedPluses:null,status:mode==='confirm'?'confirmed':'awaiting_driver',
+   proposed_diet_type:proposedDietType,proposed_amount:proposedAmount,proposed_pluses:proposedPluses,status:mode==='confirm'?'confirmed':'awaiting_driver',
    traffic_observation:observation||null,change_reason:mode==='propose'?reason:null,
    confirmed_at:mode==='confirm'?new Date().toISOString():null,
    confirmed_by:mode==='confirm'?user.id:null,updated_at:new Date().toISOString()};
+?user.id:null,updated_at:new Date().toISOString()};
   const result=await db.from('tp_diet_reviews').upsert(payload,{onConflict:'company_id,jornada_id'}).select('id').single();
   if(result.error)throw result.error;
   await audit(db,companyId,user.id,mode==='confirm'?'diet.confirmed':'diet.change_proposed','review',result.data.id,existing.data,payload,reason||observation);
