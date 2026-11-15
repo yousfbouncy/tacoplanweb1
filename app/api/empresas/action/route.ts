@@ -116,6 +116,42 @@ export async function POST(req:NextRequest){
   if(state.error||!isPaidAccess(state.data))return json({error:'La prueba gratuita o la suscripción de la empresa no está activa'},402);
  }
 
+ if(action==='create_staff'){
+  if(!permitted(role,'owner'))return json({error:'Solo el administrador puede crear empleados'},403);
+  const username=cleanUsername(body.username),employeeName=plain(body.employeeName,120);
+  const password=typeof body.password==='string'?body.password:'';
+  const staffRole=body.role;
+  if(!['traffic','hr'].includes(staffRole))return json({error:'Solo se permite crear cuentas de Tráfico o RRHH'},400);
+  if(!validUsername(username)||employeeName.length<2||password.length<12||password.length>256)
+   return json({error:'Indica nombre, usuario válido y contraseña de al menos 12 caracteres'},400);
+  const [existing,pending]=await Promise.all([
+   db.from('tp_company_members').select('id').eq('username',username).limit(1),
+   db.from('tp_company_invites').select('id').eq('username',username).is('accepted_at',null).is('revoked_at',null).gt('expires_at',new Date().toISOString()).limit(1)
+  ]);
+  if(existing.error||pending.error)throw existing.error||pending.error;
+  if((existing.data||[]).length||(pending.data||[]).length)return json({error:'Nombre de usuario ya ocupado'},409);
+  // Supabase Auth requires an email identity internally. This randomly generated,
+  // non-routable identifier is not requested from, or sent to, the employee.
+  const internalEmail=randomBytes(20).toString('hex')+'@staff.tacoplan.invalid';
+  const created=await db.auth.admin.createUser({
+   email:internalEmail,password,email_confirm:true,
+   app_metadata:{tp_account_type:'staff'},
+   user_metadata:{full_name:employeeName}
+  });
+  if(created.error||!created.data.user)return json({error:'No se pudo crear la cuenta de empleado'},500);
+  const staffId=created.data.user.id;
+  const added=await db.from('tp_company_members').insert({
+   company_id:companyId,user_id:staffId,username,employee_name:employeeName,role:staffRole,active:true
+  });
+  if(added.error){
+   await db.auth.admin.deleteUser(staffId);
+   return json({error:'No se pudo asignar el empleado a la empresa. Comprueba el usuario.'},409);
+  }
+  const profile=await db.from('profiles').upsert({id:staffId,display_name:employeeName,updated_at:new Date().toISOString()},{onConflict:'id'});
+  if(profile.error)console.error('Staff profile display_name update failed',profile.error.message);
+  await audit(db,companyId,user.id,'member.created','member',staffId,null,{username,employee_name:employeeName,role:staffRole});
+  return json({ok:true,username,role:staffRole},201);
+ }
  if(action==='invite'){
   if(!permitted(role,'owner'))return json({error:'Solo el administrador crea usuarios'},403);
   const username=cleanUsername(body.username),email=cleanEmail(body.email),inviteRole=body.role;
