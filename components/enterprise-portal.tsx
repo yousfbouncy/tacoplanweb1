@@ -317,6 +317,7 @@ export function EnterprisePortal(){
     {hrTab==='asignaciones'?<div className="rounded-2xl border border-slate-200 bg-white p-5">
       <h2 className="flex items-center gap-2 text-lg font-bold text-slate-900"><UserRoundCog className="h-5 w-5 text-blue-600"/>Responsables de Tráfico</h2>
       <p className="mt-2 text-sm text-slate-600">Asigna cada conductor a un usuario de Tráfico. Solo ese responsable podrá ver sus jornadas y revisar sus dietas. Puedes cambiarlo o dejarlo sin asignar.</p>
+      {!active?<p role="status" className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">La suscripción de la empresa está pendiente o inactiva. Puedes consultar el personal registrado y sus asignaciones, pero para modificarlas debes activar el acceso empresarial.</p>:null}
       <div className="mt-4 grid gap-3 sm:grid-cols-2">
         <label className="text-sm font-semibold">Conductor
           <select className={input+' mt-2'} value={assignedDriver} onChange={e=>{setAssignedDriver(e.target.value);setAssignedTraffic((view?.assignments||[]).find(a=>a.driver_id===e.target.value)?.traffic_user_id||'');}}>
@@ -331,7 +332,7 @@ export function EnterprisePortal(){
           </select>
         </label>
       </div>
-      <button type="button" disabled={!assignedDriver||busy} className={button+' mt-4'} onClick={async()=>{
+      <button type="button" disabled={!assignedDriver||busy||!active} className={button+' mt-4'} onClick={async()=>{
         const res=await action({action:'assign_driver',driverId:assignedDriver,trafficUserId:assignedTraffic||null});
         if(res)setMessage(assignedTraffic?'Responsable de Tráfico asignado correctamente.':'Conductor sin responsable asignado.');
       }}>Guardar asignación</button>
@@ -345,7 +346,8 @@ export function EnterprisePortal(){
           </div>;
         })}
       </div>
-      {!(view?.trafficMembers||[]).length?<p className="mt-3 text-sm text-amber-700">Primero el administrador debe invitar y activar al personal de Tráfico con su cuenta y contraseña.</p>:null}
+      {!(view?.trafficMembers||[]).length?<p className="mt-3 text-sm text-amber-700">No hay usuarios de Tráfico activos en esta empresa. El administrador puede crearlos directamente con nombre de usuario y contraseña, sin invitación.</p>:null}
+      {!(view?.drivers||[]).length?<p className="mt-3 text-sm text-amber-700">No hay conductores activos vinculados a esta empresa.</p>:null}
     </div>:null}
   </section>:null}
   {member.role==='driver'?<section className="space-y-4"><div className="rounded-2xl border bg-white p-5"><h2 className="font-bold">Mis condiciones de empresa</h2><p className="mt-2 text-sm">Base: {view?.driverSettings?.base_name||'Pendiente'} · Convenio: {view?.driverSettings?.agreement||'Pendiente'}</p><p className="mt-2 text-xs text-slate-500">Gestionadas por la empresa. Puedes solicitar correcciones mediante una observación.</p></div>
