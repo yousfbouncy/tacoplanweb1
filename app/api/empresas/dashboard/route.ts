@@ -13,7 +13,19 @@ export async function GET(req:NextRequest){
   .eq('id',companyId).single();
  if(companyError||!company)return enterpriseJson({error:'Empresa no disponible'},404);
  const role=member.role;
- if(role!=='owner'&&!isPaidAccess(company))return enterpriseJson({company,member,blocked:true,reason:'Prueba gratuita o suscripción no activa'});
+ const subscriptionActive=isPaidAccess(company);
+ // Keep employee rosters visible to HR even when billing is pending. Restricted
+ // payroll details and traffic/location data remain unavailable until active.
+ if(role==='hr'&&!subscriptionActive){
+  const [drivers,trafficMembers,assignments]=await Promise.all([
+   db.from('tp_company_members').select('user_id,username,employee_name,role').eq('company_id',companyId).eq('active',true).eq('role','driver'),
+   db.from('tp_company_members').select('user_id,username,employee_name,role').eq('company_id',companyId).eq('active',true).eq('role','traffic'),
+   db.from('tp_traffic_driver_assignments').select('driver_id,traffic_user_id,assigned_at').eq('company_id',companyId)
+  ]);
+  for(const result of [drivers,trafficMembers,assignments])if(result.error)throw result.error;
+  return enterpriseJson({company,member,blocked:true,reason:'Prueba gratuita o suscripción no activa',drivers:drivers.data||[],trafficMembers:trafficMembers.data||[],assignments:assignments.data||[],reviews:[],closures:[]});
+ }
+ if(role!=='owner'&&!subscriptionActive)return enterpriseJson({company,member,blocked:true,reason:'Prueba gratuita o suscripción no activa'});
  // HR does not receive route, location, individual jornada or traffic data.
  if(role==='hr'){
   const [reviews,closures,drivers,trafficMembers,assignments]=await Promise.all([
