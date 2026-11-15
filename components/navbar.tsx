@@ -121,6 +121,7 @@ export function Navbar() {
               </Link>
             ) : null}
             <Link href="/empresas" className="text-slate-100 hover:text-sky-300 transition">Empresas</Link>
+            <Link href="/empleados/login" className="text-slate-100 hover:text-sky-300 transition">Acceso empleados</Link>
             <Link href="/contacto" className="text-slate-100 hover:text-sky-300 transition">
               Contacto
             </Link>
@@ -186,6 +187,7 @@ export function Navbar() {
               </Link>
             ) : null}
             <Link href="/empresas" className="block text-slate-100 hover:text-sky-300" onClick={() => setMobileMenuOpen(false)}>Empresas</Link>
+            <Link href="/empleados/login" className="block text-slate-100 hover:text-sky-300" onClick={() => setMobileMenuOpen(false)}>Acceso empleados</Link>
             <Link
               href="/contacto"
               className="block text-slate-100 hover:text-sky-300"
