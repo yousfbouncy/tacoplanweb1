@@ -29,6 +29,7 @@ export function EnterprisePortal(){
  const [signupFeedback,setSignupFeedback]=useState<'verify'|'ready'|null>(null);
  const [companyName,setCompanyName]=useState(''),[ownerUsername,setOwnerUsername]=useState(''),[planId,setPlanId]=useState<string>(PLAN_PRICES[0].priceId);
  const [staffEmail,setStaffEmail]=useState(''),[staffUsername,setStaffUsername]=useState(''),[staffName,setStaffName]=useState(''),[staffRole,setStaffRole]=useState('');
+ const [staffPassword,setStaffPassword]=useState(''),[staffPasswordConfirm,setStaffPasswordConfirm]=useState('');
  const [staffConfig,setStaffConfig]=useState<InitialEmployeeConfig>(blankCompanyConfig);
  const [pendingInviteId,setPendingInviteId]=useState(''),[pendingInviteName,setPendingInviteName]=useState(''),[pendingInviteConfig,setPendingInviteConfig]=useState<InitialEmployeeConfig>(blankCompanyConfig);
  const [latestInvite,setLatestInvite]=useState('');
@@ -203,17 +204,26 @@ export function EnterprisePortal(){
     {staffRole?<div className="mt-3 grid gap-3 sm:grid-cols-3">
      <label className="text-sm font-semibold">Nombre y apellidos <span className="text-red-600">*</span>
       <input className={input+' mt-1'} value={staffName} onChange={e=>setStaffName(e.target.value)} placeholder="Nombre completo"/></label>
-     <label className="text-sm font-semibold">Correo electrónico <span className="text-red-600">*</span>
-      <input type="email" className={input+' mt-1'} value={staffEmail} onChange={e=>setStaffEmail(e.target.value)} placeholder="empleado@empresa.es"/></label>
+     {staffRole==='driver'?<label className="text-sm font-semibold">Correo electrónico <span className="text-red-600">*</span>
+      <input type="email" className={input+' mt-1'} value={staffEmail} onChange={e=>setStaffEmail(e.target.value)} placeholder="conductor@empresa.es"/></label>:null}
      <label className="text-sm font-semibold">Nombre de usuario <span className="text-red-600">*</span>
       <input className={input+' mt-1'} value={staffUsername} onChange={e=>setStaffUsername(e.target.value.toLowerCase())} placeholder="conductor15"/></label>
     </div>:null}
+    {staffRole&&staffRole!=='driver'?<div className="mt-4 grid gap-3 sm:grid-cols-2">
+      <label className="text-sm font-semibold">Contraseña inicial <span className="text-red-600">*</span>
+       <input type="password" autoComplete="new-password" className={input+' mt-1'} value={staffPassword} onChange={e=>setStaffPassword(e.target.value)} placeholder="Mínimo 12 caracteres"/></label>
+      <label className="text-sm font-semibold">Confirmar contraseña <span className="text-red-600">*</span>
+       <input type="password" autoComplete="new-password" className={input+' mt-1'} value={staffPasswordConfirm} onChange={e=>setStaffPasswordConfirm(e.target.value)} placeholder="Repite la contraseña"/></label>
+     </div>:null}
     {staffRole==='driver'?<div className="mt-5"><h3 className="mb-3 text-lg font-bold">Configuración inicial de Tacoplan</h3>
       <EnterpriseDriverConfig value={staffConfig} onChange={setStaffConfig} idPrefix="new-driver"/></div>:null}
-    {staffRole?<button type="button" disabled={busy||staffName.trim().length<2||!staffEmail.trim()||!staffUsername.trim()} className={button+' mt-5'} onClick={async()=>{
-     const result=await action({action:'invite',email:staffEmail,username:staffUsername,employeeName:staffName,role:staffRole,initialSettings:staffRole==='driver'?staffConfig:null});
-     if(result){setLatestInvite(result.url);setStaffName('');setStaffEmail('');setStaffUsername('');setStaffRole('');setStaffConfig(blankCompanyConfig());setMessage('Invitación creada y configuración guardada en Supabase. Comparte el enlace con el empleado.');}
-    }}><Plus className="mr-1 inline h-4 w-4"/>Crear invitación de empleado</button>:null}
+    {staffRole?<button type="button" disabled={busy||staffName.trim().length<2||!staffUsername.trim()||(staffRole==='driver'?!staffEmail.trim():staffPassword.length<12||staffPassword!==staffPasswordConfirm)} className={button+' mt-5'} onClick={async()=>{
+      const isDriver=staffRole==='driver';
+      const result=await action(isDriver
+       ?{action:'invite',email:staffEmail,username:staffUsername,employeeName:staffName,role:'driver',initialSettings:staffConfig}
+       :{action:'create_staff',username:staffUsername,employeeName:staffName,role:staffRole,password:staffPassword});
+      if(result){setLatestInvite(isDriver?result.url:'');setStaffName('');setStaffEmail('');setStaffUsername('');setStaffRole('');setStaffPassword('');setStaffPasswordConfirm('');setStaffConfig(blankCompanyConfig());setMessage(isDriver?'Invitación del conductor creada. Comparte el enlace.':'Cuenta de empleado creada. Ya puede iniciar sesión en /empleados/login con su usuario y contraseña.');}
+     }}><Plus className="mr-1 inline h-4 w-4"/>{staffRole==='driver'?'Crear invitación de conductor':'Crear cuenta de empleado'}</button>:null}
     {latestInvite?<div className="mt-3 rounded-xl border border-blue-200 bg-blue-50 p-3"><p className="text-xs font-semibold text-blue-900">Invitación privada · válida 7 días</p><input readOnly className={input+' mt-2 text-xs'} value={latestInvite}/><button type="button" className="mt-2 flex items-center gap-2 text-sm font-semibold text-blue-700" onClick={()=>void navigator.clipboard.writeText(latestInvite)}><Copy className="h-4 w-4"/>Copiar enlace</button></div>:null}
    </div>:null}
    {ownerTab==='empleados'?<div className="rounded-2xl border bg-white p-5 lg:col-span-2">

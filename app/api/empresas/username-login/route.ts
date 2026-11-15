@@ -8,10 +8,10 @@ export const dynamic='force-dynamic';
 export async function POST(req:NextRequest){
  // Native apps do not send Origin; reject foreign browser origins, while authenticating every request with a password.
  if(req.headers.get('origin')&&!sameOrigin(req))return enterpriseJson({error:'Solicitud no permitida'},403);
- let username='',password='';
+ let username='',password='',driverOnly=false,staffOnly=false;
  try{
   const data=await req.json();
-  username=cleanUsername(data.username);password=typeof data.password==='string'?data.password:'';
+  username=cleanUsername(data.username);password=typeof data.password==='string'?data.password:'';driverOnly=data.driverOnly===true;staffOnly=data.staffOnly===true;
  }catch{return enterpriseJson({error:'Solicitud inválida'},400);}
  if(!validUsername(username)||password.length<8||password.length>256)return enterpriseJson({error:'Credenciales incorrectas'},401);
  const db=adminDatabase();
@@ -26,8 +26,10 @@ export async function POST(req:NextRequest){
  if((count||0)>=6)return enterpriseJson({error:'Demasiados intentos. Vuelve a probar dentro de 15 minutos.'},429);
  const attempt=await db.from('tp_login_attempts').insert({key_hash:key});
  if(attempt.error)return enterpriseJson({error:'Error al comprobar acceso'},503);
- const found=await db.from('tp_company_members').select('user_id,active').eq('username',username).eq('active',true).maybeSingle();
+ const found=await db.from('tp_company_members').select('user_id,active,role').eq('username',username).eq('active',true).maybeSingle();
  if(found.error||!found.data)return enterpriseJson({error:'Credenciales incorrectas'},401);
+ if(driverOnly&&found.data.role!=='driver')return enterpriseJson({error:'Esta cuenta no es de conductor'},403);
+ if(staffOnly&&!['traffic','hr'].includes(found.data.role))return enterpriseJson({error:'Esta cuenta no tiene acceso de empleado'},403);
  const foundUser=await db.auth.admin.getUserById(found.data.user_id);
  if(foundUser.error||!foundUser.data.user?.email)return enterpriseJson({error:'Credenciales incorrectas'},401);
  const anonKey=process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY||process.env.SUPABASE_ANON_KEY||SUPABASE_ANON_KEY;

@@ -37,6 +37,7 @@ export function DriverPortal(){
  const [profile,setProfile]=useState<Profile|null>(null),[diets,setDiets]=useState<Diets|null>(null),[jornadas,setJornadas]=useState<Jornada[]>([]);
  const [period,setPeriod]=useState<Period>('30'),[expanded,setExpanded]=useState<string|null>(null);
  const [logging,setLogging]=useState<'google'|'apple'|null>(null);
+ const [identity,setIdentity]=useState(''),[password,setPassword]=useState(''),[passwordBusy,setPasswordBusy]=useState(false);
  const refresh=async()=>{
   if(!user)return;
   setFetching(true);setError('');
@@ -73,6 +74,24 @@ export function DriverPortal(){
    if(error)throw error;
   }catch(e:unknown){sessionStorage.removeItem('tp_driver_portal_after_oauth');setError(e instanceof Error?e.message:'No se pudo iniciar sesión');setLogging(null);}
  };
+ const loginWithPassword=async(e:React.FormEvent<HTMLFormElement>)=>{
+  e.preventDefault();if(passwordBusy)return;setPasswordBusy(true);setError('');
+  try{
+   const value=identity.trim();
+   if(!value||!password)throw Error('Introduce tu correo o usuario y contraseña.');
+   if(value.includes('@')){
+    const {error}=await supabase.auth.signInWithPassword({email:value,password});
+    if(error)throw Error('Credenciales incorrectas. Comprueba el correo y la contraseña.');
+   }else{
+    const response=await fetch('/api/empresas/username-login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:value,password,driverOnly:true})});
+    const data=await response.json();
+    if(!response.ok)throw Error(data.error||'No se pudo iniciar sesión con ese usuario.');
+    const {error}=await supabase.auth.setSession({access_token:data.access_token,refresh_token:data.refresh_token});
+    if(error)throw error;
+   }
+  }catch(e:unknown){setError(e instanceof Error?e.message:'No se pudo iniciar sesión');}
+  finally{setPasswordBusy(false);}
+ };
  if(authLoading)return <div className="mx-auto max-w-4xl px-5 py-20 text-center text-slate-500">Comprobando tu sesión…</div>;
  if(!user)return <main className="min-h-[78vh] bg-slate-50 px-4 py-12">
   <div className="mx-auto max-w-md overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-xl">
@@ -81,7 +100,18 @@ export function DriverPortal(){
     <p className="mt-3 text-sm leading-relaxed text-slate-300">Consulta tus jornadas, tiempos registrados, descansos y dietas desde cualquier navegador.</p>
    </div>
    <div className="space-y-3 p-6"><p className="text-sm font-semibold text-slate-700">Entra con la misma cuenta que utilizas en la aplicación</p>
-    <button type="button" disabled={!!logging} onClick={()=>void login('google')} className="flex w-full items-center justify-center gap-3 rounded-xl border border-slate-300 bg-white px-4 py-3 font-semibold text-slate-900 hover:bg-slate-50 disabled:opacity-50"><span className="text-xl font-black text-blue-600">G</span>{logging==='google'?'Conectando…':'Continuar con Google'}</button>
+    <form className="space-y-3" onSubmit={loginWithPassword}>
+     <label className="block text-sm font-semibold text-slate-700">Correo electrónico o nombre de usuario
+      <input type="text" required autoComplete="username" value={identity} onChange={e=>setIdentity(e.target.value)} placeholder="Correo o usuario" className="mt-2 w-full rounded-xl border border-slate-300 p-3 text-slate-900"/>
+     </label>
+     <label className="block text-sm font-semibold text-slate-700">Contraseña
+      <input type="password" required autoComplete="current-password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="Tu contraseña" className="mt-2 w-full rounded-xl border border-slate-300 p-3 text-slate-900"/>
+     </label>
+     <button type="submit" disabled={passwordBusy||!!logging} className="w-full rounded-xl bg-blue-600 px-4 py-3 font-semibold text-white disabled:opacity-50">{passwordBusy?'Comprobando…':'Iniciar sesión'}</button>
+    </form>
+    <p className="text-xs text-slate-500">Puedes usar tu correo habitual. El nombre de usuario funciona cuando tu empresa te ha asignado uno en Tacoplan.</p>
+    <div className="relative py-1 text-center text-xs text-slate-500">O continuar con</div>
+    <button type="button" disabled={!!logging||passwordBusy} onClick={()=>void login('google')} className="flex w-full items-center justify-center gap-3 rounded-xl border border-slate-300 bg-white px-4 py-3 font-semibold text-slate-900 hover:bg-slate-50 disabled:opacity-50"><span className="text-xl font-black text-blue-600">G</span>{logging==='google'?'Conectando…':'Continuar con Google'}</button>
     <button type="button" disabled={!!logging} onClick={()=>void login('apple')} className="flex w-full items-center justify-center gap-3 rounded-xl bg-black px-4 py-3 font-semibold text-white hover:bg-neutral-800 disabled:opacity-50"><span className="text-xl">●</span>{logging==='apple'?'Conectando…':'Continuar con Apple'}</button>
     {error?<p role="alert" className="rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</p>:null}
     <p className="mt-4 flex items-start gap-2 text-xs leading-relaxed text-slate-500"><LockKeyhole className="mt-0.5 h-4 w-4 shrink-0"/>Solo se muestran los datos asociados al usuario que ha iniciado sesión. Si entras con otra identidad, no se mezclan cuentas automáticamente.</p>
