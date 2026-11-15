@@ -1,7 +1,7 @@
 import {NextRequest} from 'next/server';
 import {membership,enterpriseJson,originAllowed,permitted,isPaidAccess} from '@/lib/tp-enterprise';
 export const dynamic='force-dynamic';
-type Review={id:string;driver_id:string;status:string;original_amount:number;proposed_amount:number|null;original_pluses:unknown;proposed_pluses:unknown;jornada_date:string|null};
+type Review={id:string;driver_id:string;jornada_id:string;status:string;original_amount:number;proposed_amount:number|null;original_pluses:unknown;proposed_pluses:unknown;jornada_date:string|null};
 const parseAmount=(v:unknown)=>{const n=Number(v);return Number.isFinite(n)&&n>0?n:0;};
 const calcPlus=(items:unknown)=>{
  if(!Array.isArray(items))return 0;
@@ -23,18 +23,24 @@ async function payroll(req:NextRequest,month:string){
  const year=Number(month.slice(0,4)),mm=Number(month.slice(5));
  const first=new Date(Date.UTC(year,mm-1,1)).toISOString().slice(0,10),last=new Date(Date.UTC(year,mm,0)).toISOString().slice(0,10);
  const [reviews,drivers]=await Promise.all([
-  db.from('tp_diet_reviews').select('id,driver_id,status,original_amount,proposed_amount,original_pluses,proposed_pluses,jornada_date')
+  db.from('tp_diet_reviews').select('id,driver_id,jornada_id,status,original_amount,proposed_amount,original_pluses,proposed_pluses,jornada_date')
    .eq('company_id',companyId).gte('jornada_date',first).lte('jornada_date',last).limit(3000),
   db.from('tp_company_members').select('user_id,username').eq('company_id',companyId).eq('role','driver')
  ]);
  if(reviews.error||drivers.error)throw reviews.error||drivers.error;
+ const jornadaIds=Array.from(new Set((reviews.data||[]).map(r=>r.jornada_id).filter((id):id is string=>typeof id==='string')));
+ const extrasQuery=jornadaIds.length?await db.from('jornadas').select('id,day_extra_eur,diet_base_eur').in('id',jornadaIds):{data:[],error:null};
+ if(extrasQuery.error)throw extrasQuery.error;
+ const extras=new Map((extrasQuery.data||[]).map(j=>[j.id,Math.max(0,Number(String(j.day_extra_eur||0).replace(',','.'))||0)]));
  const byDriver=new Map<string,{id:string;username:string;diets:number;pluses:number;confirmed:number;pending:number;disputed:number;lines:unknown[]}>();
  for(const d of drivers.data||[])byDriver.set(d.user_id,{id:d.user_id,username:d.username,diets:0,pluses:0,confirmed:0,pending:0,disputed:0,lines:[]});
  for(const r of reviews.data||[] as Review[]){
   const target=byDriver.get(r.driver_id);if(!target)continue;
   if(['confirmed','accepted','closed'].includes(r.status)){
-   const value=parseAmount(r.status==='accepted'?r.proposed_amount??r.original_amount:r.original_amount);
-   const plus=calcPlus(r.status==='accepted'&&r.proposed_pluses!==null?r.proposed_pluses:r.original_pluses);target.diets+=value;target.pluses+=plus;target.confirmed++;
+   const gross=parseAmount(r.status==='accepted'?r.proposed_amount??r.original_amount:r.original_amount);
+   const extra=extras.get(r.jornada_id)||0;const original=Number(r.original_amount)||0;const base=Number((extrasQuery.data||[]).find(j=>j.id===r.jornada_id)?.diet_base_eur)||0;const auto=extra>0&&original+0.01>=base+extra?Math.min(gross,extra):0;
+   const value=Math.max(0,gross-auto);
+   const plus=calcPlus(r.status==='accepted'&&r.proposed_pluses!==null?r.proposed_pluses:r.original_pluses)+auto;target.diets+=value;target.pluses+=plus;target.confirmed++;
    target.lines.push({review_id:r.id,date:r.jornada_date,diet:value,plus,status:r.status});
   }else if(r.status==='disputed')target.disputed++;
   else target.pending++;

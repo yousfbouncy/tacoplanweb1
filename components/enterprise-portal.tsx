@@ -7,8 +7,8 @@ import {PLAN_PRICES} from '@/lib/tp-enterprise-plans';
 import {EnterpriseDriverConfig,blankCompanyConfig} from '@/components/enterprise-driver-config';
 import type {InitialEmployeeConfig} from '@/lib/tp-employee-config';
 type Member={company_id:string;username:string;role:'owner'|'traffic'|'hr'|'driver'};
-type Review={id:string;driver_id:string;jornada_id?:string;jornada_date?:string;status:string;original_diet_type:string|null;original_amount:number;proposed_diet_type:string|null;proposed_amount:number|null;original_pluses?:Array<{concepto:string;importe:number}>;proposed_pluses?:Array<{concepto:string;importe:number}>|null;change_reason:string|null;driver_observation:string|null;traffic_observation:string|null;created_at:string};
-type Dashboard={member:Member|null;company?:{id:string;name:string;subscription_status:string;trial_ends_at:string|null;plan_price_id:string|null};team?:Array<{user_id:string;username:string;employee_name?:string;role:string;active?:boolean}>;drivers?:Array<{user_id:string;username:string;employee_name?:string|null}>;trafficMembers?:Array<{user_id:string;username:string;employee_name?:string|null}>;assignments?:Array<{driver_id:string;traffic_user_id:string;assigned_at:string}>;invites?:Array<{id:string;username:string;employee_name?:string;role:string;email:string;accepted_at:string|null;initial_settings?:InitialEmployeeConfig}>;settings?:Array<{driver_id:string;base_name:string|null;workplace?:string|null;agreement:string|null;initial_config?:InitialEmployeeConfig;diet_rates?:Record<string,unknown>;plus_rates?:Record<string,unknown>;payroll_terms?:Record<string,unknown>}>;driverSettings?:{base_name:string|null;agreement:string|null};jornadas?:Array<{id:string;user_id:string;fecha_inicio:string|null;hora_inicio:string|null;hora_fin:string|null;lugar_inicio:string|null;lugar_fin:string|null;tipo_ruta:string|null;dieta_manual_tipo:string|null;dieta_importe_eur:string|null;plus_items?:Array<{concepto:string;importe:number}>}>;reviews?:Review[];closures?:Array<{id:string;month:string;driver_id:string;total_diets:number;closed_at:string}>};
+type Review={id:string;driver_id:string;jornada_id?:string;jornada_date?:string;status:string;original_diet_type:string|null;original_amount:number;proposed_diet_type:string|null;proposed_amount:number|null;original_pluses?:Array<{concepto:string;importe:number}>;automatic_plus?:number;automatic_plus_concept?:string|null;proposed_pluses?:Array<{concepto:string;importe:number}>|null;change_reason:string|null;driver_observation:string|null;traffic_observation:string|null;created_at:string};
+type Dashboard={member:Member|null;company?:{id:string;name:string;subscription_status:string;trial_ends_at:string|null;plan_price_id:string|null};team?:Array<{user_id:string;username:string;employee_name?:string;role:string;active?:boolean}>;drivers?:Array<{user_id:string;username:string;employee_name?:string|null}>;trafficMembers?:Array<{user_id:string;username:string;employee_name?:string|null}>;assignments?:Array<{driver_id:string;traffic_user_id:string;assigned_at:string}>;invites?:Array<{id:string;username:string;employee_name?:string;role:string;email:string;accepted_at:string|null;initial_settings?:InitialEmployeeConfig}>;settings?:Array<{driver_id:string;base_name:string|null;workplace?:string|null;agreement:string|null;initial_config?:InitialEmployeeConfig;diet_rates?:Record<string,unknown>;plus_rates?:Record<string,unknown>;payroll_terms?:Record<string,unknown>}>;driverSettings?:{base_name:string|null;agreement:string|null};plusOptions?:Record<string,string[]>;jornadas?:Array<{id:string;user_id:string;fecha_inicio:string|null;fecha_fin:string|null;hora_inicio:string|null;hora_fin:string|null;lugar_inicio:string|null;lugar_fin:string|null;tipo_ruta:string|null;dieta_manual_tipo:string|null;dieta_percent?:number|null;conduccion_min?:number|null;tacho_driving_min?:number|null;tacho_work_min?:number|null;tacho_available_min?:number|null;tacho_rest_min?:number|null}>;reviews?:Review[];closures?:Array<{id:string;month:string;driver_id:string;total_diets:number;closed_at:string}>};
 const roleLabels={owner:'Administrador de empresa',traffic:'Departamento de Tráfico',hr:'Recursos Humanos',driver:'Conductor'};
 const monthNow=()=>new Date().toISOString().slice(0,7);
 const euro=(n:number)=>new Intl.NumberFormat('es-ES',{style:'currency',currency:'EUR'}).format(n);
@@ -39,8 +39,8 @@ export function EnterprisePortal(){
  const [hrTab,setHrTab]=useState<'liquidacion'|'asignaciones'>('liquidacion');
  const [assignedDriver,setAssignedDriver]=useState(''),[assignedTraffic,setAssignedTraffic]=useState('');
  const [editDriverConfig,setEditDriverConfig]=useState<InitialEmployeeConfig>(blankCompanyConfig);
- const [proposedPluses,setProposedPluses]=useState<Array<{concepto:string;importe:number}>>([]);
- const [reviewJornada,setReviewJornada]=useState(''),[mode,setMode]=useState('confirm'),[newDietAmount,setNewDietAmount]=useState(''),[reason,setReason]=useState(''),[observation,setObservation]=useState('');
+ const [dietTypes,setDietTypes]=useState<string[]>([]),[plusTypes,setPlusTypes]=useState<string[]>([]);
+ const [reviewJornada,setReviewJornada]=useState(''),[mode,setMode]=useState('confirm'),[reason,setReason]=useState(''),[observation,setObservation]=useState('');
  const [month,setMonth]=useState(monthNow),[responseTexts,setResponseTexts]=useState<Record<string,string>>({});
  useEffect(()=>{
   const value=new URLSearchParams(window.location.search).get('invite')||'';
@@ -60,6 +60,7 @@ export function EnterprisePortal(){
  try{const t=await token();const r=await fetch('/api/empresas/dashboard',{cache:'no-store',headers:{Authorization:'Bearer '+t}});const j=await r.json();if(!r.ok)throw Error(j.error||'No se pudo cargar');setView(j);}
  catch(e:unknown){setError(e instanceof Error?e.message:'Error al cargar');}finally{setLoading(false);}},[user?.id]);
  useEffect(()=>{void load();},[load]);
+ useEffect(()=>{if(view?.member?.role!=='traffic')return;const id=window.setInterval(()=>{void load();},60000);return()=>window.clearInterval(id);},[view?.member?.role,load]);
  const action=async(body:Record<string,unknown>)=>{setBusy(true);setError('');setMessage('');
  try{const t=await token();const r=await fetch('/api/empresas/action',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+t},body:JSON.stringify(body)});const j=await r.json();if(!r.ok)throw Error(j.error||'No se pudo guardar');await load();return j;}
  catch(e:unknown){setError(e instanceof Error?e.message:'Error');return null;}finally{setBusy(false);}};
@@ -122,6 +123,12 @@ export function EnterprisePortal(){
  const pending=reviews.filter(r=>r.status==='awaiting_driver');
  const hrReviews=reviews.filter(r=>r.jornada_date?.startsWith(month));
  const payable=hrReviews.filter(r=>['confirmed','accepted','closed'].includes(r.status));
+ const approvedDiet=(r:Review)=>Math.max(0,(Number(r.status==='accepted'?r.proposed_amount??r.original_amount:r.original_amount)||0)-(Number(r.automatic_plus)||0));
+ const approvedPluses=(r:Review)=>[...(r.status==='accepted'&&r.proposed_pluses!=null?r.proposed_pluses:r.original_pluses||[]),...(r.automatic_plus&&r.automatic_plus>0?[{concepto:r.automatic_plus_concept||'Plus automático',importe:r.automatic_plus}]:[])];
+ const sumPluses=(items:Array<{concepto:string;importe:number}>)=>items.reduce((sum,p)=>/dieta|n[oó]mina|salario|sueldo|anticipo/i.test(p.concepto)?sum:sum+(Number(p.importe)||0),0);
+ const byDriver=(view?.drivers||[]).map(d=>{const all=hrReviews.filter(r=>r.driver_id===d.user_id);const ok=all.filter(r=>['confirmed','accepted','closed'].includes(r.status));return {driver:d,rows:all,confirmed:ok.length,pending:all.filter(r=>r.status==='awaiting_driver').length,disputed:all.filter(r=>r.status==='disputed').length,diets:ok.reduce((s,r)=>s+approvedDiet(r),0),pluses:ok.reduce((s,r)=>s+sumPluses(approvedPluses(r)),0)};});
+ const dietChoices=['REGIONAL','NACIONAL','INTERNACIONAL'].flatMap(t=>[30,60,100].map(p=>({value:t+'_'+p,label:t.charAt(0)+t.slice(1).toLowerCase()+' '+p+' %'})));
+ const duration=(min:number|null|undefined)=>min==null?'Sin datos':Math.floor(min/60)+' h '+String(min%60).padStart(2,'0')+' min';
  const total=payable.reduce((v,r)=>v+(r.status==='accepted'?r.proposed_amount??r.original_amount:r.original_amount),0);
  const renderError=error?<p role="alert" className="rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</p>:null;
  return <main className="min-h-screen bg-slate-50 px-4 py-8 sm:py-12"><div className="mx-auto max-w-6xl space-y-5">
@@ -287,33 +294,91 @@ export function EnterprisePortal(){
    </div>:null}
    </div>
   </section>:null}
-  {member.role==='traffic'?<section className="space-y-4"><div className="grid grid-cols-3 gap-2">{[{label:'Conductores',value:view?.drivers?.length||0},{label:'Jornadas recientes',value:view?.jornadas?.length||0},{label:'Cambios pendientes',value:pending.length}].map(x=><div key={x.label} className="rounded-xl bg-white p-4"><p className="text-2xl font-bold">{x.value}</p><p className="mt-1 text-xs text-slate-500">{x.label}</p></div>)}</div>
-    <div className="rounded-2xl border bg-white p-5"><h2 className="flex items-center gap-2 font-bold"><Truck className="h-5 w-5 text-blue-600"/>Jornadas y dietas por conductor</h2><p className="mt-1 text-xs text-slate-500">Solo conductores de tu empresa.</p><div className="mt-3 max-h-80 overflow-y-auto divide-y">{(view?.jornadas||[]).slice(0,80).map(j=><button type="button" key={j.id} onClick={()=>{setReviewJornada(j.id);setDriverId(j.user_id);setNewDietAmount(j.dieta_importe_eur||'0');setProposedPluses(Array.isArray(j.plus_items)?j.plus_items.map(x=>({concepto:String(x.concepto||''),importe:Number(x.importe)||0})):[]);}} className={'w-full py-3 text-left text-sm '+(reviewJornada===j.id?'text-blue-700 font-bold':'text-slate-700')}><span>{driverName(j.user_id)} · {j.fecha_inicio||'Sin fecha'} · {j.lugar_inicio||'—'} → {j.lugar_fin||'—'}</span><span className="block text-xs text-slate-500">Dieta {j.dieta_manual_tipo||j.tipo_ruta||'—'} · {j.dieta_importe_eur||'—'} €</span></button>)}</div></div>
-    <div className="rounded-2xl border bg-white p-5"><h2 className="font-bold">Revisar dieta seleccionada</h2><p className="mt-1 text-xs text-slate-500">Jornada: {reviewJornada||'Elige una jornada arriba'}</p><div className="mt-3 flex flex-wrap gap-3"><label className="text-sm"><input type="radio" checked={mode==='confirm'} onChange={()=>setMode('confirm')}/> Confirmar sin cambios</label><label className="text-sm"><input type="radio" checked={mode==='propose'} onChange={()=>setMode('propose')}/> Proponer modificación</label></div>
-    {mode==='propose'?<><label className="mt-3 block text-sm">Importe propuesto<input type="number" min="0" step="0.01" value={newDietAmount} onChange={e=>setNewDietAmount(e.target.value)} className={input+' mt-1'}/></label>
-    <div className="mt-4 rounded-xl border p-3"><p className="text-sm font-bold">Pluses propuestos</p><p className="mt-1 text-xs text-slate-500">Puedes añadir, modificar o retirar conceptos. Todos los cambios requieren justificar el motivo y la aceptación del conductor.</p>
-    {proposedPluses.map((p,index)=><div className="mt-2 flex items-center gap-2" key={index}>
-      <input aria-label={'Concepto '+(index+1)} className={input+' min-w-0 flex-1'} value={p.concepto} onChange={e=>setProposedPluses(v=>v.map((x,i)=>i===index?{...x,concepto:e.target.value}:x))} placeholder="Concepto"/>
-      <input aria-label={'Importe '+(index+1)} type="number" min="0" step="0.01" className={input+' w-28'} value={p.importe} onChange={e=>setProposedPluses(v=>v.map((x,i)=>i===index?{...x,importe:Number(e.target.value)}:x))}/>
-      <button aria-label={'Quitar plus '+(index+1)} type="button" onClick={()=>setProposedPluses(v=>v.filter((_,i)=>i!==index))} className="rounded-lg border px-3 py-2 text-red-700">Quitar</button>
-    </div>)}
-    <button type="button" className="mt-3 rounded-lg border px-3 py-2 text-sm font-semibold text-blue-700" onClick={()=>setProposedPluses(v=>[...v,{concepto:'',importe:0}])}>Añadir plus</button>
-    </div>
-    <textarea value={reason} onChange={e=>setReason(e.target.value)} className={input+' mt-2'} placeholder="Motivo obligatorio del cambio (mínimo 10 caracteres)" rows={3}/></>:null}
-    <textarea className={input+' mt-3'} rows={2} placeholder="Observación opcional" value={observation} onChange={e=>setObservation(e.target.value)}/>
-    <button disabled={!reviewJornada||busy} className={button+' mt-3'} onClick={async()=>{const res=await action({action:'review',jornadaId:reviewJornada,driverId,mode,amount:Number(newDietAmount),pluses:proposedPluses,reason,observation});if(res){setReviewJornada('');setMessage(mode==='confirm'?'Dieta confirmada y conductor avisado.':'Propuesta registrada y enviada al conductor.');}}}>{mode==='confirm'?'Confirmar dieta':'Enviar propuesta al conductor'}</button>
-    </div></section>:null}
-  {member.role==='hr'?<section className="space-y-4">
+  {member.role==='traffic'?<section className="space-y-4">
+ <div className="grid grid-cols-3 gap-2">{[{label:'Conductores asignados',value:view?.drivers?.length||0},{label:'Jornadas registradas',value:view?.jornadas?.length||0},{label:'Cambios pendientes',value:pending.length}].map(x=><div key={x.label} className="rounded-xl bg-white p-4"><p className="text-2xl font-bold">{x.value}</p><p className="mt-1 text-xs text-slate-500">{x.label}</p></div>)}</div>
+ <div className="rounded-2xl border border-blue-200 bg-white p-5">
+  <h2 className="font-bold text-slate-900">Jornadas abiertas y sin cierre</h2>
+  <p className="mt-1 text-xs text-slate-500">Datos de Tacoplan actualizados aproximadamente cada minuto mientras este panel esté abierto. Una jornada sin hora de fin no garantiza que el conductor siga trabajando. La actividad actual requiere sincronización desde la app.</p>
+  <div className="mt-3 grid gap-3 sm:grid-cols-2">{(view?.jornadas||[]).filter(j=>!j.fecha_fin&&!j.hora_fin).slice(0,20).map(j=><div className="rounded-xl bg-blue-50 p-4" key={j.id}>
+   <p className="font-semibold">{driverName(j.user_id)}</p>
+   <p className="mt-1 text-sm">{j.fecha_inicio||'Sin fecha'} · Inicio {j.hora_inicio||'Sin hora'}</p>
+   <p className="mt-1 text-xs text-slate-700">Conducción registrada: {duration(j.tacho_driving_min??j.conduccion_min)} · Disponibilidad: {duration(j.tacho_available_min)}</p>
+   <p className="mt-1 text-xs text-slate-500">Última actividad en directo: no disponible sin sincronización</p>
+  </div>)}
+  {!(view?.jornadas||[]).some(j=>!j.fecha_fin&&!j.hora_fin)?<p className="text-sm text-slate-500">No hay jornadas pendientes de cierre.</p>:null}
+  </div>
+ </div>
+ <div className="rounded-2xl border bg-white p-5">
+  <h2 className="flex items-center gap-2 font-bold"><Truck className="h-5 w-5 text-blue-600"/>Jornadas de conductores asignados</h2>
+  <p className="mt-1 text-xs text-slate-500">Horas de inicio y fin, estado de cierre y tiempos de actividad registrados. Las actividades no sincronizadas se muestran como «Sin datos»; no son un seguimiento del tacógrafo en directo.</p>
+  <div className="mt-3 max-h-[32rem] divide-y overflow-y-auto">
+  {(view?.jornadas||[]).slice(0,120).map(j=><button type="button" key={j.id} onClick={()=>{
+   setReviewJornada(j.id);setDriverId(j.user_id);setDietTypes([(j.dieta_manual_tipo||j.tipo_ruta||'').toUpperCase()+'_'+(j.dieta_percent||100)].filter(x=>dietChoices.some(d=>d.value===x)));setPlusTypes([]);setMode('confirm');setReason('');setObservation('');
+  }} className={'w-full py-3 text-left text-sm '+(reviewJornada===j.id?'text-blue-700 font-bold':'text-slate-700')}>
+   <span className="font-semibold">{driverName(j.user_id)} · {j.fecha_inicio||'Sin fecha'} {j.hora_inicio||'—'} → {j.fecha_fin||'Sin cierre'} {j.hora_fin||''}</span>
+   <span className="mt-1 block text-xs text-slate-600">{j.lugar_inicio||'Origen no indicado'} → {j.lugar_fin||'Destino pendiente'} · {j.fecha_fin&&j.hora_fin?'Finalizada':'Sin cierre registrado'}</span>
+   <span className="mt-1 block text-xs">Dieta: {j.dieta_manual_tipo||j.tipo_ruta||'Sin tipo'}{j.dieta_percent?' · '+j.dieta_percent+' %':''}</span>
+   <span className="mt-1 block text-xs text-slate-500">Conducción: {duration(j.tacho_driving_min??j.conduccion_min)} · Disponibilidad: {duration(j.tacho_available_min)} · Otros trabajos: {duration(j.tacho_work_min)} · Descanso: {duration(j.tacho_rest_min)}</span>
+  </button>)}
+  {!(view?.jornadas||[]).length?<p className="py-3 text-sm text-slate-500">No hay jornadas disponibles de los conductores asignados.</p>:null}
+  </div>
+ </div>
+ <div className="rounded-2xl border bg-white p-5">
+  <h2 className="font-bold">Revisar dieta y pluses</h2>
+  <p className="mt-1 text-xs text-slate-500">Jornada: {reviewJornada||'Selecciona una jornada arriba'}. Los importes económicos no son accesibles para Tráfico.</p>
+  <div className="mt-3 flex flex-wrap gap-3"><label className="text-sm"><input type="radio" checked={mode==='confirm'} onChange={()=>setMode('confirm')}/> Confirmar sin cambios</label><label className="text-sm"><input type="radio" checked={mode==='propose'} onChange={()=>setMode('propose')}/> Proponer modificación</label></div>
+  {mode==='propose'?<>
+   <div className="mt-4 rounded-xl border p-3">
+    <p className="text-sm font-bold">Tipos de dieta</p><p className="mt-1 text-xs text-slate-500">Modifica el tipo o añade otra dieta. El conductor revisará la propuesta.</p>
+    {dietTypes.map((selected,i)=><div key={i} className="mt-2 flex gap-2"><select aria-label={'Dieta '+(i+1)} className={input} value={selected} onChange={e=>setDietTypes(v=>v.map((x,n)=>n===i?e.target.value:x))}>{dietChoices.map(x=><option key={x.value} value={x.value}>{x.label}</option>)}</select><button type="button" className="rounded-xl border px-3 text-sm text-red-700" onClick={()=>setDietTypes(v=>v.filter((_,n)=>n!==i))}>Quitar</button></div>)}
+    <button type="button" disabled={dietTypes.length>=8} className="mt-2 rounded-lg border px-3 py-2 text-sm text-blue-700 disabled:opacity-50" onClick={()=>setDietTypes(v=>[...v,'NACIONAL_100'])}>Añadir dieta</button>
+   </div>
+   <div className="mt-3 rounded-xl border p-3">
+    <p className="text-sm font-bold">Pluses</p><p className="mt-1 text-xs text-slate-500">Selecciona conceptos previamente configurados por la empresa.</p>
+    {(view?.plusOptions?.[driverId]||[]).map(concept=><label key={concept} className="mt-2 flex items-center gap-2 text-sm"><input type="checkbox" checked={plusTypes.includes(concept)} onChange={e=>setPlusTypes(v=>e.target.checked?[...v,concept]:v.filter(x=>x!==concept))}/>{concept.replace(/_/g,' ')}</label>)}
+    {!(view?.plusOptions?.[driverId]||[]).length?<p className="mt-2 text-xs text-amber-700">No hay pluses configurados para este conductor.</p>:null}
+   </div>
+   <textarea value={reason} onChange={e=>setReason(e.target.value)} className={input+' mt-3'} placeholder="Motivo obligatorio del cambio (mínimo 10 caracteres)" rows={3}/>
+  </>:null}
+  <textarea className={input+' mt-3'} rows={2} placeholder="Observación opcional" value={observation} onChange={e=>setObservation(e.target.value)}/>
+  <button disabled={!reviewJornada||busy||(mode==='propose'&&reason.trim().length<10)} className={button+' mt-3'} onClick={async()=>{
+   const res=await action({action:'review',jornadaId:reviewJornada,driverId,mode,dietTypes,plusTypes,reason,observation});
+   if(res){setReviewJornada('');setMessage(mode==='confirm'?'Dieta confirmada y conductor avisado.':'Propuesta enviada al conductor para su aceptación.');}
+  }}>{mode==='confirm'?'Confirmar dieta':'Enviar propuesta al conductor'}</button>
+ </div>
+</section>:null}
+   {member.role==='hr'?<section className="space-y-4">
     <nav className="flex flex-wrap gap-2 rounded-2xl border bg-white p-3" aria-label="Secciones de Recursos Humanos">
       <button type="button" className={'rounded-xl px-4 py-2 text-sm font-semibold '+(hrTab==='liquidacion'?'bg-blue-700 text-white':'bg-slate-100 text-slate-700')} onClick={()=>setHrTab('liquidacion')}>Liquidación mensual</button>
       <button type="button" className={'rounded-xl px-4 py-2 text-sm font-semibold '+(hrTab==='asignaciones'?'bg-blue-700 text-white':'bg-slate-100 text-slate-700')} onClick={()=>setHrTab('asignaciones')}>Asignar conductores a Tráfico</button>
     </nav>
     {hrTab==='liquidacion'?<div className="space-y-4"><div className="rounded-2xl border bg-white p-5"><h2 className="flex items-center gap-2 text-xl font-bold"><Wallet className="h-5 w-5 text-blue-600"/>Liquidación de dietas y pluses</h2><p className="mt-1 text-sm text-slate-500">Solo conceptos confirmados. Sin acceso a ubicaciones ni al panel de Tráfico.</p>
-   <label className="mt-4 block text-sm font-semibold">Mes<input type="month" value={month} onChange={e=>setMonth(e.target.value)} className={input+' mt-1 max-w-xs'}/></label><div className="mt-4 grid grid-cols-3 gap-2">{[{label:'Confirmadas',value:payable.length},{label:'Pendientes',value:hrReviews.filter(r=>r.status==='awaiting_driver').length},{label:'En discrepancia',value:hrReviews.filter(r=>r.status==='disputed').length}].map(x=><div key={x.label} className="rounded-xl bg-slate-50 p-3"><p className="text-2xl font-bold">{x.value}</p><p className="text-xs text-slate-500">{x.label}</p></div>)}</div><p className="mt-3 text-xl font-bold">Dietas a liquidar: {euro(total)}</p><div className="mt-4 flex flex-wrap items-center gap-3"><button type="button" disabled={busy||!active||hrReviews.length===0||!!view?.closures?.some(x=>x.month===month)} className={button} onClick={async()=>{
+   <label className="mt-4 block text-sm font-semibold">Mes<input type="month" value={month} onChange={e=>setMonth(e.target.value)} className={input+' mt-1 max-w-xs'}/></label><div className="mt-4 grid grid-cols-3 gap-2">{[{label:'Confirmadas',value:payable.length},{label:'Pendientes',value:hrReviews.filter(r=>r.status==='awaiting_driver').length},{label:'En discrepancia',value:hrReviews.filter(r=>r.status==='disputed').length}].map(x=><div key={x.label} className="rounded-xl bg-slate-50 p-3"><p className="text-2xl font-bold">{x.value}</p><p className="text-xs text-slate-500">{x.label}</p></div>)}</div><p className="mt-3 text-xl font-bold">Total confirmado (incluye pluses): {euro(total)} <span className="ml-3 text-sm font-medium text-slate-600">De ellos, pluses: {euro(byDriver.reduce((s,d)=>s+d.pluses,0))}</span></p><div className="mt-4 flex flex-wrap items-center gap-3"><button type="button" disabled={busy||!active||hrReviews.length===0||!!view?.closures?.some(x=>x.month===month)} className={button} onClick={async()=>{
     if(!window.confirm('Cerrar el mes '+month+' con las dietas confirmadas? Las pendientes y discrepancias quedarán identificadas. Este cierre no podrá sobrescribirse.'))return;
     setBusy(true);setError('');try{const t=await token();const r=await fetch('/api/empresas/payroll',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+t},body:JSON.stringify({month})});const j=await r.json();if(!r.ok)throw Error(j.error||'No se pudo cerrar el mes');setMessage('Cierre mensual guardado para '+j.drivers+' conductores.');await load();}catch(e:unknown){setError(e instanceof Error?e.message:'Error de cierre');}finally{setBusy(false);}
    }}>Cerrar mes confirmado</button>{view?.closures?.some(x=>x.month===month)?<span className="text-xs font-semibold text-emerald-700">Mes ya cerrado</span>:null}</div><p className="text-xs text-slate-500">Las cantidades no confirmadas no desaparecen; siguen identificadas como pendientes o discrepantes.</p></div>
-   <div className="rounded-2xl border bg-white p-5"><h3 className="font-bold">Revisiones y observaciones</h3><div className="mt-3 divide-y">{hrReviews.map(r=><div key={r.id} className="py-3 text-sm"><p className="font-semibold">{driverName(r.driver_id)} · {r.jornada_date||'Sin fecha'} · {r.status}</p><p className="text-slate-600">{r.original_diet_type||'Dieta'}: {euro(Number(r.original_amount))}{r.proposed_amount!==null?' → '+euro(Number(r.proposed_amount)):''}</p>{r.change_reason?<p className="text-xs text-amber-800">Motivo: {r.change_reason}</p>:null}{r.proposed_pluses?<p className="text-xs text-slate-600">Pluses propuestos: {r.proposed_pluses.map(p=>p.concepto+' ('+euro(Number(p.importe))+')').join(', ')||'Eliminados'}</p>:null}{r.driver_observation?<p className="text-xs text-blue-800">Conductor: {r.driver_observation}</p>:null}</div>)}</div></div></div>:null}
+   <div className="rounded-2xl border bg-white p-5">
+ <h3 className="text-lg font-bold">Liquidación individual por conductor</h3>
+ <p className="mt-1 text-sm text-slate-500">Desglose del mes seleccionado. Solo los conceptos confirmados o aceptados se incorporan al importe liquidable. Los importes proceden de los registros existentes.</p>
+ <div className="mt-4 space-y-4">{byDriver.map(d=><section key={d.driver.user_id} className="rounded-xl border border-slate-200 p-4">
+  <h4 className="font-bold">{d.driver.employee_name||d.driver.username}</h4>
+  <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+   {[{label:'Importe de jornadas',value:euro(d.diets)},{label:'Pluses separados',value:euro(d.pluses)},{label:'Confirmadas',value:String(d.confirmed)},{label:'Pendientes / disputa',value:d.pending+' / '+d.disputed}].map(x=><div key={x.label} className="rounded-lg bg-slate-50 p-3"><p className="text-xs text-slate-500">{x.label}</p><p className="mt-1 text-sm font-bold">{x.value}</p></div>)}
+  </div>
+  <p className="mt-3 font-semibold">Total identificado: {euro(d.diets+d.pluses)}</p>
+  <div className="mt-2 divide-y">{d.rows.map(r=><div key={r.id} className="py-3 text-sm">
+   <p className="font-semibold">{r.jornada_date||'Sin fecha'} · {r.status==='confirmed'?'Confirmada':r.status==='accepted'?'Aceptada':r.status==='awaiting_driver'?'Pendiente del conductor':r.status==='disputed'?'Discrepancia':r.status}</p>
+   <p className="text-slate-600">Dieta: {r.proposed_diet_type&&r.status==='accepted'?r.proposed_diet_type:r.original_diet_type||'No especificada'} · {euro(approvedDiet(r))}</p>
+   {approvedPluses(r).length?<p className="text-slate-600">Pluses: {approvedPluses(r).map(p=>p.concepto+' ('+euro(Number(p.importe))+')').join(', ')}</p>:null}
+   {r.change_reason?<p className="text-xs text-amber-800">Motivo: {r.change_reason}</p>:null}
+   {r.driver_observation?<p className="text-xs text-blue-800">Conductor: {r.driver_observation}</p>:null}
+  </div>)}
+  {!d.rows.length?<p className="py-3 text-sm text-slate-500">No hay revisiones de este conductor en el mes.</p>:null}
+  </div>
+ </section>)}
+ {!byDriver.length?<p className="text-sm text-slate-500">No hay conductores vinculados a esta empresa.</p>:null}
+ </div>
+</div></div>:null}
     {hrTab==='asignaciones'?<div className="rounded-2xl border border-slate-200 bg-white p-5">
       <h2 className="flex items-center gap-2 text-lg font-bold text-slate-900"><UserRoundCog className="h-5 w-5 text-blue-600"/>Responsables de Tráfico</h2>
       <p className="mt-2 text-sm text-slate-600">Asigna cada conductor a un usuario de Tráfico. Solo ese responsable podrá ver sus jornadas y revisar sus dietas. Puedes cambiarlo o dejarlo sin asignar.</p>
