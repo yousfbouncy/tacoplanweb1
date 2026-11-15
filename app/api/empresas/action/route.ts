@@ -145,9 +145,10 @@ export async function POST(req:NextRequest){
   ]);
   if(existing.error||pending.error)throw existing.error||pending.error;
   if((existing.data||[]).length||(pending.data||[]).length)return json({error:'Nombre de usuario ya ocupado'},409);
-  // Supabase Auth requires an email identity internally. This randomly generated,
-  // non-routable identifier is not requested from, or sent to, the employee.
-  const internalEmail=randomBytes(20).toString('hex')+'@staff.tacoplan.invalid';
+  // Supabase Auth requires an internal email identifier. Use the real,
+  // controlled tacoplan.es domain: reserved .invalid domains are rejected.
+  // Employees still sign in with their username; no email is requested.
+  const internalEmail='staff-'+randomBytes(20).toString('hex')+'@tacoplan.es';
   const created=await db.auth.admin.createUser({
    email:internalEmail,password,email_confirm:true,
    app_metadata:{tp_account_type:'staff'},
