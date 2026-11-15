@@ -421,7 +421,7 @@ export function EnterprisePortal(){
     <div className="rounded-2xl border border-blue-200 bg-white p-5">
      <h2 className="text-lg font-bold">Compartir jornadas anteriores con mi empresa</h2>
      <p className="mt-2 text-sm text-slate-600">Por defecto, Tráfico solo puede consultar las jornadas registradas después de tu incorporación. Si activas este permiso, los responsables de Tráfico a los que RRHH te asigne podrán consultar también tus jornadas anteriores, incluidas fechas, horas, trayectos y tipos de dieta. No podrán ver importes económicos.</p>
-     <p className="mt-3 text-sm font-semibold">{view?.historySharing?.enabled?'Historial anterior compartido con Bouncy':'Historial anterior no compartido'}</p>
+     <p className="mt-3 text-sm font-semibold">{view?.historySharing?.enabled?'Historial anterior compartido con mi empresa':'Historial anterior no compartido'}</p>
      <button type="button" disabled={busy} className={view?.historySharing?.enabled?'mt-3 rounded-xl border border-red-300 px-4 py-2.5 text-sm font-semibold text-red-700':'mt-3 '+button} onClick={async()=>{
       const enabled=!view?.historySharing?.enabled;
       if(enabled&&!window.confirm('¿Autorizas a los responsables de Tráfico asignados por tu empresa a consultar también todas tus jornadas anteriores? Podrás revocar el acceso desde aquí.'))return;
