@@ -70,6 +70,13 @@ function restBetween(older:Journey,newer:Journey){
  if(!end||!start||start.getTime()<end.getTime())return null;
  return {minutes:Math.floor((start.getTime()-end.getTime())/60000),started:end.toLocaleString('es-ES',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}),ended:start.toLocaleString('es-ES',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})};
 }
+const recordedRestDates=(j:Journey)=>{
+ const r=previousRest(j);
+ if(!r)return null;
+ const fmt=(value:string)=>{const d=new Date(value);return Number.isFinite(d.getTime())?d.toLocaleString('es-ES',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):null;};
+ const start=r.startAt?fmt(r.startAt):null,end=r.endAt?fmt(r.endAt):null;
+ return start&&end?start+' → '+end:null;
+};
 const labels:Record<string,string>={confirmed:'Confirmada',accepted:'Aceptada',closed:'Cerrada',awaiting_driver:'Pendiente del conductor',disputed:'En discrepancia'};
 const approved=(r:Review)=>['confirmed','accepted','closed'].includes(r.status);
 const gross=(r:Review)=>Number(r.status==='accepted'?r.proposed_amount??r.original_amount:r.original_amount)||0;
