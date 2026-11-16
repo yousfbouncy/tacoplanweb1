@@ -1,7 +1,7 @@
 'use client';
 import {jornadaActivityMinutes} from '@/lib/tp-jornada-activity-minutes';
 import {tripsForJornada} from '@/lib/tp-traffic-trip-history';
-import {elapsedRestSinceClose} from '@/lib/tp-traffic-rest';
+import {elapsedRestSinceClose,previousRest} from '@/lib/tp-traffic-rest';
 import {useEffect,useMemo,useState} from 'react';
 import {Activity,AlertCircle,ArrowRight,BarChart3,CheckCircle2,ChevronDown,Clock3,FileText,Filter,LayoutDashboard,LogOut,Menu,Plus,RefreshCw,Search,ShieldCheck,Truck,Users,Wallet, X} from 'lucide-react';
 import {supabase} from '@/lib/supabase';
