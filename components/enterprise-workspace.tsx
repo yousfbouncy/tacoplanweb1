@@ -1,7 +1,7 @@
 'use client';
 import {jornadaActivityMinutes} from '@/lib/tp-jornada-activity-minutes';
 import {tripsForJornada} from '@/lib/tp-traffic-trip-history';
-import {elapsedRestSinceClose,previousRest} from '@/lib/tp-traffic-rest';
+import {elapsedRestSinceClose} from '@/lib/tp-traffic-rest';
 import {useEffect,useMemo,useState} from 'react';
 import {Activity,AlertCircle,ArrowRight,BarChart3,CheckCircle2,ChevronDown,Clock3,FileText,Filter,LayoutDashboard,LogOut,Menu,Plus,RefreshCw,Search,ShieldCheck,Truck,Users,Wallet, X} from 'lucide-react';
 import {supabase} from '@/lib/supabase';
@@ -62,13 +62,14 @@ const todayMonth=()=>new Date().toISOString().slice(0,7);
 const dt=(day?:string|null,time?:string|null)=>day&&time?new Date(day+'T'+time+':00'):null;
 const validDate=(d:Date|null)=>d&&!Number.isNaN(d.getTime())?d:null;
 const hours=(n?:number|null)=>n==null?'Sin datos':Math.floor(n/60)+' h '+String(n%60).padStart(2,'0')+' min';
-const recordedRestDates=(j:Journey)=>{
- const r=previousRest(j);
- if(!r)return null;
- const fmt=(value:string)=>{const d=new Date(value);return Number.isFinite(d.getTime())?d.toLocaleString('es-ES',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):null;};
- const start=r.startAt?fmt(r.startAt):null,end=r.endAt?fmt(r.endAt):null;
- return start&&end?start+' → '+end:null;
-};
+// El descanso entre jornadas es el intervalo desde el cierre hasta el siguiente inicio.
+// No se etiqueta como descanso legal verificado sin datos del tacógrafo.
+function restBetween(older:Journey,newer:Journey){
+ const end=validDate(dt(older.fecha_fin,older.hora_fin))||validDate(older.end_at?new Date(older.end_at):null);
+ const start=validDate(dt(newer.fecha_inicio,newer.hora_inicio))||validDate(newer.start_at?new Date(newer.start_at):null);
+ if(!end||!start||start.getTime()<end.getTime())return null;
+ return {minutes:Math.floor((start.getTime()-end.getTime())/60000),started:end.toLocaleString('es-ES',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}),ended:start.toLocaleString('es-ES',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})};
+}
 const labels:Record<string,string>={confirmed:'Confirmada',accepted:'Aceptada',closed:'Cerrada',awaiting_driver:'Pendiente del conductor',disputed:'En discrepancia'};
 const approved=(r:Review)=>['confirmed','accepted','closed'].includes(r.status);
 const gross=(r:Review)=>Number(r.status==='accepted'?r.proposed_amount??r.original_amount:r.original_amount)||0;
@@ -245,14 +246,14 @@ export default function EnterpriseWorkspace({view,busy,loading,error,message,ref
   <div className="flex items-start justify-between gap-3 border-b border-slate-100 px-5 py-4"><div><p className="text-xs font-bold uppercase tracking-wide text-blue-600">{traffic?'Ficha operativa':'Liquidación individual'}</p><h2 className="mt-1 text-xl font-bold">{display(selectedDriver)}</h2><p className="text-xs text-slate-500">@{selectedDriver.username}</p></div><button aria-label="Cerrar ficha" className={secondary+' !p-2'} onClick={()=>{setDrawer(null);setSelectedJourney('');}}><X size={18}/></button></div>
   <div className="flex-1 space-y-5 overflow-y-auto p-5">{traffic?<>
    {operating(selectedDriver)}
-   <div><h3 className="font-bold">Jornadas y actividades registradas</h3><div className="mt-3 space-y-2">{driverJourneys.slice(0,historyLimit).map(j=><button onClick={()=>chooseJourney(j)} key={j.id} className={'w-full rounded-xl border p-3 text-left text-sm '+(selectedJourney===j.id?'border-blue-400 bg-blue-50':'border-slate-200 hover:bg-slate-50')}>
-    <p className="font-semibold">{j.fecha_inicio||'Sin fecha'} · {j.hora_inicio||'—'} → {j.fecha_fin||'Sin cierre'} · {j.hora_fin||'—'}</p><p className="mt-1 text-xs text-slate-500">{j.lugar_inicio||'Origen pendiente'} → {j.lugar_fin||'Destino pendiente'}</p><p className="mt-1 text-xs">Conducción: {hours(jornadaActivityMinutes(j).driving)} · Disponibilidad: {hours(jornadaActivityMinutes(j).available)} · Descanso: {hours(jornadaActivityMinutes(j).rest)} · Otros trabajos: {hours(jornadaActivityMinutes(j).work)}</p>{previousRest(j)?<><p className="mt-1 text-xs text-slate-600">Descanso anterior: {hours(previousRest(j)!.minutes)} · {previousRest(j)!.type}{previousRest(j)!.verified?' · Verificado':' · Registrado (sin verificar)'}</p>{recordedRestDates(j)?<p className="mt-1 text-xs text-slate-500">Desde {recordedRestDates(j)}</p>:null}</>:<p className="mt-1 text-xs text-slate-500">Descanso anterior: Sin datos</p>}{tripsForJornada(j,trips).map(({trip,status,startDay,estimatedCompletion})=>
+   <div><h3 className="font-bold">Jornadas y actividades registradas</h3><div className="mt-3 space-y-2">{driverJourneys.slice(0,historyLimit).map((j,i)=><div key={j.id}><button onClick={()=>chooseJourney(j)} className={'w-full rounded-xl border p-3 text-left text-sm '+(selectedJourney===j.id?'border-blue-400 bg-blue-50':'border-slate-200 hover:bg-slate-50')}>
+    <p className="font-semibold">{j.fecha_inicio||'Sin fecha'} · {j.hora_inicio||'—'} → {j.fecha_fin||'Sin cierre'} · {j.hora_fin||'—'}</p><p className="mt-1 text-xs text-slate-500">{j.lugar_inicio||'Origen pendiente'} → {j.lugar_fin||'Destino pendiente'}</p><p className="mt-1 text-xs">Conducción: {hours(jornadaActivityMinutes(j).driving)} · Disponibilidad: {hours(jornadaActivityMinutes(j).available)} · Descanso durante jornada: {hours(jornadaActivityMinutes(j).rest)} · Otros trabajos: {hours(jornadaActivityMinutes(j).work)}</p>{tripsForJornada(j,trips).map(({trip,status,startDay,estimatedCompletion})=>
   <p key={trip.id} className="mt-1 rounded-lg bg-blue-50 px-2 py-1.5 text-xs text-blue-900">
     <span className="font-semibold">Viaje: {status==='finalizado'?'Finalizado':startDay?'Registrado · en curso':'En curso'}</span>
     {' · '+(trip.cliente||'Sin cliente')}{tripDestination(trip)?' · '+tripDestination(trip):''}
     {estimatedCompletion?' · Fecha de cierre aproximada':''}
   </p>
-)}<p className="mt-1 text-xs text-blue-700">Dieta: {j.dieta_manual_tipo||j.tipo_ruta||'Sin tipo'} {j.dieta_percent||''}{j.dieta_percent?' %':''}</p></button>)}
+)}<p className="mt-1 text-xs text-blue-700">Dieta: {j.dieta_manual_tipo||j.tipo_ruta||'Sin tipo'} {j.dieta_percent||''}{j.dieta_percent?' %':''}</p></button>{driverJourneys[i+1]&&restBetween(driverJourneys[i+1],j)?<div className="my-2 ml-4 rounded-xl border-l-4 border-sky-400 bg-sky-50 px-4 py-3 text-xs text-sky-950"><strong>Descanso entre jornadas: {hours(restBetween(driverJourneys[i+1],j)!.minutes)}</strong><p className="mt-1 text-sky-800">Desde {restBetween(driverJourneys[i+1],j)!.started} hasta {restBetween(driverJourneys[i+1],j)!.ended} · Intervalo calculado, pendiente de verificar</p></div>:null}</div>)}
     {driverJourneys.length>historyLimit?<button type="button" className={secondary+' w-full'} onClick={()=>setHistoryLimit(n=>n+50)}>Ver más jornadas anteriores ({driverJourneys.length-historyLimit} pendientes)</button>:null}
     {!driverJourneys.length?<p className="text-sm text-slate-500">Sin jornadas disponibles.</p>:null}</div></div>
    {chosen&&chosen.user_id===selectedDriver.user_id?<div className="rounded-xl border border-blue-200 p-4"><h3 className="font-bold">Revisión de dieta y pluses</h3><p className="mt-1 text-xs text-slate-500">No se muestran importes. Las tarifas se calculan en el servidor.</p><div className="mt-3 flex flex-wrap gap-3 text-sm"><label><input type="radio" checked={mode==='confirm'} onChange={()=>setMode('confirm')}/> Confirmar sin cambios</label><label><input type="radio" checked={mode==='propose'} onChange={()=>setMode('propose')}/> Proponer modificación</label></div>
