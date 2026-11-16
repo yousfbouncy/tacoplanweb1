@@ -24,7 +24,7 @@ export function jornadaActivityMinutes(j:JornadaActivitySummary){
  const manualDriving=nonNegative(j.conduccion_min);
  const tachoDriving=nonNegative(j.tacho_driving_min);
  // Manual driving has priority when stored tachograph fields are defaults.
- const driving=synchronizedDriving!==null?synchronizedDriving:manualDriving!==null&&manualDriving>0?manualDriving:tachoDriving!==null&&tachoDriving>0?tachoDriving:manualDriving;
+ const driving=synchronizedDriving!==null?synchronizedDriving:manualDriving!==null?manualDriving:tachoDriving!==null&&tachoDriving>0?tachoDriving:null;
  // An unpopulated tachograph summary often stores all auxiliary fields as 0.
  const hasTachoData=[j.tacho_driving_min,j.tacho_available_min,j.tacho_rest_min,j.tacho_work_min]
    .some(v=>typeof v==='number'&&v>0);
