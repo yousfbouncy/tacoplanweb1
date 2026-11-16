@@ -9,17 +9,34 @@ export type ShiftForRest={
  planned_rest_min?:number|null;planned_rest_type?:string|null;
  descanso_anterior_min?:number|null;tipo_descanso_anterior?:string|null;
  previous_rest_valid?:boolean|null;
+ previous_rest_start_at?:string|null;
+ previous_rest_end_at?:string|null;
+ previous_rest_legal_type?:string|null;
 };
 export function restReferenceLabel(kind?:string|null):string{
  const value=(kind||'').toUpperCase();
- if(value.includes('SEMANAL')||value.includes('WEEKLY'))return value.includes('REDUC')?'Semanal reducido':'Semanal';
- if(value.includes('DIARIO')||value.includes('DAILY'))return value.includes('REDUC')?'Diario reducido':'Diario';
+ if(value.includes('SEMANAL')||value.includes('WEEKLY'))return value.includes('REDUC')?'Semanal reducido':value.includes('COMPLETO')||value.includes('REGULAR')?'Semanal completo':'Semanal';
+ if(value.includes('DIARIO')||value.includes('DAILY'))return value.includes('REDUC')?'Diario reducido':value.includes('COMPLETO')||value.includes('REGULAR')?'Diario completo':'Diario';
  return 'Sin clasificación';
 }
 export function previousRest(j:ShiftForRest){
- const minutes=j.descanso_anterior_min;
- if(typeof minutes!=='number'||!Number.isFinite(minutes)||minutes<0)return null;
- return {minutes,type:restReferenceLabel(j.tipo_descanso_anterior),verified:j.previous_rest_valid===true};
+ const start=j.previous_rest_start_at||null;
+ const end=j.previous_rest_end_at||null;
+ const explicit=j.descanso_anterior_min;
+ let minutes=typeof explicit==='number'&&Number.isFinite(explicit)&&explicit>=0?explicit:null;
+ // When the stored duration is absent, use only recorded rest boundaries.
+ if(minutes===null&&start&&end){
+  const a=Date.parse(start),b=Date.parse(end);
+  if(Number.isFinite(a)&&Number.isFinite(b)&&b>=a)minutes=Math.floor((b-a)/60000);
+ }
+ if(minutes===null)return null;
+ return {
+  minutes,
+  type:restReferenceLabel(j.tipo_descanso_anterior||j.previous_rest_legal_type),
+  verified:j.previous_rest_valid===true,
+  ...(start?{startAt:start}:{}),
+  ...(end?{endAt:end}:{}),
+ };
 }
 export function elapsedRestSinceClose(j:ShiftForRest,now=Date.now()){
  if(!j.fecha_fin||!j.hora_fin)return null;
