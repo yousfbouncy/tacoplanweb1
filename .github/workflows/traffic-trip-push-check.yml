@@ -1,0 +1,20 @@
+name: Verify traffic trip assignment push
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'app/api/empresas/assign-trip/route.ts'
+      - '.github/workflows/traffic-trip-push-check.yml'
+jobs:
+  typecheck:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npm run typecheck
