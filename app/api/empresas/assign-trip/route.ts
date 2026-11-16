@@ -58,7 +58,7 @@ export async function POST(req:NextRequest){
      to,
      title:'Tacoplan · Nuevo viaje asignado',
      body:cliente+' · '+paradas[0].lugar,
-     sound:'tacoplan-viaje.wav',
+     sound:'tacoplan_viaje.wav',
      channelId:'traffic-assigned-v1',
      priority:'high',
      data:{target:'viaje',tripId:id,source:'traffic',eventId:'assigned:'+id}
