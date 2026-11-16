@@ -65,7 +65,7 @@ export async function GET(req:NextRequest){
    ids.length?db.from('jornadas').select('id,user_id,created_at,fecha_inicio,fecha_fin,hora_inicio,hora_fin,lugar_inicio,lugar_fin,tipo_ruta,dieta_manual_tipo,dieta_percent,conduccion_min,tacho_driving_min,tacho_work_min,tacho_available_min,tacho_rest_min,start_at,end_at,planned_rest_min,planned_rest_type,legal_summary,descanso_anterior_min,tipo_descanso_anterior,previous_rest_start_at,previous_rest_end_at,previous_rest_legal_type,previous_rest_valid,split_rest_detected,split_rest_first_part_min,split_rest_second_part_min,counts_as_reduced_rest,is_double_driving').in('user_id',ids).order('created_at',{ascending:false}).limit(1500):Promise.resolve({data:[],error:null}),
    db.from('tp_diet_reviews').select('id,jornada_id,jornada_date,driver_id,status,original_diet_type,proposed_diet_type,traffic_observation,change_reason,driver_observation,created_at').eq('company_id',companyId).in('driver_id',ids.length?ids:['00000000-0000-0000-0000-000000000000']).order('created_at',{ascending:false}).limit(1000),
    ids.length?db.from('tp_driver_settings').select('driver_id,plus_rates').eq('company_id',companyId).in('driver_id',ids):Promise.resolve({data:[],error:null}),
-   ids.length?db.from('tacho_activities').select('user_id,tipo,inicio,fin,updated_at').in('user_id',ids).order('inicio',{ascending:false}).limit(750):Promise.resolve({data:[],error:null}),
+   ids.length?db.from('tacho_activities').select('user_id,shift_id,source,tipo,inicio,fin,updated_at').in('user_id',ids).order('inicio',{ascending:false}).limit(750):Promise.resolve({data:[],error:null}),
    ids.length?db.from('viajes').select('id,user_id,cliente,modo_viaje,fin_lugar,fin_hora,estado,paradas,created_at,updated_at').in('user_id',ids).order('created_at',{ascending:false}).limit(500):Promise.resolve({data:[],error:null})
   ]);
   if(jornadas.error||reviews.error||plusSettings.error||activityRows.error||trips.error)throw jornadas.error||reviews.error||plusSettings.error||activityRows.error||trips.error;
@@ -75,10 +75,38 @@ export async function GET(req:NextRequest){
    const joined=joinedAt.get(j.user_id);
    return joined!==undefined&&new Date(j.created_at).getTime()>=joined;
   });
+  // Manual activity controls are stored as ongoing segments (fin=NULL while active).
+  // Count each segment once for its jornada; never substitute a default zero from tacho summaries.
+  const segmentsByShift = new Map<string,{ driving:number; available:number; rest:number; work:number }>();
+  const allowedShifts = new Set(visibleJornadas.map(j=>j.id));
+  for (const activity of activityRows.data || []) {
+    if (activity.source !== 'manual' || !activity.shift_id || !allowedShifts.has(activity.shift_id)) continue;
+    const start = new Date(activity.inicio).getTime();
+    const end = activity.fin ? new Date(activity.fin).getTime() : Date.now();
+    if (!Number.isFinite(start) || !Number.isFinite(end) || end < start) continue;
+    const minutes = Math.max(0, (end - start) / 60000);
+    const totals = segmentsByShift.get(activity.shift_id) || {driving:0,available:0,rest:0,work:0};
+    const kind = String(activity.tipo || '').toUpperCase();
+    if (kind === 'CONDUCCION') totals.driving += minutes;
+    else if (kind === 'DISPONIBILIDAD') totals.available += minutes;
+    else if (kind === 'DESCANSO') totals.rest += minutes;
+    else if (kind === 'OTROS_TRABAJOS') totals.work += minutes;
+    segmentsByShift.set(activity.shift_id, totals);
+  }
+  const journeysWithActivities = visibleJornadas.map(j=>{
+    const totals = segmentsByShift.get(j.id);
+    return totals ? {
+      ...j,
+      activity_driving_min: Math.floor(totals.driving),
+      activity_available_min: Math.floor(totals.available),
+      activity_rest_min: Math.floor(totals.rest),
+      activity_work_min: Math.floor(totals.work),
+    } : j;
+  });
   const dutyLimits=Object.fromEntries(ids.map(id=>[id,calculateTrafficDutyLimit(
    visibleJornadas.filter(j=>j.user_id===id) as TrafficDutyJornada[]
   )]));
-  return enterpriseJson({company,member,dutyLimits,drivers:myDrivers,trips:(trips.data||[]).filter(t=>{const joined=joinedAt.get(t.user_id);return joined!==undefined&&new Date(t.created_at).getTime()>=joined;}),activities:(activityRows.data||[]).filter(a=>{const joined=joinedAt.get(a.user_id);return joined!==undefined&&new Date(a.inicio).getTime()>=joined;}),plusOptions:Object.fromEntries((plusSettings.data||[]).map(s=>[s.driver_id,Object.keys(s.plus_rates||{})])),jornadas:visibleJornadas,reviews:reviews.data||[]});
+  return enterpriseJson({company,member,dutyLimits,drivers:myDrivers,trips:(trips.data||[]).filter(t=>{const joined=joinedAt.get(t.user_id);return joined!==undefined&&new Date(t.created_at).getTime()>=joined;}),activities:(activityRows.data||[]).filter(a=>{const joined=joinedAt.get(a.user_id);return joined!==undefined&&new Date(a.inicio).getTime()>=joined;}),plusOptions:Object.fromEntries((plusSettings.data||[]).map(s=>[s.driver_id,Object.keys(s.plus_rates||{})])),jornadas:journeysWithActivities,reviews:reviews.data||[]});
  }
  if(role==='driver'){
   const [settings,sharing,reviews]=await Promise.all([
