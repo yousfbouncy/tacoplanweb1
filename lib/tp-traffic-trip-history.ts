@@ -15,8 +15,11 @@ export type TripAtJornada = {trip:HistoricalTrip;status:'en_curso'|'finalizado';
 const TERMINAL=/^(finalizad[oa]|terminad[oa]|completad[oa]|completed|finished|done|closed|cerrad[oa])$/i;
 function dateAt(iso:string|null|undefined,timeZone:string):string|null{
  if(!iso||!Number.isFinite(Date.parse(iso)))return null;
- return new Intl.DateTimeFormat('en-CA',{year:'numeric',month:'2-digit',day:'2-digit',timeZone})
-  .format(new Date(iso));
+ const parts=new Intl.DateTimeFormat('en-US',{year:'numeric',month:'2-digit',day:'2-digit',timeZone})
+  .formatToParts(new Date(iso));
+ const read=(type:string)=>parts.find(p=>p.type===type)?.value||'';
+ const year=read('year'),month=read('month'),day=read('day');
+ return year&&month&&day?year+'-'+month+'-'+day:null;
 }
 function validDay(x:string|null|undefined):x is string{return !!x&&/^\d{4}-\d{2}-\d{2}$/.test(x);}
 export function tripsForJornada(j:HistoricalJornada,trips:HistoricalTrip[],timeZone='Europe/Madrid'):TripAtJornada[]{
@@ -31,9 +34,9 @@ export function tripsForJornada(j:HistoricalJornada,trips:HistoricalTrip[],timeZ
   const final=TERMINAL.test((trip.estado||'').trim());
   const end=final?dateAt(trip.completed_at||trip.updated_at,timeZone):null;
   if(final&&!end)continue; // No identifiable completion date: don't invent one.
-  if(final&&end!<dayStart)continue;
+  if(final&&end!==null&&end<dayStart)continue;
   // If the closure and start fall within one jornada, its status is Finalizado.
-  const finishHere=final&&end!>=dayStart&&end!<=dayEnd;
+  const finishHere=final&&end!==null&&end>=dayStart&&end<=dayEnd;
   matches.push({trip,status:finishHere?'finalizado':'en_curso',startDay:begin>=dayStart&&begin<=dayEnd,estimatedCompletion:finishHere&&!trip.completed_at});
  }
  return matches.sort((a,b)=>Date.parse(a.trip.created_at)-Date.parse(b.trip.created_at));
