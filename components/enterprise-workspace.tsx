@@ -9,7 +9,7 @@ import TrafficTripAssignment from '@/components/traffic-trip-assignment';
 type Driver={user_id:string;username:string;employee_name?:string|null;joined_at?:string};
 type Journey={id:string;user_id:string;fecha_inicio?:string|null;fecha_fin?:string|null;hora_inicio?:string|null;hora_fin?:string|null;start_at?:string|null;end_at?:string|null;lugar_inicio?:string|null;lugar_fin?:string|null;tipo_ruta?:string|null;dieta_manual_tipo?:string|null;dieta_percent?:number|null;conduccion_min?:number|null;tacho_driving_min?:number|null;tacho_work_min?:number|null;tacho_available_min?:number|null;tacho_rest_min?:number|null;planned_rest_min?:number|null;planned_rest_type?:string|null;descanso_anterior_min?:number|null;tipo_descanso_anterior?:string|null;previous_rest_valid?:boolean|null;legal_summary?:LegalInfo|null};
 type Review={id:string;driver_id:string;jornada_id?:string;jornada_date?:string|null;status:string;original_diet_type?:string|null;proposed_diet_type?:string|null;original_amount?:number;proposed_amount?:number|null;automatic_plus?:number;automatic_plus_concept?:string|null;original_pluses?:Array<{concepto:string;importe:number}>;proposed_pluses?:Array<{concepto:string;importe:number}>|null;traffic_observation?:string|null;driver_observation?:string|null;change_reason?:string|null};
-type ActivityRow={user_id:string;tipo:string;inicio:string;fin:string|null;updated_at:string};
+type ActivityRow={user_id:string;shift_id?:string|null;tipo:string;inicio:string;fin:string|null;updated_at:string};
 type Trip={id:string;user_id:string;cliente?:string|null;modo_viaje?:string|null;fin_lugar?:string|null;estado?:string|null;paradas?:unknown;created_at:string;updated_at?:string|null};
 type LegalInfo={jornada_maxima_min?:number;max_jornada_min?:number;jornadaMaximaMin?:number;limit_verified?:boolean};
 type HistoryDutyLimit={status:'available'|'exhausted'|'unknown'|'double_driving';maximumMinutes:780|900|null;reducedRestsUsed:number|null;reducedRestsRemaining:number|null;reason:string};
@@ -73,7 +73,7 @@ const status=(j?:Journey,activity?:ActivityRow)=>{
  const start=validDate(dt(j.fecha_inicio,j.hora_inicio));
  if(!start||start.getTime()>Date.now()+120000)return 'Pendiente de inicio';
  if(Date.now()-start.getTime()>36*3600000)return 'Sin cierre (antigua)';
- if(activity&&activity.fin===null&&Date.now()-new Date(activity.updated_at).getTime()<15*60000){
+ if(activity&&activity.fin===null&&(!activity.shift_id||activity.shift_id===j.id)){
   const t=activity.tipo.toLowerCase();
   if(/conduc|driv/.test(t))return 'Conduciendo';
   if(/dispon|avail/.test(t))return 'Disponibilidad';
@@ -115,7 +115,7 @@ export default function EnterpriseWorkspace({view,busy,loading,error,message,ref
  const latest=new Map<string,Journey>();
  for(const j of journeys)if(!latest.has(j.user_id))latest.set(j.user_id,j);
  const latestActivities=new Map<string,ActivityRow>();
- for(const a of activities)if(!latestActivities.has(a.user_id))latestActivities.set(a.user_id,a);
+ for(const a of activities)if(!latestActivities.has(a.user_id)&&(!a.shift_id||latest.get(a.user_id)?.id===a.shift_id))latestActivities.set(a.user_id,a);
  const state=(d:Driver)=>status(latest.get(d.user_id),latestActivities.get(d.user_id));
  const journeyLimit=(d:Driver)=>dutyCountdown(latest.get(d.user_id),view.dutyLimits?.[d.user_id],now);
  const tripFor=(d:Driver)=>currentTrip(trips,d.user_id);
@@ -129,7 +129,7 @@ export default function EnterpriseWorkspace({view,busy,loading,error,message,ref
     <div className="rounded-xl bg-white p-3"><p className="text-slate-500">Inicio de jornada</p><p className="mt-1 font-bold">{j?.fecha_inicio||'—'} · {j?.hora_inicio||'—'}</p></div>
     <div className="rounded-xl bg-white p-3"><p className="text-slate-500">{opened?'Tiempo restante de jornada':'Descanso desde cierre de jornada'}</p><p className="mt-1 text-base font-bold">{opened?(limit?limit.remaining:'Pendiente de verificar'):rest?hours(rest.elapsedMinutes):'Sin cierre confirmado'}</p>{limit&&opened?<p className="mt-1 text-slate-500">Límite {limit.label} según historial · hasta {limit.end}{limit.expired?' · límite superado':''}</p>:opened?<p className="mt-1 text-amber-700">13/15 h: {view.dutyLimits?.[d.user_id]?.reason||'historial pendiente de comprobar'}</p>:rest?<p className="mt-1 text-slate-500">Desde las {rest.startTime}{rest.targetMinutes?' · Referencia prevista '+hours(rest.targetMinutes):' · Sin duración prevista'}{rest.targetReached?' · Tiempo previsto alcanzado':rest.remainingMinutes!=null?' · Faltan '+hours(rest.remainingMinutes):''}. Descanso efectivo pendiente de confirmar.</p>:null}</div>
    </div>
-   <div className="mt-3 rounded-xl bg-white p-3 text-xs"><p className="font-semibold text-slate-500">Actividad en curso</p><p className="mt-1 font-bold text-slate-900">{opened&&a&&a.fin===null&&Number.isFinite(new Date(a.updated_at).getTime())&&now-new Date(a.updated_at).getTime()<15*60000?status(j,a):'Sin actividad reciente sincronizada'}</p>{a?.updated_at?<p className="mt-1 text-slate-500">Última actualización: {new Date(a.updated_at).toLocaleString('es-ES')}</p>:null}</div>
+   <div className="mt-3 rounded-xl bg-white p-3 text-xs"><p className="font-semibold text-slate-500">Actividad en curso</p><p className="mt-1 font-bold text-slate-900">{opened&&a&&a.fin===null?status(j,a):'Sin actividad actual sincronizada'}</p>{a?.updated_at?<p className="mt-1 text-slate-500">Última actualización: {new Date(a.updated_at).toLocaleString('es-ES')}</p>:null}</div>
    <div className="mt-2 rounded-xl bg-white p-3 text-xs"><p className="font-semibold text-slate-500">Viaje en curso · Tacoplan móvil</p><p className="mt-1 font-bold text-slate-900">{t?tripOperation(t)+' · '+(tripDestination(t)||'Destino no registrado'):'Sin viaje activo sincronizado'}</p>{t?.cliente?<p className="mt-1 text-slate-600">Cliente: {t.cliente}</p>:null}</div>
   </div>;
  };
