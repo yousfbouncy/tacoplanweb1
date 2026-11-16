@@ -52,7 +52,7 @@ export async function POST(req:NextRequest){
     .eq('user_id',driverId).eq('notifications_enabled',true);
    if(tokens.error)throw tokens.error;
    const destinations=[...new Set((tokens.data||[]).map((t:{expo_push_token:string})=>t.expo_push_token)
-    .filter((token:string)=>/^Expo(nent)?PushToken\\[[^\\]]+\\]$/.test(token)))];
+    .filter((token:string)=>/^Expo(nent)?PushToken\[[^\]]+\]$/.test(token)))];
    if(destinations.length){
     const messages=destinations.map(to=>({
      to,
