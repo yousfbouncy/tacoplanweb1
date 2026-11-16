@@ -1,0 +1,21 @@
+name: Verify traffic activity minutes
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'components/enterprise-workspace.tsx'
+      - 'components/enterprise-portal.tsx'
+      - 'lib/tp-jornada-activity-minutes.ts'
+      - 'tests/tp-jornada-activity-minutes.test.ts'
+      - '.github/workflows/traffic-activity-check.yml'
+jobs:
+  typecheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npm run typecheck
