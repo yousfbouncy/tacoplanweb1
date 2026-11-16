@@ -1,4 +1,5 @@
 'use client';
+import {jornadaActivityMinutes} from '@/lib/tp-jornada-activity-minutes';
 import {useCallback,useEffect,useMemo,useRef,useState} from 'react';
 import {Building2,Users,Truck,Wallet,ShieldCheck,LogOut,Plus,RefreshCw,CheckCircle,AlertCircle,Copy,LockKeyhole,LayoutDashboard,UserRoundPlus,Mail,Settings2,UserRoundCog} from 'lucide-react';
 import {useAuth} from '@/lib/auth-context';
@@ -304,7 +305,7 @@ export function EnterprisePortal(){
   <div className="mt-3 grid gap-3 sm:grid-cols-2">{(view?.jornadas||[]).filter(j=>!j.fecha_fin&&!j.hora_fin).slice(0,20).map(j=><div className="rounded-xl bg-blue-50 p-4" key={j.id}>
    <p className="font-semibold">{driverName(j.user_id)}</p>
    <p className="mt-1 text-sm">{j.fecha_inicio||'Sin fecha'} · Inicio {j.hora_inicio||'Sin hora'}</p>
-   <p className="mt-1 text-xs text-slate-700">Conducción registrada: {duration(j.tacho_driving_min??j.conduccion_min)} · Disponibilidad: {duration(j.tacho_available_min)}</p>
+   <p className="mt-1 text-xs text-slate-700">Conducción registrada: {duration(jornadaActivityMinutes(j).driving)} · Disponibilidad: {duration(jornadaActivityMinutes(j).available)}</p>
    <p className="mt-1 text-xs text-slate-500">Última actividad en directo: no disponible sin sincronización</p>
   </div>)}
   {!(view?.jornadas||[]).some(j=>!j.fecha_fin&&!j.hora_fin)?<p className="text-sm text-slate-500">No hay jornadas pendientes de cierre.</p>:null}
@@ -320,7 +321,7 @@ export function EnterprisePortal(){
    <span className="font-semibold">{driverName(j.user_id)} · {j.fecha_inicio||'Sin fecha'} {j.hora_inicio||'—'} → {j.fecha_fin||'Sin cierre'} {j.hora_fin||''}</span>
    <span className="mt-1 block text-xs text-slate-600">{j.lugar_inicio||'Origen no indicado'} → {j.lugar_fin||'Destino pendiente'} · {j.fecha_fin&&j.hora_fin?'Finalizada':'Sin cierre registrado'}</span>
    <span className="mt-1 block text-xs">Dieta: {j.dieta_manual_tipo||j.tipo_ruta||'Sin tipo'}{j.dieta_percent?' · '+j.dieta_percent+' %':''}</span>
-   <span className="mt-1 block text-xs text-slate-500">Conducción: {duration(j.tacho_driving_min??j.conduccion_min)} · Disponibilidad: {duration(j.tacho_available_min)} · Otros trabajos: {duration(j.tacho_work_min)} · Descanso: {duration(j.tacho_rest_min)}</span>
+   <span className="mt-1 block text-xs text-slate-500">Conducción: {duration(jornadaActivityMinutes(j).driving)} · Disponibilidad: {duration(jornadaActivityMinutes(j).available)} · Otros trabajos: {duration(jornadaActivityMinutes(j).work)} · Descanso: {duration(jornadaActivityMinutes(j).rest)}</span>
   </button>)}
   {!(view?.jornadas||[]).length?<p className="py-3 text-sm text-slate-500">No hay jornadas disponibles de los conductores asignados.</p>:null}
   </div>
