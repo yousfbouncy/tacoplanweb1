@@ -16,3 +16,12 @@ test('recorded auxiliary activities are displayed once tachograph telemetry exis
 test('missing manual and tachograph data are not invented',()=>{
  assert.deepEqual(jornadaActivityMinutes({}),{driving:null,available:null,rest:null,work:null});
 });
+
+test('live driver activity segments override empty tachograph defaults',()=>{
+ assert.deepEqual(jornadaActivityMinutes({conduccion_min:0,tacho_driving_min:0,tacho_available_min:0,tacho_rest_min:0,tacho_work_min:0,activity_driving_min:180,activity_available_min:45,activity_rest_min:30,activity_work_min:25}),
+ {driving:180,available:45,rest:30,work:25});
+});
+test('zero minutes in a synchronized activity does not inherit stale tachograph totals',()=>{
+ assert.deepEqual(jornadaActivityMinutes({tacho_driving_min:90,tacho_available_min:60,activity_driving_min:0,activity_available_min:0}),
+ {driving:0,available:0,rest:null,work:null});
+});
