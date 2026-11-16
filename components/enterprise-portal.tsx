@@ -62,7 +62,7 @@ export function EnterprisePortal(){
  try{const t=await token();const r=await fetch('/api/empresas/dashboard',{cache:'no-store',headers:{Authorization:'Bearer '+t}});const j=await r.json();if(!r.ok)throw Error(j.error||'No se pudo cargar');setView(j);}
  catch(e:unknown){setError(e instanceof Error?e.message:'Error al cargar');}finally{setLoading(false);}},[user?.id]);
  useEffect(()=>{void load();},[load]);
- useEffect(()=>{if(view?.member?.role!=='traffic')return;const id=window.setInterval(()=>{void load();},60000);return()=>window.clearInterval(id);},[view?.member?.role,load]);
+ useEffect(()=>{if(view?.member?.role!=='traffic')return;const id=window.setInterval(()=>{void load();},30000);return()=>window.clearInterval(id);},[view?.member?.role,load]);
  const action=async(body:Record<string,unknown>)=>{setBusy(true);setError('');setMessage('');
  try{const t=await token();const r=await fetch('/api/empresas/action',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+t},body:JSON.stringify(body)});const j=await r.json();if(!r.ok)throw Error(j.error||'No se pudo guardar');await load();return j;}
  catch(e:unknown){setError(e instanceof Error?e.message:'Error');return null;}finally{setBusy(false);}};
