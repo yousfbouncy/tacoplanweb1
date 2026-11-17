@@ -1,6 +1,7 @@
 'use client';
-import {useMemo,useState} from 'react';
-import {ArrowLeft,CalendarDays,CheckCircle2,ChevronRight,Plus,Search,Trash2,Pencil,Wallet} from 'lucide-react';
+import {useEffect,useMemo,useRef,useState} from 'react';
+import {createPortal} from 'react-dom';
+import {ArrowLeft,CalendarDays,CheckCircle2,ChevronRight,Plus,Search,Trash2,Pencil,Wallet,X} from 'lucide-react';
 import {supabase} from '@/lib/supabase';
 
 export type Driver={user_id:string;username:string;employee_name?:string|null};
@@ -23,6 +24,28 @@ export default function TrafficDietManager({drivers,entries,adjustments,plusOpti
  const [form,setForm]=useState<Form|null>(null);
  const [saving,setSaving]=useState(false);
  const [message,setMessage]=useState('');
+ const modalRef=useRef<HTMLDivElement>(null);
+ const triggerRef=useRef<HTMLElement|null>(null);
+ const closeDialog=()=>{if(saving)return;setForm(null);setMessage('');};
+ useEffect(()=>{
+  if(!form)return;
+  const oldOverflow=document.body.style.overflow;
+  document.body.style.overflow='hidden';
+  const onKey=(event:KeyboardEvent)=>{
+   if(event.key==='Escape'){event.preventDefault();setForm(null);setMessage('');}
+   if(event.key==='Tab'){
+    const items=Array.from(modalRef.current?.querySelectorAll<HTMLElement>('button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled])')||[]);
+    if(!items.length)return;
+    const first=items[0],last=items[items.length-1];
+    if(event.shiftKey && document.activeElement===first){event.preventDefault();last.focus();}
+    else if(!event.shiftKey && document.activeElement===last){event.preventDefault();first.focus();}
+   }
+  };
+  document.addEventListener('keydown',onKey);
+  const focusTimer=window.setTimeout(()=>modalRef.current?.querySelector<HTMLElement>('input:not([disabled]),select:not([disabled]),textarea:not([disabled])')?.focus(),0);
+  return()=>{document.body.style.overflow=oldOverflow;document.removeEventListener('keydown',onKey);clearTimeout(focusTimer);triggerRef.current?.focus();};
+ },[Boolean(form)]);
+ const openForm=(next:Form)=>{triggerRef.current=document.activeElement instanceof HTMLElement?document.activeElement:null;setMessage('');setForm(next);};
  const driver=drivers.find(d=>d.user_id===selected);
  const name=(d:Driver)=>d.employee_name||d.username;
  const records=useMemo(()=>{
@@ -51,9 +74,9 @@ export default function TrafficDietManager({drivers,entries,adjustments,plusOpti
  const proposals=useMemo(()=>adjustments.filter(a=>a.driver_id===selected&&(!month||a.diet_date.startsWith(month)))
   .sort((a,b)=>b.created_at.localeCompare(a.created_at)),[adjustments,selected,month]);
  const list=drivers.filter(d=>name(d).toLowerCase().includes(query.toLowerCase())||d.username.toLowerCase().includes(query.toLowerCase()));
- const edit=(e:Entry,op:'edit'|'delete')=>{setForm({operation:op,targetKind:e.source,targetId:e.id,
+ const edit=(e:Entry,op:'edit'|'delete')=>{openForm({operation:op,targetKind:e.source,targetId:e.id,
   date:e.date,dietType:baseType(e.type),percentage:[30,60,100].includes(Number(e.percentage))?Number(e.percentage):100,
-  plusTypes:[],reason:''});setMessage('');};
+  plusTypes:[],reason:''});};
  const save=async()=>{
   if(!form||!driver||saving||blocked)return;
   if(form.reason.trim().length<10){setMessage('Explica el motivo (mínimo 10 caracteres).');return;}
@@ -96,7 +119,7 @@ export default function TrafficDietManager({drivers,entries,adjustments,plusOpti
     </div>
     <div className="flex flex-wrap items-center gap-2">
      <label className="text-xs font-semibold text-slate-600">Periodo <input type="month" className={field+' mt-1'} value={month} onChange={e=>setMonth(e.target.value)}/></label>
-     <button disabled={blocked} type="button" onClick={()=>setForm(newForm(month+'-01'))}
+     <button disabled={blocked} type="button" onClick={()=>openForm(newForm(month+'-01'))}
        className="mt-4 inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50"><Plus size={16}/> Añadir dieta</button>
     </div>
    </div>
@@ -107,8 +130,15 @@ export default function TrafficDietManager({drivers,entries,adjustments,plusOpti
    <p className="mt-3 text-xs text-slate-500">Las propuestas de Tráfico no borran los registros originales: el conductor puede aceptarlas o dejar una discrepancia. Solo se muestran datos compartidos con la empresa.</p>
   </div>
   {message?<div role="status" className="rounded-xl border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">{message}</div>:null}
-  {form?<div className="rounded-2xl border border-blue-200 bg-white p-5">
-   <h3 className="font-bold">{form.operation==='add'?'Añadir dieta':form.operation==='delete'?'Proponer eliminar dieta':'Modificar dieta'} · {dateLabel(form.date)}</h3>
+  {form && typeof document!=='undefined' ? createPortal(
+   <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-950/65 p-3 sm:p-5" onMouseDown={e=>{if(e.target===e.currentTarget)closeDialog();}}>
+    <div ref={modalRef} role="dialog" aria-modal="true" aria-labelledby="traffic-diet-dialog-title"
+      className="w-full max-w-2xl max-h-[90dvh] overflow-y-auto rounded-2xl bg-white p-5 shadow-2xl sm:p-6">
+     <div className="mb-4 flex items-start justify-between gap-3">
+      <div><h3 id="traffic-diet-dialog-title" className="text-lg font-bold text-slate-900">{form.operation==='add'?'Añadir dieta':form.operation==='delete'?'Proponer eliminar dieta':'Modificar dieta'} · {dateLabel(form.date)}</h3>
+       <p className="mt-1 text-xs text-slate-500">{name(driver)} · El conductor deberá aceptar o responder a esta propuesta.</p></div>
+      <button type="button" onClick={closeDialog} disabled={saving} aria-label="Cerrar ventana" className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 disabled:opacity-40"><X size={20}/></button>
+     </div>
    <div className="mt-3 grid gap-3 sm:grid-cols-3">
     <label className="text-xs font-semibold text-slate-600">Fecha<input type="date" disabled={form.operation!=='add'} className={field+' mt-1'} value={form.date} onChange={e=>setForm(f=>f?{...f,date:e.target.value}:f)}/></label>
     {form.operation!=='delete'?<><label className="text-xs font-semibold text-slate-600">Tipo<select className={field+' mt-1'} value={form.dietType} onChange={e=>setForm(f=>f?{...f,dietType:e.target.value}:f)}>{kinds.map(k=><option key={k.type} value={k.type}>{k.label}</option>)}</select></label>
@@ -116,8 +146,11 @@ export default function TrafficDietManager({drivers,entries,adjustments,plusOpti
    </div>
    {form.operation!=='delete' && (plusOptions[driver.user_id]||[]).length?<div className="mt-3"><p className="text-xs font-semibold">Pluses</p><div className="mt-2 flex flex-wrap gap-3">{plusOptions[driver.user_id].map(p=><label key={p} className="flex items-center gap-2 text-xs"><input type="checkbox" checked={form.plusTypes.includes(p)} onChange={e=>setForm(f=>f?{...f,plusTypes:e.target.checked?[...f.plusTypes,p]:f.plusTypes.filter(x=>x!==p)}:f)}/>{p.replace(/_/g,' ')}</label>)}</div></div>:null}
    <label className="mt-3 block text-xs font-semibold text-slate-600">Motivo de la propuesta<textarea className={field+' mt-1'} rows={3} maxLength={2000} value={form.reason} onChange={e=>setForm(f=>f?{...f,reason:e.target.value}:f)} placeholder="Explica por qué hay que añadir, modificar o eliminar la dieta"/></label>
-   <div className="mt-3 flex gap-2"><button type="button" disabled={saving||blocked||form.reason.trim().length<10||!form.date} onClick={()=>void save()} className="rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50">{saving?'Guardando…':'Enviar propuesta'}</button><button type="button" onClick={()=>setForm(null)} className="rounded-xl border px-4 py-2.5 text-sm">Cancelar</button></div>
-  </div>:null}
+   {message?<p role="alert" className="mt-3 rounded-lg bg-rose-50 p-3 text-sm text-rose-700">{message}</p>:null}
+   <div className="mt-4 flex flex-wrap gap-2"><button type="button" disabled={saving||blocked||form.reason.trim().length<10||!form.date} onClick={()=>void save()} className="rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50">{saving?'Guardando…':'Enviar propuesta'}</button><button type="button" onClick={closeDialog} className="rounded-xl border px-4 py-2.5 text-sm">Cancelar</button></div>
+    </div>
+   </div>, document.body
+  ) : null}
   <div className="rounded-2xl border border-slate-200 bg-white p-5">
    <h3 className="mb-3 flex items-center gap-2 font-bold"><CalendarDays size={18} className="text-blue-600"/> Dietas registradas</h3>
    <div className="space-y-2">{records.map(e=><div key={e.source+e.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-100 p-3 hover:bg-slate-50">
