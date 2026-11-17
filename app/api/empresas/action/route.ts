@@ -317,6 +317,45 @@ export async function POST(req:NextRequest){
   const assigned=await db.from('tp_traffic_driver_assignments').select('driver_id').eq('company_id',companyId).eq('driver_id',body.driverId).eq('traffic_user_id',user.id).maybeSingle();
   if(assigned.error)throw assigned.error;
   if(!assigned.data)return json({error:'El conductor no está asignado a tu usuario de Tráfico'},403);
+  // Natural-day diets have no jornada: record their confirmed financial snapshot
+  // under a namespaced review id. RRHH receives only the review, never routes.
+  if(body.source==='natural_day'){
+   if(body.mode!=='confirm')return json({error:'Solo se pueden confirmar días naturales desde esta pantalla'},400);
+   const natural=await db.from('user_natural_day_diets')
+    .select('id,user_id,created_at,date,type,percentage,dismissed_at')
+    .eq('id',body.jornadaId).eq('user_id',body.driverId)
+    .gte('created_at',driver.history_shared_from||driver.joined_at)
+    .is('dismissed_at',null).maybeSingle();
+   if(natural.error)throw natural.error;
+   if(!natural.data)return json({error:'Dieta no disponible para esta empresa'},404);
+   const kind=plain(natural.data.type,30).toUpperCase(),pct=Number(natural.data.percentage);
+   const day=normalizeJornadaDate(natural.data.date);
+   if(!day||!['REGIONAL','NACIONAL','INTERNACIONAL'].includes(kind)||![30,60,100].includes(pct))
+    return json({error:'Esta dieta no tiene tipo, porcentaje o fecha válidos'},409);
+   const settings=await db.from('tp_driver_settings').select('diet_rates')
+    .eq('company_id',companyId).eq('driver_id',body.driverId).maybeSingle();
+   if(settings.error)throw settings.error;
+   const rate=amount((settings.data?.diet_rates||{})[(kind+'_'+pct).toLowerCase()]);
+   if(rate===null)return json({error:'Configura la tarifa '+kind+' '+pct+' % antes de confirmar'},409);
+   const reviewKey='natural_day:'+body.jornadaId;
+   const previous=await db.from('tp_diet_reviews').select('id,status')
+    .eq('company_id',companyId).eq('jornada_id',reviewKey).maybeSingle();
+   if(previous.error)throw previous.error;
+   if(previous.data)return json({error:'Esta dieta ya tiene una revisión. No se puede confirmar dos veces'},409);
+   const payload={company_id:companyId,driver_id:body.driverId,jornada_id:reviewKey,
+    jornada_date:day,original_diet_type:kind+' '+pct+'%',original_amount:rate,
+    original_pluses:[],proposed_diet_type:null,proposed_amount:null,proposed_pluses:null,
+    status:'confirmed',traffic_observation:plain(body.observation,2000)||null,
+    confirmed_at:new Date().toISOString(),confirmed_by:user.id,updated_at:new Date().toISOString()};
+   const result=await db.from('tp_diet_reviews').insert(payload).select('id').single();
+   if(result.error)throw result.error;
+   await audit(db,companyId,user.id,'diet.natural_day_confirmed','review',result.data.id,null,payload);
+   // Notifications are best effort; a saved confirmation must not be resent.
+   try{await db.from('user_notifications').insert({user_id:body.driverId,type:'admin_message',
+    title:'Dieta confirmada por Tráfico',body:day+' · '+kind+' '+pct+' %',
+    data:{kind:'enterprise_diet_review',company_id:companyId,review_id:result.data.id,action:'confirm'}});}catch(error){console.warn('Confirmation notification failed',error);}
+   return json({ok:true,status:'confirmed'});
+  }
   const journey=await db.from('jornadas').select('id,user_id,created_at,fecha_inicio,dieta_manual_tipo,tipo_ruta,dieta_percent,dieta_importe_eur,diet_base_eur,day_extra_eur,day_flag,plus_items').eq('id',body.jornadaId).eq('user_id',body.driverId).gte('created_at',driver.history_shared_from||driver.joined_at).maybeSingle();
   if(journey.error||!journey.data)return json({error:'Jornada no encontrada'},404);
   const existing=await db.from('tp_diet_reviews').select('*').eq('company_id',companyId).eq('jornada_id',body.jornadaId).maybeSingle();

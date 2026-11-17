@@ -6,21 +6,37 @@ import {supabase} from '@/lib/supabase';
 
 export type Driver={user_id:string;username:string;employee_name?:string|null};
 export type Entry={id:string;driver_id:string;source:'jornada'|'natural_day'|'manual';date:string;type:string|null;percentage:number|null;pluses:Array<{concepto:string;importe:number}>;day_flag?:string|null;day_extra_eur?:number|null};
+export type DietReview={driver_id:string;jornada_id?:string|null;status:string};
 export type Adjustment={id:string;driver_id:string;diet_date:string;target_kind:string;target_id?:string|null;operation:'add'|'edit'|'delete';original_diet_type?:string|null;proposed_diet_type?:string|null;proposed_percentage?:number|null;reason:string;status:string;driver_observation?:string|null;created_at:string;proposed_pluses?:Array<{concepto:string;importe:number;source?:string}>};
 type Form={operation:'add'|'edit'|'delete';targetKind:'jornada'|'natural_day'|'manual';targetId:string;date:string;dietType:string;percentage:number;plusItems:Array<{concepto:string;importe:number;source?:'automatic'|'manual'}>;reason:string;originalFlag?:string|null;originalExtra?:number|null};
+const secondary='rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50';
+const button='rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50';
 const field='w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-blue-500';
 const dateLabel=(s:string)=>/^\d{4}-\d{2}-\d{2}$/.test(s)?s.slice(8,10)+'/'+s.slice(5,7)+'/'+s.slice(0,4):s;
 const kinds:{type:string;label:string}[]=[{type:'NACIONAL',label:'Nacional'},{type:'INTERNACIONAL',label:'Internacional'},{type:'REGIONAL',label:'Regional'}];
 const newForm=(date:string):Form=>({operation:'add',targetKind:'manual',targetId:'',date,dietType:'NACIONAL',percentage:100,plusItems:[],reason:''});
 const baseType=(s:string|null)=>kinds.find(k=>s?.toUpperCase().includes(k.type))?.type||'';
-const label=(kind:string)=>kind==='natural_day'?'Día natural':'Jornada';
-export default function TrafficDietManager({drivers,entries,adjustments,plusOptions,blocked=false,refresh}:{
- drivers:Driver[];entries:Entry[];adjustments:Adjustment[];plusOptions:Record<string,string[]>;
+const label=(kind:string)=>kind==='natural_day'?'Día natural':kind==='manual'?'Corrección aceptada':'Jornada';
+const dateISO=(date:Date)=>[date.getFullYear(),String(date.getMonth()+1).padStart(2,'0'),String(date.getDate()).padStart(2,'0')].join('-');
+const monthDates=(offset=0)=>{
+ const now=new Date();
+ return {from:dateISO(new Date(now.getFullYear(),now.getMonth()+offset,1)),
+  to:dateISO(new Date(now.getFullYear(),now.getMonth()+offset+1,0))};
+};
+const recordKey=(entry:Entry)=>entry.source+':'+entry.id;
+const reviewKey=(entry:Entry)=>entry.source==='natural_day'?'natural_day:'+entry.id:entry.id;
+export default function TrafficDietManager({drivers,entries,adjustments,reviews,plusOptions,blocked=false,refresh}:{
+ drivers:Driver[];entries:Entry[];adjustments:Adjustment[];reviews:DietReview[];plusOptions:Record<string,string[]>;
  blocked?:boolean;refresh:()=>Promise<void>;
 }){
  const [selected,setSelected]=useState('');
  const [query,setQuery]=useState('');
- const [month,setMonth]=useState(new Date().toISOString().slice(0,7));
+ const [from,setFrom]=useState(()=>monthDates().from);
+ const [to,setTo]=useState(()=>monthDates().to);
+ const [selectedRecords,setSelectedRecords]=useState<string[]>([]);
+ const validPeriod=Boolean(from&&to&&from<=to);
+ const inPeriod=(date:string)=>validPeriod&&date>=from&&date<=to;
+ const setPeriod=(offset:number)=>{const next=monthDates(offset);setFrom(next.from);setTo(next.to);setSelectedRecords([]);};
  const [form,setForm]=useState<Form|null>(null);
  const [saving,setSaving]=useState(false);
  const [message,setMessage]=useState('');
@@ -48,14 +64,21 @@ export default function TrafficDietManager({drivers,entries,adjustments,plusOpti
  const openForm=(next:Form)=>{triggerRef.current=document.activeElement instanceof HTMLElement?document.activeElement:null;setMessage('');setForm(next);};
  const driver=drivers.find(d=>d.user_id===selected);
  const name=(d:Driver)=>d.employee_name||d.username;
+ const findReview=(entry:Entry)=>reviews.find(r=>r.driver_id===selected&&r.jornada_id===reviewKey(entry));
+ const modifiedAccepted=(entry:Entry)=>adjustments.some(a=>a.driver_id===selected&&a.status==='accepted'&&a.operation!=='add'&&a.target_kind===entry.source&&a.target_id===entry.id);
+ const canConfirm=(entry:Entry)=>{
+  const review=findReview(entry);
+  return !blocked&&['jornada','natural_day'].includes(entry.source)
+   &&!modifiedAccepted(entry)&&(!review||review.status==='pending_traffic');
+ };
  const records=useMemo(()=>{
-   const source=entries.filter(e=>e.driver_id===selected&&(!month||e.date.startsWith(month)));
+   const source=entries.filter(e=>e.driver_id===selected&&inPeriod(e.date));
    const accepted=adjustments.filter(a=>a.driver_id===selected&&a.status==='accepted')
     .sort((a,b)=>a.created_at.localeCompare(b.created_at));
    const byId=new Map(source.map(e=>[e.source+':'+e.id,e]));
    for(const a of accepted){
      if(a.operation==='add'){
-       if(!month||a.diet_date.startsWith(month))byId.set('adjustment:'+a.id,{
+       if(inPeriod(a.diet_date))byId.set('adjustment:'+a.id,{
          id:a.id,driver_id:a.driver_id,source:'manual' as Entry['source'],
          date:a.diet_date,type:a.proposed_diet_type||null,
          percentage:a.proposed_percentage||null,pluses:a.proposed_pluses||[],day_extra_eur:0});
@@ -70,10 +93,38 @@ export default function TrafficDietManager({drivers,entries,adjustments,plusOpti
      }
    }
    return Array.from(byId.values()).sort((a,b)=>b.date.localeCompare(a.date));
-  },[entries,adjustments,selected,month]);
- const proposals=useMemo(()=>adjustments.filter(a=>a.driver_id===selected&&(!month||a.diet_date.startsWith(month)))
-  .sort((a,b)=>b.created_at.localeCompare(a.created_at)),[adjustments,selected,month]);
+  },[entries,adjustments,selected,from,to]);
+ const proposals=useMemo(()=>adjustments.filter(a=>a.driver_id===selected&&inPeriod(a.diet_date))
+  .sort((a,b)=>b.created_at.localeCompare(a.created_at)),[adjustments,selected,from,to]);
+ const pendingConfirmations=records.filter(entry=>selectedRecords.includes(recordKey(entry))&&canConfirm(entry));
  const list=drivers.filter(d=>name(d).toLowerCase().includes(query.toLowerCase())||d.username.toLowerCase().includes(query.toLowerCase()));
+ const confirmEntries=async(chosen:Entry[])=>{
+  const eligible=chosen.filter(canConfirm);
+  if(!driver||saving||!eligible.length||!validPeriod)return;
+  if(eligible.length>60){setMessage('Selecciona como máximo 60 registros por operación.');return;}
+  if(eligible.length>1&&!window.confirm('¿Confirmar '+eligible.length+' dietas de '+name(driver)+' y enviarlas a RR. HH. para su liquidación?'))return;
+  setSaving(true);setMessage('');
+  let count=0;
+  const failed:string[]=[];
+  try{
+   const {data:{session}}=await supabase.auth.getSession();
+   if(!session?.access_token)throw Error('Sesión caducada');
+   for(const entry of eligible){
+    try{
+     const res=await fetch('/api/empresas/action',{method:'POST',
+      headers:{'Content-Type':'application/json',Authorization:'Bearer '+session.access_token},
+      body:JSON.stringify({action:'review',driverId:driver.user_id,jornadaId:entry.id,
+       source:entry.source,mode:'confirm'})});
+     const data=await res.json();
+     if(!res.ok)throw Error(data.error||'No se pudo confirmar');
+     count++;
+    }catch(error){failed.push(dateLabel(entry.date)+': '+(error instanceof Error?error.message:'Error desconocido'));}
+   }
+   if(count){setSelectedRecords(current=>current.filter(key=>!eligible.some(entry=>recordKey(entry)===key)));await refresh();}
+   setMessage(count+' dieta(s) confirmada(s) y disponibles en RR. HH.'+(failed.length?' No confirmadas: '+failed.join(' · '):''));
+  }catch(error){setMessage(error instanceof Error?error.message:'Error al confirmar las dietas');}
+  finally{setSaving(false);}
+ };
  const edit=(e:Entry,op:'edit'|'delete')=>{openForm({operation:op,targetKind:e.source,targetId:e.id,
   date:e.date,dietType:baseType(e.type),percentage:[30,60,100].includes(Number(e.percentage))?Number(e.percentage):100,
   plusItems:[...(e.day_flag?[{concepto:e.day_flag,importe:Number(e.day_extra_eur)||0,source:'automatic' as const}]:[]),...(e.pluses||[]).map(p=>({...p,source:'manual' as const}))],reason:'',originalFlag:e.day_flag,originalExtra:e.day_extra_eur});};
@@ -101,7 +152,7 @@ export default function TrafficDietManager({drivers,entries,adjustments,plusOpti
    <p className="mt-1 text-sm text-slate-500">Selecciona un conductor para consultar sus registros por fecha y las propuestas de corrección.</p>
    <div className="relative mt-4"><Search className="pointer-events-none absolute left-3 top-3 text-slate-400" size={17}/><input className={field+' pl-10'} value={query} onChange={e=>setQuery(e.target.value)} placeholder="Buscar conductor…"/></div>
    <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-    {list.map(d=><button type="button" key={d.user_id} onClick={()=>{setSelected(d.user_id);setForm(null);setMessage('');}} className="flex items-center gap-3 rounded-xl border border-slate-200 p-4 text-left hover:border-blue-400 hover:bg-blue-50">
+    {list.map(d=><button type="button" key={d.user_id} onClick={()=>{setSelected(d.user_id);setForm(null);setMessage('');setSelectedRecords([]);}} className="flex items-center gap-3 rounded-xl border border-slate-200 p-4 text-left hover:border-blue-400 hover:bg-blue-50">
       <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-100 font-bold text-blue-700">{name(d).slice(0,2).toUpperCase()}</span>
       <span className="min-w-0 flex-1"><strong className="block truncate text-sm text-slate-900">{name(d)}</strong><span className="text-xs text-slate-500">@{d.username} · {entries.filter(e=>e.driver_id===d.user_id).length} registros</span></span>
       <ChevronRight size={17} className="text-blue-600"/>
@@ -114,18 +165,24 @@ export default function TrafficDietManager({drivers,entries,adjustments,plusOpti
   <div className="rounded-2xl border border-slate-200 bg-white p-5">
    <div className="flex flex-wrap items-center justify-between gap-3">
     <div className="flex items-center gap-3">
-     <button type="button" className="rounded-lg border border-slate-200 p-2 hover:bg-slate-50" aria-label="Volver a los conductores" onClick={()=>{setSelected('');setForm(null);}}><ArrowLeft size={19}/></button>
+     <button type="button" className="rounded-lg border border-slate-200 p-2 hover:bg-slate-50" aria-label="Volver a los conductores" onClick={()=>{setSelected('');setForm(null);setSelectedRecords([]);}}><ArrowLeft size={19}/></button>
      <div><h2 className="text-xl font-bold">{name(driver)}</h2><p className="text-xs text-slate-500">Dietas y pluses del conductor · @{driver.username}</p></div>
     </div>
-    <div className="flex flex-wrap items-center gap-2">
-     <label className="text-xs font-semibold text-slate-600">Periodo <input type="month" className={field+' mt-1'} value={month} onChange={e=>setMonth(e.target.value)}/></label>
-     <button disabled={blocked} type="button" onClick={()=>openForm(newForm(month+'-01'))}
+    <div className="flex flex-wrap items-end gap-2">
+     <label className="text-xs font-semibold text-slate-600">Desde<input aria-label="Fecha inicial del periodo" type="date" className={field+' mt-1'} value={from} onChange={e=>{setFrom(e.target.value);setSelectedRecords([]);}}/></label>
+     <label className="text-xs font-semibold text-slate-600">Hasta<input aria-label="Fecha final del periodo" type="date" className={field+' mt-1'} value={to} onChange={e=>{setTo(e.target.value);setSelectedRecords([]);}}/></label>
+     <button type="button" className={secondary} onClick={()=>setPeriod(-1)}>Mes anterior</button>
+     <button type="button" className={secondary} onClick={()=>setPeriod(0)}>Este mes</button>
+     <button disabled={blocked||!validPeriod} type="button" onClick={()=>openForm(newForm(from))}
        className="mt-4 inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50"><Plus size={16}/> Añadir dieta</button>
     </div>
    </div>
+   {!validPeriod?<p role="alert" className="mt-3 rounded-lg bg-rose-50 p-3 text-xs font-semibold text-rose-700">Selecciona una fecha inicial anterior o igual a la fecha final.</p>:null}
    <div className="mt-4 flex flex-wrap gap-2 text-xs">
     <span className="rounded-lg bg-blue-50 px-3 py-2 font-semibold text-blue-700">{records.length} registros en el periodo</span>
-    <span className="rounded-lg bg-amber-50 px-3 py-2 font-semibold text-amber-700">{proposals.filter(p=>p.status==='awaiting_driver').length} pendientes de respuesta</span>
+    <span className="rounded-lg bg-emerald-50 px-3 py-2 font-semibold text-emerald-700">{records.filter(e=>findReview(e)?.status==='confirmed').length} confirmadas para RR. HH.</span>
+    <span className="rounded-lg bg-amber-50 px-3 py-2 font-semibold text-amber-700">{records.filter(canConfirm).length} pendientes de confirmar</span>
+    <span className="rounded-lg bg-amber-50 px-3 py-2 font-semibold text-amber-700">{proposals.filter(p=>p.status==='awaiting_driver').length} cambios pendientes de respuesta</span>
    </div>
    <p className="mt-3 text-xs text-slate-500">Las propuestas de Tráfico no borran los registros originales: el conductor puede aceptarlas o dejar una discrepancia. Solo se muestran datos compartidos con la empresa.</p>
   </div>
@@ -167,18 +224,35 @@ export default function TrafficDietManager({drivers,entries,adjustments,plusOpti
    </div>, document.body
   ) : null}
   <div className="rounded-2xl border border-slate-200 bg-white p-5">
-   <h3 className="mb-3 flex items-center gap-2 font-bold"><CalendarDays size={18} className="text-blue-600"/> Dietas registradas</h3>
+   <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+    <h3 className="flex items-center gap-2 font-bold"><CalendarDays size={18} className="text-blue-600"/> Dietas registradas</h3>
+    <div className="flex flex-wrap items-center gap-2">
+     <button type="button" className={secondary} disabled={saving||blocked||!validPeriod||!records.some(canConfirm)} onClick={()=>setSelectedRecords(records.filter(canConfirm).map(recordKey))}>Seleccionar pendientes</button>
+     <button type="button" className={secondary} disabled={!selectedRecords.length||saving} onClick={()=>setSelectedRecords([])}>Limpiar selección</button>
+     <button type="button" className={button+' inline-flex items-center gap-2'} disabled={!pendingConfirmations.length||saving||blocked||!validPeriod} onClick={()=>void confirmEntries(pendingConfirmations)}>
+      <CheckCircle2 size={16}/>{saving?'Confirmando…':'Confirmar y enviar a RR. HH. ('+pendingConfirmations.length+')'}
+     </button>
+    </div>
+   </div>
+   <p className="mb-3 text-xs text-slate-500">Marca las fechas que quieras validar. Las confirmadas quedan disponibles en RR. HH. con sus importes calculados por el servidor. Las propuestas de cambio siguen requiriendo la respuesta del conductor.</p>
    <div className="space-y-2">{records.map(e=><div key={e.source+e.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-100 p-3 hover:bg-slate-50">
-    <div><p className="font-semibold text-slate-900">{dateLabel(e.date)} · {e.type||'Sin tipo'} {e.percentage?e.percentage+'%':''}</p>
+    <div className="flex min-w-0 flex-1 items-start gap-3">
+     <input type="checkbox" aria-label={'Seleccionar dieta del '+dateLabel(e.date)} className="mt-1 h-4 w-4 accent-blue-600" disabled={!canConfirm(e)||saving}
+      checked={selectedRecords.includes(recordKey(e))&&canConfirm(e)}
+      onChange={event=>setSelectedRecords(current=>event.target.checked?[...current,recordKey(e)]:current.filter(key=>key!==recordKey(e)))}/>
+     <div><p className="font-semibold text-slate-900">{dateLabel(e.date)} · {e.type||'Sin tipo'} {e.percentage?e.percentage+'%':''}</p>
     <p className="text-xs text-slate-500">{label(e.source)}{e.pluses?.length?' · '+e.pluses.map(p=>p.concepto+' ('+Number(p.importe).toLocaleString('es-ES',{style:'currency',currency:'EUR'})+')').join(' · '):''}</p>
     {e.day_flag ? <p className="mt-1 text-xs font-semibold text-emerald-700">
       Plus {e.day_flag.toUpperCase()==='DOMINGO'?'domingo':e.day_flag.toUpperCase()==='FESTIVO'?'festivo':e.day_flag.toLowerCase()}
       {Number(e.day_extra_eur||0)>0?' · '+Number(e.day_extra_eur).toLocaleString('es-ES',{style:'currency',currency:'EUR'}):' · Sin importe registrado'}
     </p> : null}
-    </div>
-    <div className="flex gap-2"><button type="button" disabled={blocked||e.source==='manual'} onClick={()=>edit(e,'edit')} className="inline-flex items-center gap-1 rounded-lg border px-3 py-2 text-xs font-semibold"><Pencil size={13}/> Modificar</button><button type="button" disabled={blocked||e.source==='manual'} onClick={()=>edit(e,'delete')} className="inline-flex items-center gap-1 rounded-lg border border-rose-200 px-3 py-2 text-xs font-semibold text-rose-700"><Trash2 size={13}/> Eliminar</button></div>
+     {findReview(e)?.status==='confirmed'?<p className="mt-1 text-xs font-semibold text-emerald-700">Confirmada · Disponible en RR. HH.</p>:
+      findReview(e)&&findReview(e)?.status!=='pending_traffic'?<p className="mt-1 text-xs font-semibold text-amber-700">Revisión: {findReview(e)?.status==='awaiting_driver'?'Pendiente del conductor':findReview(e)?.status==='disputed'?'Discrepancia':findReview(e)?.status==='accepted'?'Aceptada':findReview(e)?.status==='closed'?'Cerrada':findReview(e)?.status}</p>:
+      modifiedAccepted(e)?<p className="mt-1 text-xs font-semibold text-amber-700">Cambio aceptado · Requiere liquidación de la corrección</p>:null}
+     </div></div>
+    <div className="flex flex-wrap gap-2">{canConfirm(e)?<button type="button" disabled={saving||blocked} onClick={()=>void confirmEntries([e])} className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-800"><CheckCircle2 size={13}/> Confirmar para RR. HH.</button>:null}<button type="button" disabled={blocked||e.source==='manual'} onClick={()=>edit(e,'edit')} className="inline-flex items-center gap-1 rounded-lg border px-3 py-2 text-xs font-semibold"><Pencil size={13}/> Modificar</button><button type="button" disabled={blocked||e.source==='manual'} onClick={()=>edit(e,'delete')} className="inline-flex items-center gap-1 rounded-lg border border-rose-200 px-3 py-2 text-xs font-semibold text-rose-700"><Trash2 size={13}/> Eliminar</button></div>
    </div>)}
-   {!records.length?<p className="rounded-xl bg-slate-50 p-4 text-sm text-slate-500">No hay dietas registradas para este mes. Cambia el periodo o añade una propuesta.</p>:null}</div>
+   {!records.length?<p className="rounded-xl bg-slate-50 p-4 text-sm text-slate-500">No hay dietas registradas entre las fechas seleccionadas. Cambia el período o añade una propuesta.</p>:null}</div>
   </div>
   {proposals.length?<div className="rounded-2xl border border-slate-200 bg-white p-5">
    <h3 className="mb-3 flex items-center gap-2 font-bold"><Wallet size={18} className="text-blue-600"/> Historial de revisiones</h3>
