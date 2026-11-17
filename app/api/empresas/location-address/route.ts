@@ -11,12 +11,13 @@ export async function GET(req:NextRequest){
   const auth=await membership(req);
   if(!auth?.member||auth.member.role!=='traffic'||!uuid(driverId)||!uuid(requestId))return enterpriseJson({error:'Acceso no autorizado'},403);
   const {db,user,member}=auth;
-  const [assignment,result]=await Promise.all([
+  const [assignment,result,consent]=await Promise.all([
    db.from('tp_traffic_driver_assignments').select('driver_id').eq('company_id',member.company_id).eq('driver_id',driverId).eq('traffic_user_id',user.id).maybeSingle(),
-   db.from('tp_location_requests').select('id,latitude,longitude,status').eq('id',requestId).eq('company_id',member.company_id).eq('driver_id',driverId).eq('requested_by',user.id).maybeSingle()
+   db.from('tp_location_requests').select('id,latitude,longitude,status').eq('id',requestId).eq('company_id',member.company_id).eq('driver_id',driverId).eq('requested_by',user.id).maybeSingle(),
+   db.from('tp_location_consents').select('enabled').eq('company_id',member.company_id).eq('driver_id',driverId).maybeSingle()
   ]);
-  if(assignment.error||result.error)throw assignment.error||result.error;
-  if(!assignment.data||result.data?.status!=='received'||typeof result.data.latitude!=='number'||typeof result.data.longitude!=='number')return enterpriseJson({error:'No hay una posición autorizada y confirmada'},403);
+  if(assignment.error||result.error||consent.error)throw assignment.error||result.error||consent.error;
+  if(!assignment.data||!consent.data?.enabled||result.data?.status!=='received'||typeof result.data.latitude!=='number'||typeof result.data.longitude!=='number')return enterpriseJson({error:'No hay una posición autorizada y confirmada'},403);
   const {latitude:lat,longitude:lon}=result.data;
   const url='https://nominatim.openstreetmap.org/reverse?format=jsonv2&addressdetails=1&zoom=17&accept-language=es&lat='+encodeURIComponent(lat)+'&lon='+encodeURIComponent(lon);
   const response=await fetch(url,{headers:{'User-Agent':'Tacoplan/1.0 (https://tacoplan.es)','Accept':'application/json'},signal:AbortSignal.timeout(7000),next:{revalidate:3600}});
