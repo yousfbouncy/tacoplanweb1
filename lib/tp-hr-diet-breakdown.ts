@@ -22,7 +22,8 @@ export const reviewCents=(r:FinancialReview)=>{
  if(!isApprovedReview(r))return {diet:0,plus:0,total:0};
  const gross=cents(r.status==='accepted'?r.proposed_amount??r.original_amount:r.original_amount);
  const automatic=Math.min(gross,cents(r.automatic_plus));
- const items=r.status==='accepted'&&r.proposed_pluses!=null?r.proposed_pluses:r.original_pluses||[];
+ const rawItems=r.status==='accepted'&&r.proposed_pluses!=null?r.proposed_pluses:r.original_pluses;
+ const items=Array.isArray(rawItems)?rawItems:[];
  const manual=items.reduce((sum,p)=>{
   if(!p||/dieta|n[oó]mina|salario|sueldo|anticipo/i.test(String(p.concepto||'')))return sum;
   return sum+cents(p.importe);
