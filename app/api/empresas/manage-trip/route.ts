@@ -19,7 +19,7 @@ export async function POST(req:NextRequest){
   if(company.error)throw company.error;
   if(!isPaidAccess(company.data))return enterpriseJson({error:'El acceso empresarial no está activo'},402);
   const body=await req.json(),tripId=plain(body?.tripId,150),operation=plain(body?.operation,30);
-  if(!tripId||!['edit','transfer','delete'].includes(operation))return enterpriseJson({error:'Acción no válida'},400);
+  if(!tripId||!['edit','transfer','delete','notify'].includes(operation))return enterpriseJson({error:'Acción no válida'},400);
   const existing=await db.from('viajes').select('id,user_id,cliente,modo_viaje,paradas,notas,estado').eq('id',tripId).maybeSingle();
   if(existing.error)throw existing.error;
   const trip=existing.data;if(!trip)return enterpriseJson({error:'Viaje no encontrado'},404);
@@ -36,6 +36,21 @@ export async function POST(req:NextRequest){
    return Boolean(driver.data&&assignment.data);
   };
   if(!await authorized(trip.user_id))return enterpriseJson({error:'El viaje no está asignado a tu equipo'},403);
+  if(operation==='notify'){
+   const stops=Array.isArray(trip.paradas)?trip.paradas as Stop[]:[];
+   const operationKind=typeof metadata.transferred_at==='string'?'transferred':'assigned';
+   // Only the assigned traffic operator can explicitly retry a saved alert.
+   // Re-send must not create or transfer the trip again.
+   const alert=await notifyTripAssigned(db,{
+    driverId:trip.user_id,tripId,cliente:trip.cliente||'Viaje asignado',
+    firstStop:stops[0]?.lugar||'Consulta tu viaje',operation:operationKind
+   });
+   await audit(db,companyId,user.id,'traffic.trip_alert_retried','trip',tripId,null,{
+    driver_id:trip.user_id,push_status:alert.pushStatus,inbox_created:alert.inboxCreated,
+    push_accepted:alert.pushAccepted,push_failed:alert.pushFailed
+   }).catch((error:unknown)=>console.warn('[TRAFFIC] Alert retry audit failed',error));
+   return enterpriseJson({ok:true,...alert});
+  }
   if(operation==='delete'){
    const result=await db.from('viajes').delete().eq('id',tripId).eq('user_id',trip.user_id);
    if(result.error)throw result.error;
@@ -49,7 +64,8 @@ export async function POST(req:NextRequest){
    const updated=await db.from('viajes').update({user_id:newDriverId,notas:JSON.stringify({...metadata,transferred_by:user.id,transferred_at:new Date().toISOString()})}).eq('id',tripId).eq('user_id',trip.user_id).select('id').maybeSingle();
    if(updated.error)throw updated.error;
    if(!updated.data)return enterpriseJson({error:'No se ha podido transferir: el conductor ha cambiado'},409);
-   await audit(db,companyId,user.id,'traffic.trip_transferred','trip',tripId,{driver_id:trip.user_id},{driver_id:newDriverId});
+   await audit(db,companyId,user.id,'traffic.trip_transferred','trip',tripId,{driver_id:trip.user_id},{driver_id:newDriverId})
+     .catch((error:unknown)=>console.warn('[TRAFFIC] Transfer audit failed',error));
    let alert: Awaited<ReturnType<typeof notifyTripAssigned>> = {
     pushStatus:'failed',inboxCreated:false,pushAccepted:0,pushFailed:0
    };

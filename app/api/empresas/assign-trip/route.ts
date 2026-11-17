@@ -49,7 +49,9 @@ export async function POST(req:NextRequest){
    notas:JSON.stringify({origen:'trafico',company_id:companyId,remolque,observaciones,assigned_by:user.id})
   }).select('id').single();
   if(saved.error)throw saved.error;
-  await audit(db,companyId,user.id,'traffic.trip_assigned','trip',id,null,{driver_id:driverId,cliente,tipo,remolque,paradas});
+  // An audit write must not prevent notification delivery after a saved trip.
+  await audit(db,companyId,user.id,'traffic.trip_assigned','trip',id,null,{driver_id:driverId,cliente,tipo,remolque,paradas})
+    .catch((error:unknown)=>console.warn('[TRAFFIC] Trip audit failed',error));
   // A failed push cannot undo the assignment. Persist an inbox backup and
   // report Expo ticket acceptance separately from successful trip creation.
   let alert: Awaited<ReturnType<typeof notifyTripAssigned>> = {
