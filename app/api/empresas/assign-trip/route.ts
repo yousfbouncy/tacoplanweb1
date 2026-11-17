@@ -52,7 +52,9 @@ export async function POST(req:NextRequest){
   await audit(db,companyId,user.id,'traffic.trip_assigned','trip',id,null,{driver_id:driverId,cliente,tipo,remolque,paradas});
   // A failed push cannot undo the assignment. Persist an inbox backup and
   // report Expo ticket acceptance separately from successful trip creation.
-  let alert = {pushStatus:'failed' as const,inboxCreated:false,pushAccepted:0,pushFailed:0};
+  let alert: Awaited<ReturnType<typeof notifyTripAssigned>> = {
+    pushStatus:'failed',inboxCreated:false,pushAccepted:0,pushFailed:0
+  };
   try {
     alert = await notifyTripAssigned(db,{
       driverId,tripId:id,cliente,firstStop:paradas[0].lugar,operation:'assigned',
