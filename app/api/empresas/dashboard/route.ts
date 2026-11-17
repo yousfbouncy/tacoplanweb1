@@ -37,7 +37,8 @@ export async function GET(req:NextRequest){
     .eq('company_id',companyId).order('closed_at',{ascending:false}).limit(200),
    db.from('tp_company_members').select('user_id,username,employee_name,role').eq('company_id',companyId).eq('active',true).eq('role','driver'),
    db.from('tp_company_members').select('user_id,username,employee_name,role').eq('company_id',companyId).eq('active',true).eq('role','traffic'),
-   db.from('tp_traffic_driver_assignments').select('driver_id,traffic_user_id,assigned_at').eq('company_id',companyId)
+   db.from('tp_traffic_driver_assignments').select('driver_id,traffic_user_id,assigned_at').eq('company_id',companyId),
+   db.from('tp_diet_adjustments').select('id,driver_id,diet_date,operation,original_diet_type,proposed_diet_type,proposed_percentage,reason,status,driver_observation,created_at').eq('company_id',companyId).order('created_at',{ascending:false}).limit(500)
   ]);
   for(const response of [reviews,closures,drivers,trafficMembers,assignments,adjustments])if(response.error)throw response.error;
   // Payroll-only split of automatically registered Sunday/holiday amounts.
