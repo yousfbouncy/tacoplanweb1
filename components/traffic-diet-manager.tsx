@@ -180,7 +180,9 @@ export default function TrafficDietManager({drivers,entries,adjustments,reviews,
    {!validPeriod?<p role="alert" className="mt-3 rounded-lg bg-rose-50 p-3 text-xs font-semibold text-rose-700">Selecciona una fecha inicial anterior o igual a la fecha final.</p>:null}
    <div className="mt-4 flex flex-wrap gap-2 text-xs">
     <span className="rounded-lg bg-blue-50 px-3 py-2 font-semibold text-blue-700">{records.length} registros en el periodo</span>
-    <span className="rounded-lg bg-amber-50 px-3 py-2 font-semibold text-amber-700">{proposals.filter(p=>p.status==='awaiting_driver').length} pendientes de respuesta</span>
+    <span className="rounded-lg bg-emerald-50 px-3 py-2 font-semibold text-emerald-700">{records.filter(e=>findReview(e)?.status==='confirmed').length} confirmadas para RR. HH.</span>
+    <span className="rounded-lg bg-amber-50 px-3 py-2 font-semibold text-amber-700">{records.filter(canConfirm).length} pendientes de confirmar</span>
+    <span className="rounded-lg bg-amber-50 px-3 py-2 font-semibold text-amber-700">{proposals.filter(p=>p.status==='awaiting_driver').length} cambios pendientes de respuesta</span>
    </div>
    <p className="mt-3 text-xs text-slate-500">Las propuestas de Tráfico no borran los registros originales: el conductor puede aceptarlas o dejar una discrepancia. Solo se muestran datos compartidos con la empresa.</p>
   </div>
