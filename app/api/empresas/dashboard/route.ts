@@ -85,7 +85,7 @@ export async function GET(req:NextRequest){
    ...visibleJornadas.map(j=>({
     id:j.id,source:'jornada',driver_id:j.user_id,date:String(j.fecha_inicio||'').slice(0,10),
     type:j.dieta_manual_tipo||j.tipo_ruta||null,percentage:j.dieta_percent||null,
-    pluses:Array.isArray((j as any).plus_items)?(j as any).plus_items.map((p:any)=>String(p.concepto||'')).filter(Boolean):[],
+    pluses:Array.isArray((j as any).plus_items)?(j as any).plus_items.filter((p:any)=>p&&typeof p.concepto==='string').map((p:any)=>({concepto:String(p.concepto),importe:Number(p.importe)||0})):[],
     day_flag:(j as any).day_flag||null,
     day_extra_eur:Math.max(0,Number(String((j as any).day_extra_eur||0).replace(',','.'))||0),
    })),
