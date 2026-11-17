@@ -5,12 +5,20 @@ on:
     paths:
       - 'app/api/empresas/action/route.ts'
       - 'app/api/empresas/dashboard/route.ts'
+      - 'app/api/empresas/hr-period/route.ts'
+      - 'components/enterprise-workspace.tsx'
+      - 'lib/tp-hr-diet-breakdown.ts'
+      - 'tests/tp-hr-diet-breakdown.test.mjs'
       - '.github/workflows/enterprise-diet-review-check.yml'
   pull_request:
     branches: [main]
     paths:
       - 'app/api/empresas/action/route.ts'
       - 'app/api/empresas/dashboard/route.ts'
+      - 'app/api/empresas/hr-period/route.ts'
+      - 'components/enterprise-workspace.tsx'
+      - 'lib/tp-hr-diet-breakdown.ts'
+      - 'tests/tp-hr-diet-breakdown.test.mjs'
       - '.github/workflows/enterprise-diet-review-check.yml'
   workflow_dispatch:
 jobs:
@@ -24,3 +32,4 @@ jobs:
           cache: npm
       - run: npm ci --ignore-scripts
       - run: npm run typecheck
+      - run: node --experimental-strip-types --test tests/tp-hr-diet-breakdown.test.mjs
