@@ -6,9 +6,7 @@ export function isPayrollDate(value:unknown):value is string {
 }
 export function payrollDateRange(from:unknown,to:unknown):{from:string;to:string}|null{
  if(!isPayrollDate(from)||!isPayrollDate(to)||from>to)return null;
- // Query bounds: at most 366 calendar days, including both endpoints.
- const length=(Date.parse(to+'T00:00:00Z')-Date.parse(from+'T00:00:00Z'))/86400000;
- return length>=0&&length<=365?{from,to}:null;
+ return {from,to};
 }
 /** Inclusive overlap: adjacent ranges with no repeated date are allowed. */
 export function payrollRangesOverlap(aFrom:string,aTo:string,bFrom:string,bTo:string):boolean{
