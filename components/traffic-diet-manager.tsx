@@ -5,14 +5,14 @@ import {ArrowLeft,CalendarDays,CheckCircle2,ChevronRight,Plus,Search,Trash2,Penc
 import {supabase} from '@/lib/supabase';
 
 export type Driver={user_id:string;username:string;employee_name?:string|null};
-export type Entry={id:string;driver_id:string;source:'jornada'|'natural_day'|'manual';date:string;type:string|null;percentage:number|null;pluses:string[];day_flag?:string|null;day_extra_eur?:number|null};
-export type Adjustment={id:string;driver_id:string;diet_date:string;target_kind:string;target_id?:string|null;operation:'add'|'edit'|'delete';original_diet_type?:string|null;proposed_diet_type?:string|null;proposed_percentage?:number|null;reason:string;status:string;driver_observation?:string|null;created_at:string};
-type Form={operation:'add'|'edit'|'delete';targetKind:'jornada'|'natural_day'|'manual';targetId:string;date:string;dietType:string;percentage:number;plusTypes:string[];reason:string;originalFlag?:string|null;originalExtra?:number|null};
+export type Entry={id:string;driver_id:string;source:'jornada'|'natural_day'|'manual';date:string;type:string|null;percentage:number|null;pluses:Array<{concepto:string;importe:number}>;day_flag?:string|null;day_extra_eur?:number|null};
+export type Adjustment={id:string;driver_id:string;diet_date:string;target_kind:string;target_id?:string|null;operation:'add'|'edit'|'delete';original_diet_type?:string|null;proposed_diet_type?:string|null;proposed_percentage?:number|null;reason:string;status:string;driver_observation?:string|null;created_at:string;proposed_pluses?:Array<{concepto:string;importe:number;source?:string}>};
+type Form={operation:'add'|'edit'|'delete';targetKind:'jornada'|'natural_day'|'manual';targetId:string;date:string;dietType:string;percentage:number;plusItems:Array<{concepto:string;importe:number;source?:'automatic'|'manual'}>;reason:string;originalFlag?:string|null;originalExtra?:number|null};
 const field='w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-blue-500';
 const dateLabel=(s:string)=>/^\d{4}-\d{2}-\d{2}$/.test(s)?s.slice(8,10)+'/'+s.slice(5,7)+'/'+s.slice(0,4):s;
 const kinds:{type:string;label:string}[]=[{type:'NACIONAL',label:'Nacional'},{type:'INTERNACIONAL',label:'Internacional'},{type:'REGIONAL',label:'Regional'}];
-const newForm=(date:string):Form=>({operation:'add',targetKind:'manual',targetId:'',date,dietType:'NACIONAL',percentage:100,plusTypes:[],reason:''});
-const baseType=(s:string|null)=>kinds.find(k=>s?.toUpperCase().includes(k.type))?.type||'NACIONAL';
+const newForm=(date:string):Form=>({operation:'add',targetKind:'manual',targetId:'',date,dietType:'NACIONAL',percentage:100,plusItems:[],reason:''});
+const baseType=(s:string|null)=>kinds.find(k=>s?.toUpperCase().includes(k.type))?.type||'';
 const label=(kind:string)=>kind==='natural_day'?'Día natural':'Jornada';
 export default function TrafficDietManager({drivers,entries,adjustments,plusOptions,blocked=false,refresh}:{
  drivers:Driver[];entries:Entry[];adjustments:Adjustment[];plusOptions:Record<string,string[]>;
@@ -58,14 +58,14 @@ export default function TrafficDietManager({drivers,entries,adjustments,plusOpti
        if(!month||a.diet_date.startsWith(month))byId.set('adjustment:'+a.id,{
          id:a.id,driver_id:a.driver_id,source:'manual' as Entry['source'],
          date:a.diet_date,type:a.proposed_diet_type||null,
-         percentage:a.proposed_percentage||null,pluses:[],day_extra_eur:0});
+         percentage:a.proposed_percentage||null,pluses:a.proposed_pluses||[],day_extra_eur:0});
      } else if(a.target_id && a.target_kind){
        const key=a.target_kind+':'+a.target_id;
        const current=byId.get(key);
        if(current){
          if(a.operation==='delete')byId.delete(key);
          else byId.set(key,{...current,type:a.proposed_diet_type||current.type,
-           percentage:a.proposed_percentage||current.percentage});
+           percentage:a.proposed_percentage||current.percentage,pluses:(a.proposed_pluses||[]).filter(p=>p.source!=='automatic'),day_flag:(a.proposed_pluses||[]).find(p=>p.source==='automatic')?.concepto||null,day_extra_eur:(a.proposed_pluses||[]).find(p=>p.source==='automatic')?.importe||0});
        }
      }
    }
@@ -76,7 +76,7 @@ export default function TrafficDietManager({drivers,entries,adjustments,plusOpti
  const list=drivers.filter(d=>name(d).toLowerCase().includes(query.toLowerCase())||d.username.toLowerCase().includes(query.toLowerCase()));
  const edit=(e:Entry,op:'edit'|'delete')=>{openForm({operation:op,targetKind:e.source,targetId:e.id,
   date:e.date,dietType:baseType(e.type),percentage:[30,60,100].includes(Number(e.percentage))?Number(e.percentage):100,
-  plusTypes:[],reason:'',originalFlag:e.day_flag,originalExtra:e.day_extra_eur});};
+  plusItems:[...(e.day_flag?[{concepto:e.day_flag,importe:Number(e.day_extra_eur)||0,source:'automatic' as const}]:[]),...(e.pluses||[]).map(p=>({...p,source:'manual' as const}))],reason:'',originalFlag:e.day_flag,originalExtra:e.day_extra_eur});};
  const save=async()=>{
   if(!form||!driver||saving||blocked)return;
   if(form.reason.trim().length<10){setMessage('Explica el motivo (mínimo 10 caracteres).');return;}
@@ -88,7 +88,7 @@ export default function TrafficDietManager({drivers,entries,adjustments,plusOpti
     headers:{'Content-Type':'application/json',Authorization:'Bearer '+session.access_token},
     body:JSON.stringify({action:'propose',driverId:driver.user_id,operation:form.operation,
       targetKind:form.targetKind,targetId:form.targetId,date:form.date,
-      dietType:form.dietType,percentage:form.percentage,plusTypes:form.plusTypes,reason:form.reason})});
+      dietType:form.dietType,percentage:form.percentage,plusItems:form.plusItems,reason:form.reason})});
    const data=await res.json();
    if(!res.ok)throw Error(data.error||'No se pudo guardar la propuesta');
    await refresh();setForm(null);setMessage('Propuesta guardada. El conductor recibirá un aviso y podrá responder.');
@@ -141,18 +141,28 @@ export default function TrafficDietManager({drivers,entries,adjustments,plusOpti
      </div>
    <div className="mt-3 grid gap-3 sm:grid-cols-3">
     <label className="text-xs font-semibold text-slate-600">Fecha<input type="date" disabled={form.operation!=='add'} className={field+' mt-1'} value={form.date} onChange={e=>setForm(f=>f?{...f,date:e.target.value}:f)}/></label>
-    {form.operation!=='delete'?<><label className="text-xs font-semibold text-slate-600">Tipo<select className={field+' mt-1'} value={form.dietType} onChange={e=>setForm(f=>f?{...f,dietType:e.target.value}:f)}>{kinds.map(k=><option key={k.type} value={k.type}>{k.label}</option>)}</select></label>
+    {form.operation!=='delete'?<><label className="text-xs font-semibold text-slate-600">Tipo<select className={field+' mt-1'} value={form.dietType} onChange={e=>setForm(f=>f?{...f,dietType:e.target.value}:f)}><option value="" disabled>Selecciona la dieta registrada</option>{kinds.map(k=><option key={k.type} value={k.type}>{k.label}</option>)}</select></label>
      <label className="text-xs font-semibold text-slate-600">Porcentaje<select className={field+' mt-1'} value={form.percentage} onChange={e=>setForm(f=>f?{...f,percentage:Number(e.target.value)}:f)}>{[100,60,30].map(n=><option key={n} value={n}>{n}%</option>)}</select></label></>:null}
    </div>
-   {form.originalFlag?<div className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-900">
-     <strong>Plus automático registrado: {form.originalFlag.toUpperCase()==='DOMINGO'?'domingo':form.originalFlag.toUpperCase()==='FESTIVO'?'festivo':form.originalFlag.toLowerCase()}</strong>
-     <span className="ml-2">{Number(form.originalExtra||0)>0?Number(form.originalExtra).toLocaleString('es-ES',{style:'currency',currency:'EUR'}):'Sin importe registrado'}</span>
-     <p className="mt-1 text-emerald-700">Este plus ya pertenece a la jornada y no se añadirá otra vez.</p>
-    </div>:null}
-   {form.operation!=='delete' && (plusOptions[driver.user_id]||[]).length?<div className="mt-3"><p className="text-xs font-semibold">Pluses</p><div className="mt-2 flex flex-wrap gap-3">{plusOptions[driver.user_id].map(p=><label key={p} className="flex items-center gap-2 text-xs"><input type="checkbox" checked={form.plusTypes.includes(p)} onChange={e=>setForm(f=>f?{...f,plusTypes:e.target.checked?[...f.plusTypes,p]:f.plusTypes.filter(x=>x!==p)}:f)}/>{p.replace(/_/g,' ')}</label>)}</div></div>:null}
+   {form.operation!=='delete'?<div className="mt-4 space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
+    <div className="flex flex-wrap items-center justify-between gap-2">
+     <div><p className="text-sm font-semibold text-slate-900">Pluses de esta jornada</p><p className="text-xs text-slate-500">Cada plus tiene su concepto e importe. Puedes modificarlo, quitarlo o añadir otro.</p></div>
+     <button type="button" className="inline-flex items-center gap-1 rounded-lg border border-blue-200 bg-white px-3 py-2 text-xs font-semibold text-blue-700" onClick={()=>setForm(f=>f?{...f,plusItems:[...f.plusItems,{concepto:'',importe:0,source:'manual'}]}:f)}><Plus size={14}/> Añadir plus</button>
+    </div>
+    {form.plusItems.map((p,index)=><div className="grid grid-cols-[1fr_110px_auto] items-end gap-2" key={index}>
+     <label className="min-w-0 text-xs font-semibold text-slate-600">Concepto
+       <input className={field+' mt-1'} value={p.concepto} maxLength={120} placeholder="Ej. Domingo, festivo, nocturnidad" onChange={e=>setForm(f=>f?{...f,plusItems:f.plusItems.map((x,k)=>k===index?{...x,concepto:e.target.value}:x)}:f)}/></label>
+     <label className="text-xs font-semibold text-slate-600">Importe (€)
+       <input className={field+' mt-1'} inputMode="decimal" type="number" min="0" max="100000" step="0.01" value={p.importe} onChange={e=>setForm(f=>f?{...f,plusItems:f.plusItems.map((x,k)=>k===index?{...x,importe:Number(e.target.value)}:x)}:f)}/></label>
+     <button type="button" aria-label={'Quitar plus '+(index+1)} className="mb-0.5 rounded-lg border border-rose-200 p-2.5 text-rose-700" onClick={()=>setForm(f=>f?{...f,plusItems:f.plusItems.filter((_,k)=>k!==index)}:f)}><Trash2 size={16}/></button>
+     {p.source==='automatic'?<p className="col-span-3 text-xs text-emerald-700">Plus automático original · se propondrá una sola vez, sin duplicarlo</p>:null}
+    </div>)}
+    {!form.plusItems.length?<p className="text-xs text-slate-500">Esta jornada no tiene pluses registrados. Puedes añadir los que corresponda.</p>:null}
+    <p className="text-xs text-slate-500">Los importes propuestos no modifican la jornada original hasta la aceptación del conductor.</p>
+   </div>:null}
    <label className="mt-3 block text-xs font-semibold text-slate-600">Motivo de la propuesta<textarea className={field+' mt-1'} rows={3} maxLength={2000} value={form.reason} onChange={e=>setForm(f=>f?{...f,reason:e.target.value}:f)} placeholder="Explica por qué hay que añadir, modificar o eliminar la dieta"/></label>
    {message?<p role="alert" className="mt-3 rounded-lg bg-rose-50 p-3 text-sm text-rose-700">{message}</p>:null}
-   <div className="mt-4 flex flex-wrap gap-2"><button type="button" disabled={saving||blocked||form.reason.trim().length<10||!form.date} onClick={()=>void save()} className="rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50">{saving?'Guardando…':'Enviar propuesta'}</button><button type="button" onClick={closeDialog} className="rounded-xl border px-4 py-2.5 text-sm">Cancelar</button></div>
+   <div className="mt-4 flex flex-wrap gap-2"><button type="button" disabled={saving||blocked||form.reason.trim().length<10||!form.date||(form.operation!=='delete'&&(!form.dietType||form.plusItems.some(p=>!p.concepto.trim()||!Number.isFinite(p.importe)||p.importe<0)))} onClick={()=>void save()} className="rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50">{saving?'Guardando…':'Enviar propuesta'}</button><button type="button" onClick={closeDialog} className="rounded-xl border px-4 py-2.5 text-sm">Cancelar</button></div>
     </div>
    </div>, document.body
   ) : null}
@@ -160,7 +170,7 @@ export default function TrafficDietManager({drivers,entries,adjustments,plusOpti
    <h3 className="mb-3 flex items-center gap-2 font-bold"><CalendarDays size={18} className="text-blue-600"/> Dietas registradas</h3>
    <div className="space-y-2">{records.map(e=><div key={e.source+e.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-100 p-3 hover:bg-slate-50">
     <div><p className="font-semibold text-slate-900">{dateLabel(e.date)} · {e.type||'Sin tipo'} {e.percentage?e.percentage+'%':''}</p>
-    <p className="text-xs text-slate-500">{label(e.source)}{e.pluses?.length?' · '+e.pluses.join(', '):''}</p>
+    <p className="text-xs text-slate-500">{label(e.source)}{e.pluses?.length?' · '+e.pluses.map(p=>p.concepto+' ('+Number(p.importe).toLocaleString('es-ES',{style:'currency',currency:'EUR'})+')').join(' · '):''}</p>
     {e.day_flag ? <p className="mt-1 text-xs font-semibold text-emerald-700">
       Plus {e.day_flag.toUpperCase()==='DOMINGO'?'domingo':e.day_flag.toUpperCase()==='FESTIVO'?'festivo':e.day_flag.toLowerCase()}
       {Number(e.day_extra_eur||0)>0?' · '+Number(e.day_extra_eur).toLocaleString('es-ES',{style:'currency',currency:'EUR'}):' · Sin importe registrado'}
