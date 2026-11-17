@@ -33,7 +33,7 @@ export async function GET(req:NextRequest){
   const [reviews,closures,drivers,trafficMembers,assignments,adjustments]=await Promise.all([
    db.from('tp_diet_reviews').select('id,driver_id,jornada_id,jornada_date,status,original_diet_type,original_amount,original_pluses,proposed_diet_type,proposed_amount,proposed_pluses,driver_observation,traffic_observation,change_reason,confirmed_at,created_at')
     .eq('company_id',companyId).order('created_at',{ascending:false}).limit(500),
-   db.from('tp_payroll_closures').select('id,month,driver_id,total_diets,total_pluses,confirmed_count,pending_count,disputed_count,closed_at')
+   db.from('tp_payroll_closures').select('id,month,period_from,period_to,driver_id,total_diets,total_pluses,confirmed_count,pending_count,disputed_count,closed_at')
     .eq('company_id',companyId).order('closed_at',{ascending:false}).limit(200),
    db.from('tp_company_members').select('user_id,username,employee_name,role').eq('company_id',companyId).eq('active',true).eq('role','driver'),
    db.from('tp_company_members').select('user_id,username,employee_name,role').eq('company_id',companyId).eq('active',true).eq('role','traffic'),

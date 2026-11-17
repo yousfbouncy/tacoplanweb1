@@ -53,7 +53,7 @@ function dutyCountdown(j:Journey|undefined,computed:HistoryDutyLimit|undefined,n
  const remaining=Math.floor(seconds/3600)+' h '+String(Math.floor(seconds%3600/60)).padStart(2,'0')+' min '+String(seconds%60).padStart(2,'0')+' s';
  return {label:limit.label,remaining,end:new Date(start.getTime()+limit.maximum*60000).toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'}),expired:now>start.getTime()+limit.maximum*60000};
 }
-type WorkspaceView={member:{role:'traffic'|'hr';username:string;company_id:string};company?:{name:string;subscription_status:string};drivers?:Driver[];trafficMembers?:Driver[];assignments?:Array<{driver_id:string;traffic_user_id:string}>;jornadas?:Journey[];activities?:ActivityRow[];trips?:Trip[];dutyLimits?:Record<string,HistoryDutyLimit>;reviews?:Review[];dietEntries?:TrafficDietEntry[];dietAdjustments?:TrafficDietAdjustment[];closures?:Array<{id:string;driver_id:string;month:string;total_diets:number;total_pluses?:number;closed_at:string}>;plusOptions?:Record<string,string[]>;blocked?:boolean};
+type WorkspaceView={member:{role:'traffic'|'hr';username:string;company_id:string};company?:{name:string;subscription_status:string};drivers?:Driver[];trafficMembers?:Driver[];assignments?:Array<{driver_id:string;traffic_user_id:string}>;jornadas?:Journey[];activities?:ActivityRow[];trips?:Trip[];dutyLimits?:Record<string,HistoryDutyLimit>;reviews?:Review[];dietEntries?:TrafficDietEntry[];dietAdjustments?:TrafficDietAdjustment[];closures?:Array<{id:string;driver_id:string;month:string;period_from:string;period_to:string;total_diets:number;total_pluses?:number;closed_at:string}>;plusOptions?:Record<string,string[]>;blocked?:boolean};
 type Props={view:WorkspaceView;busy:boolean;loading:boolean;error:string;message:string;refresh:()=>Promise<void>;onAction:(body:Record<string,unknown>)=>Promise<unknown>;signOut:()=>Promise<unknown>|void};
 type Page='resumen'|'conductores'|'jornadas'|'dietas'|'informes'|'asignaciones'|'viajes';
 const euro=(n:number)=>new Intl.NumberFormat('es-ES',{style:'currency',currency:'EUR'}).format(n);
@@ -126,8 +126,8 @@ export default function EnterpriseWorkspace({view,busy,loading,error,message,ref
  const [rangeLoading,setRangeLoading]=useState(false);
  const [rangeError,setRangeError]=useState('');
  const validRange=Boolean(from&&to&&/^\d{4}-\d{2}-\d{2}$/.test(from)&&/^\d{4}-\d{2}-\d{2}$/.test(to)&&from<=to);
- const month=from.slice(0,7);
- const fullCalendarMonth=validRange&&from===month+'-01'&&to===monthEnd(month);
+ const overlappingClosures=(view.closures||[]).filter(c=>validRange&&c.period_from<=to&&c.period_to>=from);
+ const alreadyClosedForRange=overlappingClosures.length>0;
  const changeMonth=(offset:number)=>{const dates=calendarRange(offset);setFrom(dates.from);setTo(dates.to);};
  useEffect(()=>{
   if(traffic||!validRange||view.blocked){setRangeReviews([]);setRangeError('');setRangeLoading(false);return;}
@@ -235,23 +235,23 @@ export default function EnterpriseWorkspace({view,busy,loading,error,message,ref
   const target=Object.prototype.hasOwnProperty.call(chosenAssignment,driverId)?chosenAssignment[driverId]:existing;
   if(await onAction({action:'assign_driver',driverId,trafficUserId:target||null})){setNotice('Asignación actualizada.');await refresh();}
  };
- const closeMonth=async()=>{
-  // Never close a whole calendar month from a partial or multi-month filter.
-  if(closing||!fullCalendarMonth||rangeLoading||rangeError||!window.confirm('¿Cerrar el mes completo '+month+' con las dietas confirmadas? Las pendientes seguirán identificadas. Los cambios posteriores requerirán regularización.'))return;
+ const closePeriod=async()=>{
+  if(closing||!validRange||alreadyClosedForRange||!approvedReviews.length||rangeLoading||rangeError)return;
+  if(!window.confirm('¿Cerrar la liquidación desde '+displayDate(from)+' hasta '+displayDate(to)+'? Se guardarán las dietas y pluses confirmados para '+monthGroups.filter(x=>x.ok.length>0).length+' conductores. Este cierre quedará bloqueado para evitar pagos duplicados.'))return;
   setClosing(true);setNotice('');
   try{
    const {data}=await supabase.auth.getSession();
    const token=data.session?.access_token;if(!token)throw Error('Sesión no disponible');
-   const r=await fetch('/api/empresas/payroll',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+token},body:JSON.stringify({month})});
-   const result=await r.json();if(!r.ok)throw Error(result.error||'No se pudo cerrar el mes');
-   setNotice('Cierre mensual guardado para '+result.drivers+' conductores.');await refresh();
-  }catch(e:unknown){setNotice(e instanceof Error?e.message:'Error al cerrar el mes');}
+   const r=await fetch('/api/empresas/payroll',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+token},body:JSON.stringify({from,to})});
+   const result=await r.json();if(!r.ok)throw Error(result.error||'No se pudo cerrar el período');
+   setNotice('Liquidación cerrada del '+displayDate(result.from)+' al '+displayDate(result.to)+' para '+result.drivers+' conductores.');await refresh();
+  }catch(e:unknown){setNotice(e instanceof Error?e.message:'Error al cerrar el período');}
   finally{setClosing(false);}
  };
  const menu: Array<{id:Page;label:string;icon:typeof Users}> = traffic?[
   {id:'resumen',label:'Resumen',icon:LayoutDashboard},{id:'conductores',label:'Conductores',icon:Users},{id:'viajes',label:'Viajes',icon:Truck},{id:'jornadas',label:'Jornadas',icon:Clock3},{id:'dietas',label:'Dietas y pluses',icon:Wallet},{id:'informes',label:'Informes',icon:BarChart3}
  ]:[
-  {id:'resumen',label:'Resumen',icon:LayoutDashboard},{id:'conductores',label:'Conductores',icon:Users},{id:'dietas',label:'Liquidación mensual',icon:Wallet},{id:'asignaciones',label:'Asignar Tráfico',icon:Users},{id:'informes',label:'Informes',icon:BarChart3}
+  {id:'resumen',label:'Resumen',icon:LayoutDashboard},{id:'conductores',label:'Conductores',icon:Users},{id:'dietas',label:'Liquidaciones por fechas',icon:Wallet},{id:'asignaciones',label:'Asignar Tráfico',icon:Users},{id:'informes',label:'Informes',icon:BarChart3}
  ];
  const selectedTitle=menu.find(m=>m.id===page)?.label||'Resumen';
  const table=<div className={card+' overflow-hidden !p-0'}>
@@ -290,9 +290,9 @@ export default function EnterpriseWorkspace({view,busy,loading,error,message,ref
      <p className="mt-1 text-base">Total del período: <strong className="text-slate-900">{euro(total)}</strong></p>
     </div>
     <div className="text-right">
-     {!fullCalendarMonth?<p className="mb-2 max-w-xs text-xs text-amber-700">El cierre de nómina es mensual. Para cerrar un mes, selecciona todos sus días.</p>:null}
-     <button className={primary} disabled={closing||busy||view.blocked||!validRange||!fullCalendarMonth||rangeLoading||!!rangeError||currentReviews.length===0||Boolean(view.closures?.some(x=>x.month===month))} onClick={()=>void closeMonth()}>
-      {closing?'Cerrando…':view.closures?.some(x=>x.month===month)&&fullCalendarMonth?'Mes cerrado':'Cerrar mes completo'}
+     {alreadyClosedForRange?<p className="mb-2 max-w-xs text-xs text-amber-700">Hay un cierre anterior que coincide con algunas fechas. Cambia Desde/Hasta para evitar liquidaciones duplicadas.</p>:null}
+     <button className={primary} disabled={closing||busy||view.blocked||!validRange||alreadyClosedForRange||rangeLoading||!!rangeError||!approvedReviews.length} onClick={()=>void closePeriod()}>
+      {closing?'Cerrando…':alreadyClosedForRange?'Período ya liquidado':'Cerrar período seleccionado'}
      </button>
     </div>
    </div>
@@ -335,10 +335,31 @@ export default function EnterpriseWorkspace({view,busy,loading,error,message,ref
  <p className="text-xs text-slate-500">Solo se muestran tiempos registrados. Los datos pendientes de sincronización no se inventan.</p>
  {table}
  </>;
+ const closedPeriods=Array.from((view.closures||[]).reduce((groups,entry)=>{
+  const key=entry.period_from+'_'+entry.period_to;
+  const prev=groups.get(key)||{from:entry.period_from,to:entry.period_to,drivers:0,diets:0,pluses:0,closedAt:entry.closed_at};
+  prev.drivers++;
+  prev.diets+=Math.round(Number(entry.total_diets||0)*100);
+  prev.pluses+=Math.round(Number(entry.total_pluses||0)*100);
+  groups.set(key,prev);
+  return groups;
+ },new Map<string,{from:string;to:string;drivers:number;diets:number;pluses:number;closedAt:string}>()).values())
+ .sort((a,b)=>b.closedAt.localeCompare(a.closedAt)).slice(0,8);
  const summaryHR=<>
   <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"><Stat icon={Users} label="Conductores" value={drivers.length} sub="Vinculados a la empresa"/><Stat icon={CheckCircle2} label="Confirmadas" value={approvedReviews.length} sub={'Del '+displayDate(from)+' al '+displayDate(to)}/><Stat icon={Clock3} label="Pendientes" value={currentReviews.filter(x=>x.status==='awaiting_driver').length} sub="Respuesta del conductor"/><Stat icon={AlertCircle} label="En discrepancia" value={currentReviews.filter(x=>x.status==='disputed').length} sub="Pendientes de revisión"/></div>
   <div className="grid gap-4 md:grid-cols-3"><div className={card}><p className="text-xs font-semibold text-slate-500">Total dietas</p><p className="mt-3 text-2xl font-bold">{euro(companyTotals.diet)}</p></div><div className={card}><p className="text-xs font-semibold text-slate-500">Total pluses</p><p className="mt-3 text-2xl font-bold">{euro(companyTotals.plus)}</p></div><div className={card}><p className="text-xs font-semibold text-slate-500">Total del período</p><p className="mt-3 text-2xl font-bold text-blue-700">{euro(total)}</p></div></div>
   {hrTable}
+  <div className={card}>
+   <h3 className="text-base font-bold">Últimos períodos cerrados</h3>
+   <p className="mt-1 text-xs text-slate-500">Cierres guardados con fechas exactas. No modifican las dietas originales del conductor.</p>
+   <div className="mt-3 space-y-2">
+    {closedPeriods.map(period=><div key={period.from+'_'+period.to} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm">
+     <div><strong>{displayDate(period.from)} – {displayDate(period.to)}</strong><p className="mt-1 text-xs text-slate-500">{period.drivers} conductor(es)</p></div>
+     <div className="text-right text-xs"><p>Dietas: <strong>{euro(period.diets/100)}</strong> · Pluses: <strong>{euro(period.pluses/100)}</strong></p><p className="mt-1 font-bold">Total: {euro((period.diets+period.pluses)/100)}</p></div>
+    </div>)}
+    {!closedPeriods.length?<p className="text-sm text-slate-500">Todavía no hay períodos cerrados.</p>:null}
+   </div>
+  </div>
  </>;
  const drawerContent=selectedDriver?<div className="fixed inset-0 z-[100] flex justify-end bg-[#06132d]/55" onClick={()=>{setDrawer(null);setSelectedJourney('');}}><div role="dialog" aria-modal="true" aria-label={'Ficha de '+display(selectedDriver)} onClick={e=>e.stopPropagation()} className="flex h-full w-full max-w-xl flex-col bg-white shadow-2xl">
   <div className="flex items-start justify-between gap-3 border-b border-slate-100 px-5 py-4"><div><p className="text-xs font-bold uppercase tracking-wide text-blue-600">{traffic?'Ficha operativa':'Liquidación individual'}</p><h2 className="mt-1 text-xl font-bold">{display(selectedDriver)}</h2><p className="text-xs text-slate-500">@{selectedDriver.username}</p></div><button aria-label="Cerrar ficha" className={secondary+' !p-2'} onClick={()=>{setDrawer(null);setSelectedJourney('');}}><X size={18}/></button></div>
