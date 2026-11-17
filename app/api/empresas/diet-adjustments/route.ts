@@ -7,7 +7,7 @@ const PERCENTS = [30,60,100];
 const dateOK = (v: string) => /^\d{4}-\d{2}-\d{2}$/.test(v) && !Number.isNaN(Date.parse(v + "T12:00:00Z"));
 function pluses(v:unknown): string[] | null {
  if (!Array.isArray(v) || v.length>30 || !v.every(x => typeof x==="string" && /^[a-z0-9_-]{1,50}$/.test(x))) return null;
- return [...new Set(v)];
+ return Array.from(new Set(v));
 }
 export async function POST(req: NextRequest) {
  const browser=originAllowed(req);
@@ -63,7 +63,7 @@ export async function POST(req: NextRequest) {
   if(!isPaidAccess(company.data)) return enterpriseJson({error:"Acceso empresarial no activo"},402);
   let originalType:string|null=null, originalPercentage:number|null=null, originalPluses:string[]=[];
   if(targetKind!=="manual") {
-   if(!uuid(targetId) && !(targetKind==="jornada" && targetId.length>0 && targetId.length<=160))
+   if(!uuid(targetId))
     return enterpriseJson({error:"Registro inválido"},400);
    const source=targetKind==="jornada"
     ? await db.from("jornadas").select("id,user_id,created_at,fecha_inicio,tipo_ruta,dieta_manual_tipo,dieta_percent,plus_items,day_flag")
@@ -72,15 +72,16 @@ export async function POST(req: NextRequest) {
       .eq("id",targetId).eq("user_id",driverId).maybeSingle();
    if(source.error) throw source.error;
    if(!source.data) return enterpriseJson({error:"No existe la dieta indicada"},404);
-   const sourceDate=targetKind==="jornada"
-      ? String(source.data.fecha_inicio||"").slice(0,10) : String(source.data.date||"").slice(0,10);
+   const item=source.data as Record<string,any>;
+   const sourceDate=targetKind="jornada"
+      ? String(item.fecha_inicio||"").slice(0,10) : String(item.date||"").slice(0,10);
    if(sourceDate!==date) return enterpriseJson({error:"La fecha no corresponde al registro"},409);
-   if(new Date(source.data.created_at).getTime()<new Date(driver.data.history_shared_from||driver.data.joined_at).getTime())
+   if(new Date(item.created_at).getTime()<new Date(driver.data.history_shared_from||driver.data.joined_at).getTime())
     return enterpriseJson({error:"Registro anterior al historial compartido con la empresa"},403);
-   originalType=targetKind==="jornada"?(source.data.dieta_manual_tipo||source.data.tipo_ruta||null):source.data.type;
-   originalPercentage=targetKind==="jornada"?Number(source.data.dieta_percent)||null:Number(source.data.percentage)||null;
+   originalType=targetKind==="jornada"?(item.dieta_manual_tipo||item.tipo_ruta||null):item.type;
+   originalPercentage=targetKind==="jornada"?Number(item.dieta_percent)||null:Number(item.percentage)||null;
    if(targetKind==="jornada"){
-    originalPluses=Array.isArray(source.data.plus_items)?source.data.plus_items.map((p:any)=>p?.concepto).filter((x:any)=>typeof x==="string"):[];
+    originalPluses=Array.isArray(item.plus_items)?source.data.plus_items.map((p:any)=>p?.concepto).filter((x:any)=>typeof x==="string"):[];
    }
   } else {
    if(new Date(date+"T12:00:00Z").getTime()<new Date(driver.data.history_shared_from||driver.data.joined_at).getTime())
