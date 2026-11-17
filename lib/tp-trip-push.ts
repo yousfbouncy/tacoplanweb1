@@ -87,6 +87,10 @@ export async function notifyTripAssigned(
       trip,
     );
     if (!messages.length) {
+      if (inboxCreated) {
+        await db.from("user_notifications").update({ push_status: "no_tokens" })
+          .eq("id", inserted.data.id).eq("user_id", trip.driverId);
+      }
       return { pushStatus, inboxCreated, pushAccepted, pushFailed };
     }
 
