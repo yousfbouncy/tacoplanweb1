@@ -7,7 +7,7 @@ import {supabase} from '@/lib/supabase';
 export type Driver={user_id:string;username:string;employee_name?:string|null};
 export type Entry={id:string;driver_id:string;source:'jornada'|'natural_day'|'manual';date:string;type:string|null;percentage:number|null;pluses:string[];day_flag?:string|null;day_extra_eur?:number|null};
 export type Adjustment={id:string;driver_id:string;diet_date:string;target_kind:string;target_id?:string|null;operation:'add'|'edit'|'delete';original_diet_type?:string|null;proposed_diet_type?:string|null;proposed_percentage?:number|null;reason:string;status:string;driver_observation?:string|null;created_at:string};
-type Form={operation:'add'|'edit'|'delete';targetKind:'jornada'|'natural_day'|'manual';targetId:string;date:string;dietType:string;percentage:number;plusTypes:string[];reason:string};
+type Form={operation:'add'|'edit'|'delete';targetKind:'jornada'|'natural_day'|'manual';targetId:string;date:string;dietType:string;percentage:number;plusTypes:string[];reason:string;originalFlag?:string|null;originalExtra?:number|null};
 const field='w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-blue-500';
 const dateLabel=(s:string)=>/^\d{4}-\d{2}-\d{2}$/.test(s)?s.slice(8,10)+'/'+s.slice(5,7)+'/'+s.slice(0,4):s;
 const kinds:{type:string;label:string}[]=[{type:'NACIONAL',label:'Nacional'},{type:'INTERNACIONAL',label:'Internacional'},{type:'REGIONAL',label:'Regional'}];
@@ -76,7 +76,7 @@ export default function TrafficDietManager({drivers,entries,adjustments,plusOpti
  const list=drivers.filter(d=>name(d).toLowerCase().includes(query.toLowerCase())||d.username.toLowerCase().includes(query.toLowerCase()));
  const edit=(e:Entry,op:'edit'|'delete')=>{openForm({operation:op,targetKind:e.source,targetId:e.id,
   date:e.date,dietType:baseType(e.type),percentage:[30,60,100].includes(Number(e.percentage))?Number(e.percentage):100,
-  plusTypes:[],reason:''});};
+  plusTypes:[],reason:'',originalFlag:e.day_flag,originalExtra:e.day_extra_eur});};
  const save=async()=>{
   if(!form||!driver||saving||blocked)return;
   if(form.reason.trim().length<10){setMessage('Explica el motivo (mínimo 10 caracteres).');return;}
@@ -144,6 +144,11 @@ export default function TrafficDietManager({drivers,entries,adjustments,plusOpti
     {form.operation!=='delete'?<><label className="text-xs font-semibold text-slate-600">Tipo<select className={field+' mt-1'} value={form.dietType} onChange={e=>setForm(f=>f?{...f,dietType:e.target.value}:f)}>{kinds.map(k=><option key={k.type} value={k.type}>{k.label}</option>)}</select></label>
      <label className="text-xs font-semibold text-slate-600">Porcentaje<select className={field+' mt-1'} value={form.percentage} onChange={e=>setForm(f=>f?{...f,percentage:Number(e.target.value)}:f)}>{[100,60,30].map(n=><option key={n} value={n}>{n}%</option>)}</select></label></>:null}
    </div>
+   {form.originalFlag?<div className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-900">
+     <strong>Plus automático registrado: {form.originalFlag.toUpperCase()==='DOMINGO'?'domingo':form.originalFlag.toUpperCase()==='FESTIVO'?'festivo':form.originalFlag.toLowerCase()}</strong>
+     <span className="ml-2">{Number(form.originalExtra||0)>0?Number(form.originalExtra).toLocaleString('es-ES',{style:'currency',currency:'EUR'}):'Sin importe registrado'}</span>
+     <p className="mt-1 text-emerald-700">Este plus ya pertenece a la jornada y no se añadirá otra vez.</p>
+    </div>:null}
    {form.operation!=='delete' && (plusOptions[driver.user_id]||[]).length?<div className="mt-3"><p className="text-xs font-semibold">Pluses</p><div className="mt-2 flex flex-wrap gap-3">{plusOptions[driver.user_id].map(p=><label key={p} className="flex items-center gap-2 text-xs"><input type="checkbox" checked={form.plusTypes.includes(p)} onChange={e=>setForm(f=>f?{...f,plusTypes:e.target.checked?[...f.plusTypes,p]:f.plusTypes.filter(x=>x!==p)}:f)}/>{p.replace(/_/g,' ')}</label>)}</div></div>:null}
    <label className="mt-3 block text-xs font-semibold text-slate-600">Motivo de la propuesta<textarea className={field+' mt-1'} rows={3} maxLength={2000} value={form.reason} onChange={e=>setForm(f=>f?{...f,reason:e.target.value}:f)} placeholder="Explica por qué hay que añadir, modificar o eliminar la dieta"/></label>
    {message?<p role="alert" className="mt-3 rounded-lg bg-rose-50 p-3 text-sm text-rose-700">{message}</p>:null}
