@@ -14,7 +14,7 @@ type Review={
 const monthRange=(month:unknown)=>{
  if(typeof month!=='string'||!/^\d{4}-(0[1-9]|1[0-2])$/.test(month))return null;
  const y=Number(month.slice(0,4)),m=Number(month.slice(5));
- return {from:month+'-01',to:new Date(Date.UTC(y,m,0)).toISOString().slice(0,10)};
+ return payrollDateRange(month+'-01',new Date(Date.UTC(y,m,0)).toISOString().slice(0,10));
 };
 const incomingRange=(value:any)=>value?.from!=null||value?.to!=null
  ?payrollDateRange(value?.from,value?.to):monthRange(value?.month);
@@ -84,7 +84,7 @@ async function payroll(req:NextRequest,from:string,to:string){
 }
 export async function GET(req:NextRequest){
  const range=incomingRange(Object.fromEntries(req.nextUrl.searchParams));
- if(!range)return enterpriseJson({error:'Selecciona fechas válidas Desde/Hasta (máximo 366 días)'},400);
+ if(!range)return enterpriseJson({error:'Selecciona fechas válidas Desde/Hasta '},400);
  try{
   const r=await payroll(req,range.from,range.to);
   if('error' in r)return enterpriseJson({error:r.error},r.status);
@@ -95,7 +95,7 @@ export async function POST(req:NextRequest){
  if(!originAllowed(req))return enterpriseJson({error:'Origen no permitido'},403);
  let body:any;try{body=await req.json();}catch{return enterpriseJson({error:'Datos inválidos'},400);}
  const range=incomingRange(body);
- if(!range)return enterpriseJson({error:'Selecciona fechas válidas Desde/Hasta (máximo 366 días)'},400);
+ if(!range)return enterpriseJson({error:'Selecciona fechas válidas Desde/Hasta '},400);
  try{
   const r=await payroll(req,range.from,range.to);
   if('error' in r)return enterpriseJson({error:r.error},r.status);
