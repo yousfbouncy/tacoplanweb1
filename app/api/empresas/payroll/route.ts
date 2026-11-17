@@ -28,7 +28,7 @@ async function payroll(req:NextRequest,month:string){
   db.from('tp_company_members').select('user_id,username').eq('company_id',companyId).eq('role','driver')
  ]);
  if(reviews.error||drivers.error)throw reviews.error||drivers.error;
- const jornadaIds=Array.from(new Set((reviews.data||[]).map(r=>r.jornada_id).filter((id):id is string=>typeof id==='string')));
+ const jornadaIds=Array.from(new Set((reviews.data||[]).map(r=>r.jornada_id).filter((id):id is string=>typeof id==='string'&&!id.startsWith('natural_day:'))));
  const extrasQuery=jornadaIds.length?await db.from('jornadas').select('id,day_extra_eur,diet_base_eur').in('id',jornadaIds):{data:[],error:null};
  if(extrasQuery.error)throw extrasQuery.error;
  const extras=new Map((extrasQuery.data||[]).map(j=>[j.id,Math.max(0,Number(String(j.day_extra_eur||0).replace(',','.'))||0)]));
