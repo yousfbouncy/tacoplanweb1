@@ -10,7 +10,7 @@ const validDay=(s:string|null)=>{
 /** Access-controlled, date-scoped finance data; no routes, locations or driving times. */
 export async function GET(req:NextRequest){
  const from=req.nextUrl.searchParams.get('from'),to=req.nextUrl.searchParams.get('to');
- if(!validDay(from)||!validDay(to)||from!>to!)return enterpriseJson({error:'Selecciona un período válido: Desde no puede ser posterior a Hasta'},400);
+ if(!validDay(from)||!validDay(to)||String(from)>String(to))return enterpriseJson({error:'Selecciona un período válido: Desde no puede ser posterior a Hasta'},400);
  try{
   const auth=await membership(req);
   if(!auth?.member||auth.member.role!=='hr')return enterpriseJson({error:'Solo RR. HH. puede consultar liquidaciones'},403);
