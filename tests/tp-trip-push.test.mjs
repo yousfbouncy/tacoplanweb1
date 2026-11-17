@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import {buildTripPushMessages, countAcceptedExpoTickets, isExpoPushToken} from '../lib/tp-trip-push.ts';
+import {buildTripPushMessages, countAcceptedExpoTickets, isExpoPushToken, notifyTripAssigned} from '../lib/tp-trip-push.ts';
 
 const trip={
  driverId:'driver-1',tripId:'traffic-trip-1',cliente:'Cliente',
@@ -32,4 +32,41 @@ test('transferred trip gets distinct event ID and title',()=>{
  const [message]=buildTripPushMessages(['ExponentPushToken[abc]'],{...trip,operation:'transferred'});
  assert.equal(message.data.eventId,'transferred:traffic-trip-1');
  assert.match(message.title,/transferido/);
+});
+
+
+test('repeated traffic alert retry reuses inbox record and does not create duplicate',async()=>{
+ const notices=[];
+ const db={
+  from(table){
+   let operation='find',payload;
+   const q={
+    select(){return q;},
+    eq(){return q;},
+    contains(){return q;},
+    limit(){return q;},
+    insert(row){operation='insert';payload=row;return q;},
+    update(row){operation='update';payload=row;return q;},
+    async maybeSingle(){
+     if(operation==='insert'){
+      const row={...payload,id:'inbox-'+(notices.length+1)};
+      notices.push(row);return {data:{id:row.id},error:null};
+     }
+     return {data:notices.length?{id:notices[0].id}:null,error:null};
+    },
+    then(resolve,reject){
+     const data=table==='push_tokens'?[]:null;
+     return Promise.resolve({data,error:null}).then(resolve,reject);
+    }
+   };
+   return q;
+  }
+ };
+ const first=await notifyTripAssigned(db,trip);
+ const retried=await notifyTripAssigned(db,trip);
+ assert.equal(notices.length,1);
+ assert.equal(first.inboxCreated,true);
+ assert.equal(retried.inboxCreated,true);
+ assert.equal(retried.pushStatus,'no_tokens');
+ assert.equal(notices[0].data.eventId,'assigned:traffic-trip-1');
 });
