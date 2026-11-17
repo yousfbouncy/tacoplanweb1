@@ -5,6 +5,8 @@ on:
     paths:
       - 'components/traffic-trip-assignment.tsx'
       - 'lib/tp-trip-navigation.ts'
+      - 'lib/tp-trip-appointment.ts'
+      - 'tests/tp-trip-appointment.test.mjs'
       - 'app/api/empresas/assign-trip/route.ts'
       - 'app/api/empresas/manage-trip/route.ts'
       - '.github/workflows/traffic-trip-push-check.yml'
@@ -12,6 +14,9 @@ on:
     branches: [main]
     paths:
       - 'app/api/empresas/assign-trip/route.ts'
+      - 'app/api/empresas/manage-trip/route.ts'
+      - 'lib/tp-trip-appointment.ts'
+      - 'tests/tp-trip-appointment.test.mjs'
       - '.github/workflows/traffic-trip-push-check.yml'
 jobs:
   typecheck:
@@ -26,3 +31,4 @@ jobs:
           cache: npm
       - run: npm ci --ignore-scripts
       - run: npm run typecheck
+      - run: node --experimental-strip-types --test tests/tp-trip-appointment.test.mjs

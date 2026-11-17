@@ -1,13 +1,12 @@
 import {NextRequest} from 'next/server';
 import {normalizeStopNavigation} from '@/lib/tp-trip-navigation';
+import {isValidTripAppointmentDate,isValidTripAppointmentTime} from '@/lib/tp-trip-appointment';
 import {membership,enterpriseJson,originAllowed,isPaidAccess,uuid,audit} from '@/lib/tp-enterprise';
 
 export const dynamic='force-dynamic';
 const plain=(x:unknown,max=250)=>typeof x==='string'?x.trim().slice(0,max):'';
 const types=['CARGA','DESCARGA','ENTREGA_REMOLQUE'];
 type Stop={tipo:string;lugar:string;observaciones:string;fecha_cita?:string|null;hora_cita?:string|null;remolque?:string;ubicacion_mapa?:string;salidaConfirmada?:boolean;salidaReal?:string|null};
-const validDate=(s:string)=>/^\d{4}-\d{2}-\d{2}$/.test(s)&&!Number.isNaN(Date.parse(s+'T12:00:00Z'));
-const validTime=(s:string)=>/^([01]\d|2[0-3]):[0-5]\d$/.test(s);
 
 export async function POST(req:NextRequest){
  if(!originAllowed(req))return enterpriseJson({error:'Origen no permitido'},403);
@@ -61,7 +60,7 @@ export async function POST(req:NextRequest){
    const raw=body.paradas[i],lugar=plain(raw?.lugar,200),kind=plain(raw?.tipo,40);
    const fecha=plain(raw?.fecha_cita,10),hora=plain(raw?.hora_cita,5);
    if(!types.includes(kind)||!lugar)return enterpriseJson({error:'Revisa la operación y el lugar de cada parada'},400);
-   if(fecha&&!validDate(fecha)||hora&&!validTime(hora))return enterpriseJson({error:'Fecha u hora de cita no válida'},400);
+   if(fecha&&!isValidTripAppointmentDate(fecha)||hora&&!isValidTripAppointmentTime(hora))return enterpriseJson({error:'Fecha u hora de cita no válida'},400);
    const previous=oldStops[i];
    // Keep the operational evidence of completed stops when editing a trip.
    stops.push({tipo:kind,lugar,observaciones:plain(raw?.observaciones,500),fecha_cita:fecha||null,hora_cita:hora||null,ubicacion_mapa:normalizeStopNavigation(raw?.ubicacion_mapa),remolque,salidaConfirmada:Boolean(previous?.salidaConfirmada&&previous.tipo===kind&&previous.lugar===lugar),...(previous?.salidaReal&&previous.tipo===kind&&previous.lugar===lugar?{salidaReal:previous.salidaReal}:{})});
