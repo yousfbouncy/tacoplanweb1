@@ -4,14 +4,14 @@ import {Plus,Trash2,Truck,ArrowLeft,ArrowRightLeft,Pencil,CalendarDays} from 'lu
 import {supabase} from '@/lib/supabase';
 
 type Driver={user_id:string;username:string;employee_name?:string|null};
-type Stop={tipo:'CARGA'|'DESCARGA'|'ENTREGA_REMOLQUE';lugar:string;observaciones:string;fecha_cita?:string|null;hora_cita?:string|null;salidaConfirmada?:boolean};
+type Stop={tipo:'CARGA'|'DESCARGA'|'ENTREGA_REMOLQUE';lugar:string;observaciones:string;fecha_cita?:string|null;hora_cita?:string|null;ubicacion_mapa?:string;salidaConfirmada?:boolean};
 type Trip={id:string;user_id:string;cliente?:string|null;modo_viaje?:string|null;estado?:string|null;paradas?:unknown;created_at:string;updated_at?:string|null;notas?:string|null};
 const field='w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-blue-500';
 const button='rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-bold text-white disabled:opacity-50';
 const secondary='rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50';
-const blank=(tipo:Stop['tipo']='CARGA'):Stop=>({tipo,lugar:'',observaciones:'',fecha_cita:null,hora_cita:null});
+const blank=(tipo:Stop['tipo']='CARGA'):Stop=>({tipo,lugar:'',observaciones:'',fecha_cita:null,hora_cita:null,ubicacion_mapa:''});
 const readMeta=(trip:Trip):{remolque?:string;observaciones?:string}=>{try{const x=JSON.parse(trip.notas||'{}');return x&&typeof x==='object'?x:{};}catch{return {};}};
-const readStops=(trip:Trip):Stop[]=>Array.isArray(trip.paradas)?trip.paradas.filter((x):x is Stop=>Boolean(x)&&typeof x==='object'&&'tipo' in x&&'lugar' in x).map(x=>({...x,observaciones:x.observaciones||'',fecha_cita:x.fecha_cita||null,hora_cita:x.hora_cita||null})):[];
+const readStops=(trip:Trip):Stop[]=>Array.isArray(trip.paradas)?trip.paradas.filter((x):x is Stop=>Boolean(x)&&typeof x==='object'&&'tipo' in x&&'lugar' in x).map(x=>({...x,observaciones:x.observaciones||'',fecha_cita:x.fecha_cita||null,hora_cita:x.hora_cita||null,ubicacion_mapa:x.ubicacion_mapa||''})):[];
 
 export default function TrafficTripAssignment({drivers,trips,refresh,blocked=false,initialDriverId='',onClose}:{drivers:Driver[];trips:Trip[];refresh:()=>Promise<void>;blocked?:boolean;initialDriverId?:string;onClose?:()=>void}){
  const [screen,setScreen]=useState<'list'|'detail'|'form'>('list');
@@ -78,7 +78,7 @@ export default function TrafficTripAssignment({drivers,trips,refresh,blocked=fal
   </div>:null}
   {screen==='detail'&&selected?<div className="rounded-2xl border bg-white p-5">
    <div className="flex flex-wrap justify-between gap-3"><div><h3 className="text-xl font-bold">{selected.cliente||'Viaje'}</h3><p className="text-sm text-blue-700">Conductor asignado: {name(selected.user_id)}</p><p className="text-xs text-slate-500">Estado: {selected.estado||'Sin estado'} · {selected.modo_viaje||'Operación'}</p></div><div className="flex flex-wrap gap-2"><button className={secondary} disabled={blocked} onClick={()=>edit(selected)}><Pencil size={15} className="inline"/> Editar</button><button className={secondary+' text-red-700'} disabled={blocked||saving} onClick={()=>void remove()}><Trash2 size={15} className="inline"/> Eliminar</button></div></div>
-   <h4 className="mt-5 text-sm font-bold">Paradas y citas</h4><div className="mt-2 space-y-2">{readStops(selected).map((p,i)=><div key={i} className="rounded-xl bg-slate-50 p-3 text-sm"><strong>{i+1}. {p.tipo.replace('_',' ')} · {p.lugar}</strong><p className="text-xs text-slate-600">{p.fecha_cita?'Cita '+p.fecha_cita:'Sin fecha de cita'}{p.hora_cita?' a las '+p.hora_cita:''}</p>{p.observaciones?<p className="mt-1 text-xs">{p.observaciones}</p>:null}</div>)}</div>
+   <h4 className="mt-5 text-sm font-bold">Paradas y citas</h4><div className="mt-2 space-y-2">{readStops(selected).map((p,i)=><div key={i} className="rounded-xl bg-slate-50 p-3 text-sm"><strong>{i+1}. {p.tipo.replace('_',' ')} · {p.lugar}</strong><p className="text-xs text-slate-600">{p.fecha_cita?'Cita '+p.fecha_cita:'Sin fecha de cita'}{p.hora_cita?' a las '+p.hora_cita:''}</p>{p.observaciones?<p className="mt-1 text-xs">{p.observaciones}</p>:null}{p.ubicacion_mapa?<p className="mt-1 text-xs text-blue-700">Google Maps: ubicación incluida para el conductor</p>:null}</div>)}</div>
    <div className="mt-5 rounded-xl border border-blue-100 bg-blue-50 p-4"><h4 className="font-bold"><ArrowRightLeft size={17} className="mr-2 inline"/>Transferir a otro conductor</h4><p className="mt-1 text-xs text-slate-600">Solo conductores asignados a tu cuenta de Tráfico.</p><div className="mt-3 flex flex-wrap gap-2"><select aria-label="Nuevo conductor" className={field+' max-w-sm'} value={transferTo} onChange={e=>setTransferTo(e.target.value)}><option value="">Seleccionar conductor</option>{drivers.filter(d=>d.user_id!==selected.user_id).map(d=><option key={d.user_id} value={d.user_id}>{name(d.user_id)}</option>)}</select><button className={button} disabled={!transferTo||saving||blocked} onClick={()=>void transfer()}>Transferir viaje</button></div></div>
   </div>:null}
   {screen==='form'?<form className="space-y-4 rounded-2xl border bg-white p-5" onSubmit={e=>void save(e)}>
@@ -94,6 +94,12 @@ export default function TrafficTripAssignment({drivers,trips,refresh,blocked=fal
     <div className="flex gap-2"><select className={field} aria-label={'Operación '+(i+1)} value={p.tipo} onChange={e=>change(i,'tipo',e.target.value)}><option value="CARGA">Carga</option><option value="DESCARGA">Descarga</option><option value="ENTREGA_REMOLQUE">Soltar remolque</option></select><button type="button" className={secondary} disabled={paradas.length===1} onClick={()=>setParadas(old=>old.filter((_,n)=>n!==i))} aria-label={'Eliminar parada '+(i+1)}><Trash2 size={16}/></button></div>
     <input className={field} aria-label={'Lugar '+(i+1)} required maxLength={200} placeholder="Lugar, ciudad y país" value={p.lugar} onChange={e=>change(i,'lugar',e.target.value)}/>
     <div className="grid gap-2 sm:grid-cols-2"><label className="text-xs text-slate-600">Fecha de cita (opcional)<input type="date" className={field+' mt-1'} value={p.fecha_cita||''} onChange={e=>change(i,'fecha_cita',e.target.value)}/></label><label className="text-xs text-slate-600">Hora de cita (opcional)<input type="time" className={field+' mt-1'} value={p.hora_cita||''} onChange={e=>change(i,'hora_cita',e.target.value)}/></label></div>
+    <label className="block text-xs font-semibold text-slate-700">Ubicación de navegación (opcional)
+      <input className={field+' mt-1'} aria-label={'Ubicación Google Maps '+(i+1)} maxLength={1000}
+        placeholder="Enlace Google Maps, coordenadas o dirección exacta" value={p.ubicacion_mapa||''}
+        onChange={e=>change(i,'ubicacion_mapa',e.target.value)}/>
+      <span className="mt-1 block font-normal text-slate-500">Solo si rellenas este campo aparecerá «Abrir ubicación» al conductor. Se abrirá Google Maps.</span>
+    </label>
     <input className={field} aria-label={'Indicaciones '+(i+1)} maxLength={500} placeholder="Indicaciones de esta parada" value={p.observaciones} onChange={e=>change(i,'observaciones',e.target.value)}/>
    </div>)}<button type="button" className={secondary} disabled={paradas.length>=12} onClick={()=>setParadas(old=>[...old,blank()])}><Plus size={16} className="inline"/> Añadir parada</button></div>
    <label className="block text-sm font-semibold">Observaciones generales<textarea rows={3} className={field+' mt-1'} value={observaciones} onChange={e=>setObservaciones(e.target.value)}/></label>
