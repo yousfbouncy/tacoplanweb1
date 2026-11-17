@@ -73,7 +73,7 @@ export async function POST(req: NextRequest) {
    if(source.error) throw source.error;
    if(!source.data) return enterpriseJson({error:"No existe la dieta indicada"},404);
    const item=source.data as Record<string,any>;
-   const sourceDate=targetKind="jornada"
+   const sourceDate=targetKind==="jornada"
       ? String(item.fecha_inicio||"").slice(0,10) : String(item.date||"").slice(0,10);
    if(sourceDate!==date) return enterpriseJson({error:"La fecha no corresponde al registro"},409);
    if(new Date(item.created_at).getTime()<new Date(driver.data.history_shared_from||driver.data.joined_at).getTime())
@@ -81,7 +81,7 @@ export async function POST(req: NextRequest) {
    originalType=targetKind==="jornada"?(item.dieta_manual_tipo||item.tipo_ruta||null):item.type;
    originalPercentage=targetKind==="jornada"?Number(item.dieta_percent)||null:Number(item.percentage)||null;
    if(targetKind==="jornada"){
-    originalPluses=Array.isArray(item.plus_items)?source.data.plus_items.map((p:any)=>p?.concepto).filter((x:any)=>typeof x==="string"):[];
+    originalPluses=Array.isArray(item.plus_items)?item.plus_items.map((p:any)=>p?.concepto).filter((x:any)=>typeof x==="string"):[];
    }
   } else {
    if(new Date(date+"T12:00:00Z").getTime()<new Date(driver.data.history_shared_from||driver.data.joined_at).getTime())
