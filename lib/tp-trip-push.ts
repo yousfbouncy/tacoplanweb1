@@ -65,7 +65,7 @@ export async function notifyTripAssigned(
     body,
     button_text: "Ver viaje",
     button_url: "tacoplan://viajes",
-    data: { target: "viaje", tripId: trip.tripId, source: "traffic", eventId },
+    data: { target: "viaje", tripId: trip.tripId, source: "traffic", eventId, presentation: "modal" },
   }).select("id").maybeSingle();
   const inboxCreated = !inserted.error && Boolean(inserted.data?.id);
   if (inserted.error) {
