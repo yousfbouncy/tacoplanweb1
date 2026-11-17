@@ -4,7 +4,7 @@ import {membership,enterpriseJson,originAllowed,isPaidAccess,uuid,audit} from '@
 
 export const dynamic='force-dynamic';
 const plain=(value:unknown,max=250)=>typeof value==='string'?value.trim().slice(0,max):'';
-type Stop={tipo:'CARGA'|'DESCARGA'|'ENTREGA_REMOLQUE';lugar:string;observaciones:string;remolque:string;salidaConfirmada:boolean};
+type Stop={tipo:'CARGA'|'DESCARGA'|'ENTREGA_REMOLQUE';lugar:string;observaciones:string;remolque:string;salidaConfirmada:boolean;fecha_cita:string|null;hora_cita:string|null};
 
 export async function POST(req:NextRequest){
  if(!originAllowed(req))return enterpriseJson({error:'Origen no permitido'},403);
@@ -34,7 +34,10 @@ export async function POST(req:NextRequest){
    if(!raw||!['CARGA','DESCARGA','ENTREGA_REMOLQUE'].includes(raw.tipo))return enterpriseJson({error:'Operación no válida'},400);
    const lugar=plain(raw.lugar,200);
    if(!lugar)return enterpriseJson({error:'Indica la ubicación de cada parada'},400);
-   paradas.push({tipo:raw.tipo,lugar,observaciones:plain(raw.observaciones,500),remolque,salidaConfirmada:false});
+   const fecha=plain(raw.fecha_cita,10),hora=plain(raw.hora_cita,5);
+   if(fecha&&(!/^\\d{4}-\\d{2}-\\d{2}$/.test(fecha)||Number.isNaN(Date.parse(fecha+'T12:00:00Z'))))return enterpriseJson({error:'Fecha de cita no válida'},400);
+   if(hora&&!/^([01]\\d|2[0-3]):[0-5]\\d$/.test(hora))return enterpriseJson({error:'Hora de cita no válida'},400);
+   paradas.push({tipo:raw.tipo,lugar,observaciones:plain(raw.observaciones,500),remolque,salidaConfirmada:false,fecha_cita:fecha||null,hora_cita:hora||null});
   }
   if(tipo==='ENTREGA_REMOLQUE'&&!paradas.some(p=>p.tipo==='ENTREGA_REMOLQUE'))return enterpriseJson({error:'Añade dónde debe soltarse el remolque'},400);
   const id='traffic-'+randomUUID();
