@@ -1,5 +1,6 @@
 import {NextRequest} from 'next/server';
 import {normalizeStopNavigation} from '@/lib/tp-trip-navigation';
+import {isValidTripAppointmentDate,isValidTripAppointmentTime} from '@/lib/tp-trip-appointment';
 import {randomUUID} from 'node:crypto';
 import {membership,enterpriseJson,originAllowed,isPaidAccess,uuid,audit} from '@/lib/tp-enterprise';
 
@@ -36,8 +37,8 @@ export async function POST(req:NextRequest){
    const lugar=plain(raw.lugar,200);
    if(!lugar)return enterpriseJson({error:'Indica la ubicación de cada parada'},400);
    const fecha=plain(raw.fecha_cita,10),hora=plain(raw.hora_cita,5);
-   if(fecha&&(!/^\\d{4}-\\d{2}-\\d{2}$/.test(fecha)||Number.isNaN(Date.parse(fecha+'T12:00:00Z'))))return enterpriseJson({error:'Fecha de cita no válida'},400);
-   if(hora&&!/^([01]\\d|2[0-3]):[0-5]\\d$/.test(hora))return enterpriseJson({error:'Hora de cita no válida'},400);
+   if(fecha&&!isValidTripAppointmentDate(fecha))return enterpriseJson({error:'Fecha de cita no válida'},400);
+   if(hora&&!isValidTripAppointmentTime(hora))return enterpriseJson({error:'Hora de cita no válida'},400);
    paradas.push({tipo:raw.tipo,lugar,observaciones:plain(raw.observaciones,500),remolque,salidaConfirmada:false,fecha_cita:fecha||null,hora_cita:hora||null,ubicacion_mapa:normalizeStopNavigation(raw.ubicacion_mapa)});
   }
   if(tipo==='ENTREGA_REMOLQUE'&&!paradas.some(p=>p.tipo==='ENTREGA_REMOLQUE'))return enterpriseJson({error:'Añade dónde debe soltarse el remolque'},400);
