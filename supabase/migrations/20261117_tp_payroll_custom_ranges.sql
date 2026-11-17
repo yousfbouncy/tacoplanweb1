@@ -21,7 +21,7 @@ create or replace function public.tp_payroll_legacy_period_defaults()
 returns trigger
 language plpgsql
 set search_path = public, pg_temp
-as $
+as $payroll_period$
 begin
   if new.period_from is null then
     new.period_from := (new.month || '-01')::date;
@@ -31,7 +31,7 @@ begin
   end if;
   return new;
 end;
-$;
+$payroll_period$;
 
 drop trigger if exists tp_payroll_fill_period on public.tp_payroll_closures;
 create trigger tp_payroll_fill_period
