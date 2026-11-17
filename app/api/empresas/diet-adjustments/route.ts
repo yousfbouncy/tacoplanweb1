@@ -50,8 +50,14 @@ export async function POST(req: NextRequest) {
   if(operation==="add" && targetKind!=="manual") return enterpriseJson({error:"Las altas nuevas deben ser por fecha"},400);
   if(operation!=="add" && targetKind==="manual") return enterpriseJson({error:"Selecciona una dieta existente"},400);
   const type=clean(body.dietType,30),pct=Number(body.percentage);
-  const extras=pluses(body.plusTypes);
-  if(!extras || (operation!=="delete" && (!TYPES.includes(type)||!PERCENTS.includes(pct))))
+  const extras=Array.isArray(body.plusItems) ? body.plusItems.map((p:any)=>({
+    concepto:typeof p?.concepto==='string'?p.concepto.trim().slice(0,120):'',
+    importe:Number(p?.importe),
+    source:p?.source==='automatic'?'automatic':'manual',
+  })) : null;
+  const validExtras=extras!==null && extras.length<=30 && extras.every((p:any)=>
+    p.concepto.length>=1 && Number.isFinite(p.importe) && p.importe>=0 && p.importe<=100000);
+  if(!validExtras || (operation!=="delete" && (!TYPES.includes(type)||!PERCENTS.includes(pct))))
    return enterpriseJson({error:"Selecciona la dieta, el porcentaje y los pluses configurados"},400);
   const [driver,assigned,company]=await Promise.all([
    db.from("tp_company_members").select("joined_at,history_shared_from").eq("company_id",member.company_id).eq("user_id",driverId).eq("role","driver").eq("active",true).maybeSingle(),
@@ -61,12 +67,14 @@ export async function POST(req: NextRequest) {
   if(driver.error||assigned.error||company.error) throw driver.error||assigned.error||company.error;
   if(!driver.data||!assigned.data) return enterpriseJson({error:"Conductor no asignado a tu cuenta"},403);
   if(!isPaidAccess(company.data)) return enterpriseJson({error:"Acceso empresarial no activo"},402);
-  let originalType:string|null=null, originalPercentage:number|null=null, originalPluses:string[]=[];
+  let originalType:string|null=null, originalPercentage:number|null=null;
+  let originalPluses:Array<{concepto:string;importe:number;source:string}>=[];
+  let automaticConcept:string|null=null;
   if(targetKind!=="manual") {
    if(!uuid(targetId))
     return enterpriseJson({error:"Registro inválido"},400);
    const source=targetKind==="jornada"
-    ? await db.from("jornadas").select("id,user_id,created_at,fecha_inicio,tipo_ruta,dieta_manual_tipo,dieta_percent,plus_items,day_flag")
+    ? await db.from("jornadas").select("id,user_id,created_at,fecha_inicio,tipo_ruta,dieta_manual_tipo,dieta_percent,plus_items,day_flag,day_extra_eur")
       .eq("id",targetId).eq("user_id",driverId).maybeSingle()
     : await db.from("user_natural_day_diets").select("id,user_id,created_at,date,type,percentage")
       .eq("id",targetId).eq("user_id",driverId).maybeSingle();
@@ -81,7 +89,9 @@ export async function POST(req: NextRequest) {
    originalType=targetKind==="jornada"?(item.dieta_manual_tipo||item.tipo_ruta||null):item.type;
    originalPercentage=targetKind==="jornada"?Number(item.dieta_percent)||null:Number(item.percentage)||null;
    if(targetKind==="jornada"){
-    originalPluses=Array.isArray(item.plus_items)?item.plus_items.map((p:any)=>p?.concepto).filter((x:any)=>typeof x==="string"):[];
+    originalPluses=Array.isArray(item.plus_items)?item.plus_items.filter((p:any)=>p&&typeof p.concepto==="string").map((p:any)=>({concepto:String(p.concepto),importe:Number(p.importe)||0,source:"manual"})):[];
+    automaticConcept=typeof item.day_flag==="string"&&item.day_flag.trim()?item.day_flag.trim():null;
+    if(automaticConcept)originalPluses.unshift({concepto:automaticConcept,importe:Number(item.day_extra_eur)||0,source:"automatic"});
    }
   } else {
    if(new Date(date+"T12:00:00Z").getTime()<new Date(driver.data.history_shared_from||driver.data.joined_at).getTime())
@@ -95,8 +105,13 @@ export async function POST(req: NextRequest) {
    if(rates[(type+"_"+pct).toLowerCase()]===undefined)
     return enterpriseJson({error:"Esta dieta no tiene tarifa configurada para el conductor"},409);
    const configured=(settings.data.plus_rates||{}) as Record<string,unknown>;
-   if(extras.some(x=>!(x in configured))) return enterpriseJson({error:"Uno o más pluses no están configurados"},409);
+   // Editable plus concepts and amounts are proposals requiring driver approval.
+   // No direct writes are made to the original jornada.
   }
+  if(extras && extras.filter((p:any)=>p.source==="automatic").length>1)
+   return enterpriseJson({error:"No se puede duplicar el plus automático"},400);
+  if(extras && extras.some((p:any)=>p.source==="automatic" && p.concepto!==automaticConcept))
+   return enterpriseJson({error:"El plus automático no coincide con la jornada"},400);
   const conflict=await db.from("tp_diet_adjustments").select("id").eq("company_id",member.company_id)
    .eq("driver_id",driverId).eq("diet_date",date).eq("status","awaiting_driver");
   if(conflict.error) throw conflict.error;
