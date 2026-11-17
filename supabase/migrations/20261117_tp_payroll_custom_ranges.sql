@@ -15,6 +15,29 @@ update public.tp_payroll_closures set
   period_to = coalesce(period_to, ((month || '-01')::date + interval '1 month - 1 day')::date)
 where period_from is null or period_to is null;
 
+-- Compatibility with an already-open browser / previous deployment:
+-- legacy API inserts only a month, while new API supplies period_from / period_to.
+create or replace function public.tp_payroll_legacy_period_defaults()
+returns trigger
+language plpgsql
+set search_path = public, pg_temp
+as $
+begin
+  if new.period_from is null then
+    new.period_from := (new.month || '-01')::date;
+  end if;
+  if new.period_to is null then
+    new.period_to := ((new.month || '-01')::date + interval '1 month - 1 day')::date;
+  end if;
+  return new;
+end;
+$;
+
+drop trigger if exists tp_payroll_fill_period on public.tp_payroll_closures;
+create trigger tp_payroll_fill_period
+  before insert on public.tp_payroll_closures
+  for each row execute function public.tp_payroll_legacy_period_defaults();
+
 alter table public.tp_payroll_closures
   alter column period_from set not null,
   alter column period_to set not null,
