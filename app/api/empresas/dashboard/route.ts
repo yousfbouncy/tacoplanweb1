@@ -64,7 +64,7 @@ export async function GET(req:NextRequest){
   // Joining an employer never shares a conductor's prior personal history.
   const joinedAt=new Map(myDrivers.map(m=>[m.user_id,m.history_shared_from?Math.min(new Date(m.joined_at).getTime(),new Date(m.history_shared_from).getTime()):new Date(m.joined_at).getTime()]));
   const [jornadas,reviews,plusSettings,activityRows,trips,naturalDiets,adjustments]=await Promise.all([
-   ids.length?db.from('jornadas').select('id,user_id,created_at,fecha_inicio,fecha_fin,hora_inicio,hora_fin,lugar_inicio,lugar_fin,tipo_ruta,dieta_manual_tipo,dieta_percent,plus_items,day_flag,conduccion_min,tacho_driving_min,tacho_work_min,tacho_available_min,tacho_rest_min,start_at,end_at,planned_rest_min,planned_rest_type,legal_summary,descanso_anterior_min,tipo_descanso_anterior,previous_rest_start_at,previous_rest_end_at,previous_rest_legal_type,previous_rest_valid,split_rest_detected,split_rest_first_part_min,split_rest_second_part_min,counts_as_reduced_rest,is_double_driving').in('user_id',ids).order('created_at',{ascending:false}).limit(1500):Promise.resolve({data:[],error:null}),
+   ids.length?db.from('jornadas').select('id,user_id,created_at,fecha_inicio,fecha_fin,hora_inicio,hora_fin,lugar_inicio,lugar_fin,tipo_ruta,dieta_manual_tipo,dieta_percent,plus_items,day_flag,day_extra_eur,conduccion_min,tacho_driving_min,tacho_work_min,tacho_available_min,tacho_rest_min,start_at,end_at,planned_rest_min,planned_rest_type,legal_summary,descanso_anterior_min,tipo_descanso_anterior,previous_rest_start_at,previous_rest_end_at,previous_rest_legal_type,previous_rest_valid,split_rest_detected,split_rest_first_part_min,split_rest_second_part_min,counts_as_reduced_rest,is_double_driving').in('user_id',ids).order('created_at',{ascending:false}).limit(1500):Promise.resolve({data:[],error:null}),
    db.from('tp_diet_reviews').select('id,jornada_id,jornada_date,driver_id,status,original_diet_type,proposed_diet_type,traffic_observation,change_reason,driver_observation,created_at').eq('company_id',companyId).in('driver_id',ids.length?ids:['00000000-0000-0000-0000-000000000000']).order('created_at',{ascending:false}).limit(1000),
    ids.length?db.from('tp_driver_settings').select('driver_id,plus_rates').eq('company_id',companyId).in('driver_id',ids):Promise.resolve({data:[],error:null}),
    ids.length?db.from('tacho_activities').select('user_id,shift_id,source,tipo,inicio,fin,updated_at').in('user_id',ids).order('inicio',{ascending:false}).limit(750):Promise.resolve({data:[],error:null}),
@@ -87,10 +87,11 @@ export async function GET(req:NextRequest){
     type:j.dieta_manual_tipo||j.tipo_ruta||null,percentage:j.dieta_percent||null,
     pluses:Array.isArray((j as any).plus_items)?(j as any).plus_items.map((p:any)=>String(p.concepto||'')).filter(Boolean):[],
     day_flag:(j as any).day_flag||null,
+    day_extra_eur:Math.max(0,Number(String((j as any).day_extra_eur||0).replace(',','.'))||0),
    })),
    ...(naturalDiets.data||[]).filter(d=>!d.dismissed_at && (joinedAt.get(d.user_id)!==undefined && new Date(d.created_at).getTime()>=joinedAt.get(d.user_id)!)).map(d=>({
     id:d.id,source:'natural_day',driver_id:d.user_id,date:d.date,type:d.type,percentage:d.percentage,
-    pluses:[],day_flag:null,
+    pluses:[],day_flag:null,day_extra_eur:0,
    })),
   ].filter(d=>Boolean(d.date));
   // Manual activity controls are stored as ongoing segments (fin=NULL while active).
