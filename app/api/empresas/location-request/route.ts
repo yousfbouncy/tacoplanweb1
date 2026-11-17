@@ -51,6 +51,28 @@ export async function POST(req:NextRequest){
   const created=await db!.from('tp_location_requests').insert({company_id:member!.company_id,driver_id:driverId,requested_by:user!.id,status:'pending'}).select('id,requested_at,expires_at').single();
   if(created.error)throw created.error;
   await audit(db,member!.company_id,user!.id,'traffic.location_requested','driver',driverId,null,{request_id:created.data.id});
-  return enterpriseJson({ok:true,id:created.data.id,status:'pending',requested_at:created.data.requested_at,expires_at:created.data.expires_at});
+  // Best effort push wakes the user's attention if the app is not in foreground;
+  // the OS does not guarantee background GPS execution or notification delivery.
+  let pushStatus:'sent'|'no_tokens'|'failed'='no_tokens';
+  try{
+   const tokens=await db!.from('push_tokens').select('expo_push_token').eq('user_id',driverId).eq('notifications_enabled',true);
+   if(tokens.error)throw tokens.error;
+   const destinations=Array.from(new Set((tokens.data||[]).map((t:{expo_push_token:string})=>t.expo_push_token).filter((t:string)=>/^Expo(nent)?PushToken\\[[^\\]]+\\]$/.test(t))));
+   if(destinations.length){
+    const response=await fetch('https://exp.host/--/api/v2/push/send',{
+     method:'POST',headers:{'Content-Type':'application/json','Accept':'application/json'},
+     body:JSON.stringify(destinations.map(to=>({
+      to,title:'Tacoplan · Solicitud de localización',
+      body:'Tráfico ha solicitado tu ubicación. Abre Tacoplan para responder si has autorizado compartirla.',
+      sound:'default',priority:'high',
+      data:{target:'traffic_location',requestId:created.data.id}
+     }))),signal:AbortSignal.timeout(6500)
+    });
+    if(!response.ok)throw Error('Expo HTTP '+response.status);
+    const payload=await response.json() as {data?:Array<{status?:string}>};
+    pushStatus=payload.data?.some(x=>x.status==='ok')?'sent':'failed';
+   }
+  }catch(e){pushStatus='failed';console.warn('Traffic location push unavailable',e);}
+  return enterpriseJson({ok:true,id:created.data.id,status:'pending',pushStatus,requested_at:created.data.requested_at,expires_at:created.data.expires_at});
  }catch(e){return enterpriseJson({error:e instanceof Error?e.message:'No se pudo solicitar la localización'},500);}
 }
