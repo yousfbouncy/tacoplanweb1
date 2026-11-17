@@ -9,12 +9,16 @@ on:
       - 'tests/tp-trip-appointment.test.mjs'
       - 'app/api/empresas/assign-trip/route.ts'
       - 'app/api/empresas/manage-trip/route.ts'
+      - 'lib/tp-trip-push.ts'
+      - 'tests/tp-trip-push.test.mjs'
       - '.github/workflows/traffic-trip-push-check.yml'
   pull_request:
     branches: [main]
     paths:
       - 'app/api/empresas/assign-trip/route.ts'
       - 'app/api/empresas/manage-trip/route.ts'
+      - 'lib/tp-trip-push.ts'
+      - 'tests/tp-trip-push.test.mjs'
       - 'lib/tp-trip-appointment.ts'
       - 'tests/tp-trip-appointment.test.mjs'
       - '.github/workflows/traffic-trip-push-check.yml'
@@ -31,4 +35,4 @@ jobs:
           cache: npm
       - run: npm ci --ignore-scripts
       - run: npm run typecheck
-      - run: node --experimental-strip-types --test tests/tp-trip-appointment.test.mjs
+      - run: node --experimental-strip-types --test tests/tp-trip-appointment.test.mjs tests/tp-trip-push.test.mjs
