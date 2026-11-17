@@ -25,6 +25,9 @@ export async function GET(req:NextRequest){
   const ctx=await trafficContext(req,driverId);
   if(ctx.error)return ctx.error;
   const {db,user,member}=ctx;
+  const consent=await db!.from('tp_location_consents').select('enabled').eq('company_id',member!.company_id).eq('driver_id',driverId).maybeSingle();
+  if(consent.error)throw consent.error;
+  if(!consent.data?.enabled)return enterpriseJson({request:null,consent:false});
   const result=await db!.from('tp_location_requests').select('id,status,requested_at,expires_at,responded_at,latitude,longitude,accuracy_m,error_code').eq('company_id',member!.company_id).eq('driver_id',driverId).eq('requested_by',user!.id).order('requested_at',{ascending:false}).limit(1).maybeSingle();
   if(result.error)throw result.error;
   const row=result.data;
