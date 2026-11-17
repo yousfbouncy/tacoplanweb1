@@ -13,8 +13,10 @@ const activeJornada=async(db:any,id:string)=>{
  const j=r.data;
  if(!j||j.fecha_fin&&j.hora_fin)return false;
  // Do not allow a very old unclosed shift to authorize indefinite tracking.
- const started=j.fecha_inicio&&j.hora_inicio?Date.parse(j.fecha_inicio+'T'+j.hora_inicio):Date.parse(j?.created_at||'');
- return Number.isFinite(started)&&started<=Date.now()+120000&&Date.now()-started<36*3600000;
+ // created_at is a timezone-aware server timestamp. The jornada date/time
+ // fields are local clock values and must not be parsed as UTC here.
+ const created=Date.parse(j.created_at||'');
+ return Number.isFinite(created)&&created<=Date.now()+120000&&Date.now()-created<36*3600000;
 };
 export async function GET(req:NextRequest){
  try{
