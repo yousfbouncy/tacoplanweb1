@@ -64,7 +64,8 @@ export async function POST(req:NextRequest){
    const updated=await db.from('viajes').update({user_id:newDriverId,notas:JSON.stringify({...metadata,transferred_by:user.id,transferred_at:new Date().toISOString()})}).eq('id',tripId).eq('user_id',trip.user_id).select('id').maybeSingle();
    if(updated.error)throw updated.error;
    if(!updated.data)return enterpriseJson({error:'No se ha podido transferir: el conductor ha cambiado'},409);
-   await audit(db,companyId,user.id,'traffic.trip_transferred','trip',tripId,{driver_id:trip.user_id},{driver_id:newDriverId});
+   await audit(db,companyId,user.id,'traffic.trip_transferred','trip',tripId,{driver_id:trip.user_id},{driver_id:newDriverId})
+     .catch((error:unknown)=>console.warn('[TRAFFIC] Transfer audit failed',error));
    let alert: Awaited<ReturnType<typeof notifyTripAssigned>> = {
     pushStatus:'failed',inboxCreated:false,pushAccepted:0,pushFailed:0
    };
