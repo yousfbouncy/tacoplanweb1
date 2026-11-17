@@ -5,7 +5,7 @@ import {ArrowLeft,CalendarDays,CheckCircle2,ChevronRight,Plus,Search,Trash2,Penc
 import {supabase} from '@/lib/supabase';
 
 export type Driver={user_id:string;username:string;employee_name?:string|null};
-export type Entry={id:string;driver_id:string;source:'jornada'|'natural_day'|'manual';date:string;type:string|null;percentage:number|null;pluses:string[];day_flag?:string|null};
+export type Entry={id:string;driver_id:string;source:'jornada'|'natural_day'|'manual';date:string;type:string|null;percentage:number|null;pluses:string[];day_flag?:string|null;day_extra_eur?:number|null};
 export type Adjustment={id:string;driver_id:string;diet_date:string;target_kind:string;target_id?:string|null;operation:'add'|'edit'|'delete';original_diet_type?:string|null;proposed_diet_type?:string|null;proposed_percentage?:number|null;reason:string;status:string;driver_observation?:string|null;created_at:string};
 type Form={operation:'add'|'edit'|'delete';targetKind:'jornada'|'natural_day'|'manual';targetId:string;date:string;dietType:string;percentage:number;plusTypes:string[];reason:string};
 const field='w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-blue-500';
@@ -58,7 +58,7 @@ export default function TrafficDietManager({drivers,entries,adjustments,plusOpti
        if(!month||a.diet_date.startsWith(month))byId.set('adjustment:'+a.id,{
          id:a.id,driver_id:a.driver_id,source:'manual' as Entry['source'],
          date:a.diet_date,type:a.proposed_diet_type||null,
-         percentage:a.proposed_percentage||null,pluses:[]});
+         percentage:a.proposed_percentage||null,pluses:[],day_extra_eur:0});
      } else if(a.target_id && a.target_kind){
        const key=a.target_kind+':'+a.target_id;
        const current=byId.get(key);
@@ -155,7 +155,12 @@ export default function TrafficDietManager({drivers,entries,adjustments,plusOpti
    <h3 className="mb-3 flex items-center gap-2 font-bold"><CalendarDays size={18} className="text-blue-600"/> Dietas registradas</h3>
    <div className="space-y-2">{records.map(e=><div key={e.source+e.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-100 p-3 hover:bg-slate-50">
     <div><p className="font-semibold text-slate-900">{dateLabel(e.date)} · {e.type||'Sin tipo'} {e.percentage?e.percentage+'%':''}</p>
-    <p className="text-xs text-slate-500">{label(e.source)}{e.pluses?.length?' · '+e.pluses.join(', '):''}{e.day_flag?' · '+e.day_flag:''}</p></div>
+    <p className="text-xs text-slate-500">{label(e.source)}{e.pluses?.length?' · '+e.pluses.join(', '):''}</p>
+    {e.day_flag ? <p className="mt-1 text-xs font-semibold text-emerald-700">
+      Plus {e.day_flag.toUpperCase()==='DOMINGO'?'domingo':e.day_flag.toUpperCase()==='FESTIVO'?'festivo':e.day_flag.toLowerCase()}
+      {Number(e.day_extra_eur||0)>0?' · '+Number(e.day_extra_eur).toLocaleString('es-ES',{style:'currency',currency:'EUR'}):' · Sin importe registrado'}
+    </p> : null}
+    </div>
     <div className="flex gap-2"><button type="button" disabled={blocked||e.source==='manual'} onClick={()=>edit(e,'edit')} className="inline-flex items-center gap-1 rounded-lg border px-3 py-2 text-xs font-semibold"><Pencil size={13}/> Modificar</button><button type="button" disabled={blocked||e.source==='manual'} onClick={()=>edit(e,'delete')} className="inline-flex items-center gap-1 rounded-lg border border-rose-200 px-3 py-2 text-xs font-semibold text-rose-700"><Trash2 size={13}/> Eliminar</button></div>
    </div>)}
    {!records.length?<p className="rounded-xl bg-slate-50 p-4 text-sm text-slate-500">No hay dietas registradas para este mes. Cambia el periodo o añade una propuesta.</p>:null}</div>
