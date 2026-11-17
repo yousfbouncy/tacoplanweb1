@@ -39,10 +39,11 @@ export default function TrafficTripAssignment({drivers,trips,refresh,blocked=fal
   return data;
  };
  const alertNotice=(result:any)=>{
-  if(result?.pushStatus==='no_tokens')return ' Aviso guardado en Tacoplan, pero el conductor no tiene un dispositivo push registrado. Debe abrir la app y permitir las notificaciones.';
-  if(result?.pushStatus==='failed')return ' El viaje se guardó, pero Expo no confirmó el envío push. El conductor debe revisar su bandeja de Tacoplan.';
-  if(result?.pushStatus==='accepted')return ' Aviso push aceptado por Expo (entrega al móvil todavía no confirmada).';
-  return ' Comprueba con el conductor que recibió el aviso.';
+  const inbox=result?.inboxCreated===true?' Aviso interno guardado en la bandeja del conductor.':' ATENCIÓN: no se ha podido guardar el aviso interno del conductor.';
+  if(result?.pushStatus==='no_tokens')return inbox+' Sin token push: el conductor debe abrir la app móvil, permitir notificaciones y registrar el dispositivo.';
+  if(result?.pushStatus==='failed')return inbox+' El envío push ha fallado. Reintenta el aviso o revisa los permisos del dispositivo.';
+  if(result?.pushStatus==='accepted')return inbox+' Expo aceptó '+(Number(result.pushAccepted)||0)+' envío(s) push, pero la entrega y el sonido en el dispositivo todavía no están confirmados.';
+  return inbox+' Comprueba con el conductor que recibió la notificación.';
  };
  const save=async(e:React.FormEvent)=>{
   e.preventDefault();if(saving||blocked)return;setSaving(true);setMessage('');
@@ -53,6 +54,15 @@ export default function TrafficTripAssignment({drivers,trips,refresh,blocked=fal
    await refresh();setMessage(editing?'Viaje actualizado correctamente':'Viaje asignado correctamente.'+alertNotice(result));
    setScreen('list');setEditing(false);
   }catch(error){setMessage(error instanceof Error?error.message:'No se pudo guardar el viaje');}
+  finally{setSaving(false);}
+ };
+ const retryNotice=async()=>{
+  if(!selected||saving||blocked)return;
+  setSaving(true);setMessage('');
+  try{
+   const result=await call('/api/empresas/manage-trip',{operation:'notify',tripId:selected.id});
+   setMessage('Reintento del aviso de viaje.'+alertNotice(result));
+  }catch(error){setMessage(error instanceof Error?error.message:'No se pudo reintentar el aviso');}
   finally{setSaving(false);}
  };
  const transfer=async()=>{
@@ -83,7 +93,7 @@ export default function TrafficTripAssignment({drivers,trips,refresh,blocked=fal
    <div className="space-y-2">{filtered.map(t=><button key={t.id} onClick={()=>inspect(t)} className="w-full rounded-xl border border-slate-200 p-4 text-left hover:border-blue-400 hover:bg-blue-50/30"><div className="flex flex-wrap justify-between gap-2"><strong>{t.cliente||'Sin cliente'}</strong><span className="rounded-lg bg-slate-100 px-2 py-1 text-xs">{t.estado||'Sin estado'}</span></div><p className="mt-1 text-sm text-blue-700">Asignado a: {name(t.user_id)}</p><p className="mt-1 text-xs text-slate-500">{t.modo_viaje||'Operación'} · {new Date(t.created_at).toLocaleDateString('es-ES')}</p><p className="mt-1 text-xs">{readStops(t).map(x=>x.tipo+': '+x.lugar).join(' → ')||'Sin paradas'}</p></button>)}{!filtered.length?<p className="p-6 text-sm text-slate-500">No hay viajes para estos filtros.</p>:null}</div>
   </div>:null}
   {screen==='detail'&&selected?<div className="rounded-2xl border bg-white p-5">
-   <div className="flex flex-wrap justify-between gap-3"><div><h3 className="text-xl font-bold">{selected.cliente||'Viaje'}</h3><p className="text-sm text-blue-700">Conductor asignado: {name(selected.user_id)}</p><p className="text-xs text-slate-500">Estado: {selected.estado||'Sin estado'} · {selected.modo_viaje||'Operación'}</p></div><div className="flex flex-wrap gap-2"><button className={secondary} disabled={blocked} onClick={()=>edit(selected)}><Pencil size={15} className="inline"/> Editar</button><button className={secondary+' text-red-700'} disabled={blocked||saving} onClick={()=>void remove()}><Trash2 size={15} className="inline"/> Eliminar</button></div></div>
+   <div className="flex flex-wrap justify-between gap-3"><div><h3 className="text-xl font-bold">{selected.cliente||'Viaje'}</h3><p className="text-sm text-blue-700">Conductor asignado: {name(selected.user_id)}</p><p className="text-xs text-slate-500">Estado: {selected.estado||'Sin estado'} · {selected.modo_viaje||'Operación'}</p></div><div className="flex flex-wrap gap-2"><button className={secondary} disabled={blocked||saving} onClick={()=>void retryNotice()}>Reintentar aviso</button><button className={secondary} disabled={blocked} onClick={()=>edit(selected)}><Pencil size={15} className="inline"/> Editar</button><button className={secondary+' text-red-700'} disabled={blocked||saving} onClick={()=>void remove()}><Trash2 size={15} className="inline"/> Eliminar</button></div></div>
    <h4 className="mt-5 text-sm font-bold">Paradas y citas</h4><div className="mt-2 space-y-2">{readStops(selected).map((p,i)=><div key={i} className="rounded-xl bg-slate-50 p-3 text-sm"><strong>{i+1}. {p.tipo.replace('_',' ')} · {p.lugar}</strong><p className="text-xs text-slate-600">{p.fecha_cita?'Cita '+p.fecha_cita:'Sin fecha de cita'}{p.hora_cita?' a las '+p.hora_cita:''}</p>{p.observaciones?<p className="mt-1 text-xs">{p.observaciones}</p>:null}{p.ubicacion_mapa?<p className="mt-1 text-xs text-blue-700">Google Maps: ubicación incluida para el conductor</p>:null}</div>)}</div>
    <div className="mt-5 rounded-xl border border-blue-100 bg-blue-50 p-4"><h4 className="font-bold"><ArrowRightLeft size={17} className="mr-2 inline"/>Transferir a otro conductor</h4><p className="mt-1 text-xs text-slate-600">Solo conductores asignados a tu cuenta de Tráfico.</p><div className="mt-3 flex flex-wrap gap-2"><select aria-label="Nuevo conductor" className={field+' max-w-sm'} value={transferTo} onChange={e=>setTransferTo(e.target.value)}><option value="">Seleccionar conductor</option>{drivers.filter(d=>d.user_id!==selected.user_id).map(d=><option key={d.user_id} value={d.user_id}>{name(d.user_id)}</option>)}</select><button className={button} disabled={!transferTo||saving||blocked} onClick={()=>void transfer()}>Transferir viaje</button></div></div>
   </div>:null}
