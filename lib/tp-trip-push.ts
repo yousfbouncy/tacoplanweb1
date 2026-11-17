@@ -58,15 +58,25 @@ export async function notifyTripAssigned(
 
   // This inbox notification also reaches devices without a working push token
   // when the driver next opens the app. Never confuse this with push delivery.
-  const inserted = await db.from("user_notifications").insert({
-    user_id: trip.driverId,
-    type: "admin_message",
-    title,
-    body,
-    button_text: "Ver viaje",
-    button_url: "tacoplan://viajes",
-    data: { target: "viaje", tripId: trip.tripId, source: "traffic", eventId, presentation: "modal" },
-  }).select("id").maybeSingle();
+  // Reattempting a failed push must not create multiple inbox notices.
+  // Existing notifications stay visible in the driver inbox as originally issued.
+  const existing = await db.from("user_notifications")
+    .select("id").eq("user_id", trip.driverId)
+    .contains("data", { source: "traffic", eventId })
+    .limit(1).maybeSingle();
+  if (existing.error) {
+    console.warn("[TRAFFIC] Could not check the trip notice deduplication key:", existing.error.message);
+  }
+  const inserted = existing.data?.id ? { data: existing.data, error: null } :
+    await db.from("user_notifications").insert({
+      user_id: trip.driverId,
+      type: "admin_message",
+      title,
+      body,
+      button_text: "Ver viaje",
+      button_url: "tacoplan://viajes",
+      data: { target: "viaje", tripId: trip.tripId, source: "traffic", eventId, presentation: "modal" },
+    }).select("id").maybeSingle();
   const inboxCreated = !inserted.error && Boolean(inserted.data?.id);
   if (inserted.error) {
     console.warn("[TRAFFIC] Could not save trip notification in inbox:", inserted.error.message);
