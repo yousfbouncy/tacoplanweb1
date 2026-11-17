@@ -8,6 +8,7 @@ import {supabase} from '@/lib/supabase';
 import TrafficTripAssignment from '@/components/traffic-trip-assignment';
 import TrafficDriverLocation from '@/components/traffic-driver-location';
 import TrafficDietManager,{type Entry as TrafficDietEntry,type Adjustment as TrafficDietAdjustment} from '@/components/traffic-diet-manager';
+import {groupConfirmedDays,sumConfirmedReviews} from '@/lib/tp-hr-diet-breakdown';
 
 type Driver={user_id:string;username:string;employee_name?:string|null;joined_at?:string};
 type Journey={id:string;user_id:string;fecha_inicio?:string|null;fecha_fin?:string|null;hora_inicio?:string|null;hora_fin?:string|null;start_at?:string|null;end_at?:string|null;lugar_inicio?:string|null;lugar_fin?:string|null;tipo_ruta?:string|null;dieta_manual_tipo?:string|null;dieta_percent?:number|null;conduccion_min?:number|null;tacho_driving_min?:number|null;tacho_work_min?:number|null;tacho_available_min?:number|null;tacho_rest_min?:number|null;planned_rest_min?:number|null;planned_rest_type?:string|null;descanso_anterior_min?:number|null;tipo_descanso_anterior?:string|null;previous_rest_valid?:boolean|null;previous_rest_start_at?:string|null;previous_rest_end_at?:string|null;previous_rest_legal_type?:string|null;activity_driving_min?:number|null;activity_available_min?:number|null;activity_rest_min?:number|null;activity_work_min?:number|null;legal_summary?:LegalInfo|null};
@@ -60,7 +61,12 @@ const field='w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text
 const primary='inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50';
 const secondary='inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50';
 const card='rounded-2xl border border-slate-200/90 bg-white p-5 shadow-[0_4px_18px_rgba(16,35,70,.045)]';
-const todayMonth=()=>new Date().toISOString().slice(0,7);
+const dateISO=(d:Date)=>[d.getFullYear(),String(d.getMonth()+1).padStart(2,'0'),String(d.getDate()).padStart(2,'0')].join('-');
+const calendarRange=(offset=0)=>{const d=new Date();return {
+ from:dateISO(new Date(d.getFullYear(),d.getMonth()+offset,1)),
+ to:dateISO(new Date(d.getFullYear(),d.getMonth()+offset+1,0))};};
+const monthEnd=(month:string)=>{const [year,index]=month.split('-').map(Number);return dateISO(new Date(year,index,0));};
+const displayDate=(date:string)=>/^\d{4}-\d{2}-\d{2}$/.test(date)?date.slice(8,10)+'/'+date.slice(5,7)+'/'+date.slice(0,4):date;
 const dt=(day?:string|null,time?:string|null)=>day&&time?new Date(day+'T'+time+':00'):null;
 const validDate=(d:Date|null)=>d&&!Number.isNaN(d.getTime())?d:null;
 const hours=(n?:number|null)=>n==null?'Sin datos':Math.floor(n/60)+' h '+String(n%60).padStart(2,'0')+' min';
@@ -81,9 +87,6 @@ const recordedRestDates=(j:Journey)=>{
 };
 const labels:Record<string,string>={confirmed:'Confirmada',accepted:'Aceptada',closed:'Cerrada',awaiting_driver:'Pendiente del conductor',disputed:'En discrepancia'};
 const approved=(r:Review)=>['confirmed','accepted','closed'].includes(r.status);
-const gross=(r:Review)=>Number(r.status==='accepted'?r.proposed_amount??r.original_amount:r.original_amount)||0;
-const items=(r:Review)=>r.status==='accepted'&&r.proposed_pluses!=null?r.proposed_pluses:r.original_pluses||[];
-const components=(r:Review)=>{const base=gross(r),auto=Math.min(base,Number(r.automatic_plus)||0);const extras=items(r).filter(p=>!/dieta|n[oó]mina|salario|sueldo|anticipo/i.test(p.concepto)).reduce((a,p)=>a+(Number(p.importe)||0),0);return {diet:Math.max(0,base-auto),plus:auto+extras,total:base+extras};};
 const initials=(name:string)=>name.split(/\s+/).filter(Boolean).slice(0,2).map(x=>x[0].toUpperCase()).join('')||'TP';
 const status=(j?:Journey,activity?:ActivityRow)=>{
  if(!j)return 'Sin jornada';
@@ -117,7 +120,34 @@ export default function EnterpriseWorkspace({view,busy,loading,error,message,ref
  const [selectedJourney,setSelectedJourney]=useState<string>('');
  const [q,setQ]=useState('');
  const [filter,setFilter]=useState('todos');
- const [month,setMonth]=useState(todayMonth);
+ const [from,setFrom]=useState(()=>calendarRange().from);
+ const [to,setTo]=useState(()=>calendarRange().to);
+ const [rangeReviews,setRangeReviews]=useState<Review[]>([]);
+ const [rangeLoading,setRangeLoading]=useState(false);
+ const [rangeError,setRangeError]=useState('');
+ const validRange=Boolean(from&&to&&/^\d{4}-\d{2}-\d{2}$/.test(from)&&/^\d{4}-\d{2}-\d{2}$/.test(to)&&from<=to);
+ const month=from.slice(0,7);
+ const fullCalendarMonth=validRange&&from===month+'-01'&&to===monthEnd(month);
+ const changeMonth=(offset:number)=>{const dates=calendarRange(offset);setFrom(dates.from);setTo(dates.to);};
+ useEffect(()=>{
+  if(traffic||!validRange||view.blocked){setRangeReviews([]);setRangeError('');setRangeLoading(false);return;}
+  let active=true;
+  const controller=new AbortController();
+  setRangeLoading(true);setRangeError('');
+  const loadPeriod=async()=>{
+   const {data:{session}}=await supabase.auth.getSession();
+   if(!session?.access_token)throw Error('Sesión caducada. Inicia sesión de nuevo.');
+   const response=await fetch('/api/empresas/hr-period?from='+encodeURIComponent(from)+'&to='+encodeURIComponent(to),{
+    cache:'no-store',signal:controller.signal,headers:{Authorization:'Bearer '+session.access_token}
+   });
+   const data=await response.json();
+   if(!response.ok)throw Error(data.error||'No se pudo cargar el período');
+   if(active)setRangeReviews(Array.isArray(data.reviews)?data.reviews:[]);
+  };
+  void loadPeriod().catch(error=>{if(active){setRangeReviews([]);setRangeError(error instanceof Error?error.message:'Error consultando el período');}})
+   .finally(()=>{if(active)setRangeLoading(false);});
+  return()=>{active=false;controller.abort();};
+ },[traffic,from,to,view.blocked,view.reviews]);
  const [mobileMenu,setMobileMenu]=useState(false);
  const [mode,setMode]=useState<'confirm'|'propose'>('confirm');
  const [dietTypes,setDietTypes]=useState<string[]>([]);
@@ -170,11 +200,16 @@ export default function EnterpriseWorkspace({view,busy,loading,error,message,ref
  const selectedDriver=drawer?byId(drawer):undefined;
  const driverJourneys=selectedDriver?journeys.filter(j=>j.user_id===selectedDriver.user_id):[];
  const chosen=journeys.find(j=>j.id===selectedJourney);
- const currentReviews=reviews.filter(r=>r.jornada_date?.startsWith(month));
+ const currentReviews=!traffic&&validRange&&!rangeLoading&&!rangeError?rangeReviews.filter(r=>r.jornada_date&&r.jornada_date>=from&&r.jornada_date<=to):[];
  const approvedReviews=currentReviews.filter(approved);
- const monthGroups=drivers.map(d=>{const all=currentReviews.filter(r=>r.driver_id===d.user_id);const ok=all.filter(approved);const summed=ok.reduce((acc,r)=>{const p=components(r);return {diet:acc.diet+p.diet,plus:acc.plus+p.plus,total:acc.total+p.total};},{diet:0,plus:0,total:0});return {driver:d,all,ok,summed,pending:all.filter(r=>r.status==='awaiting_driver').length,disputed:all.filter(r=>r.status==='disputed').length};});
- const total=monthGroups.reduce((sum,x)=>sum+x.summed.total,0);
- const sumPlus=monthGroups.reduce((sum,x)=>sum+x.summed.plus,0);
+ const monthGroups=drivers.map(d=>{
+  const all=currentReviews.filter(r=>r.driver_id===d.user_id);
+  const ok=all.filter(approved),summed=sumConfirmedReviews(ok),daily=groupConfirmedDays(ok);
+  return {driver:d,all,ok,summed,daily,pending:all.filter(r=>r.status==='awaiting_driver').length,disputed:all.filter(r=>r.status==='disputed').length};
+ });
+ const companyTotals=sumConfirmedReviews(approvedReviews);
+ const total=companyTotals.total;
+ const sumPlus=companyTotals.plus;
  const filtered=drivers.filter(d=>{
   const j=latest.get(d.user_id);
   const query=q.trim().toLowerCase();
@@ -201,7 +236,8 @@ export default function EnterpriseWorkspace({view,busy,loading,error,message,ref
   if(await onAction({action:'assign_driver',driverId,trafficUserId:target||null})){setNotice('Asignación actualizada.');await refresh();}
  };
  const closeMonth=async()=>{
-  if(closing||!window.confirm('¿Cerrar el mes '+month+' con las dietas confirmadas? Los cambios posteriores requerirán una regularización.'))return;
+  // Never close a whole calendar month from a partial or multi-month filter.
+  if(closing||!fullCalendarMonth||rangeLoading||rangeError||!window.confirm('¿Cerrar el mes completo '+month+' con las dietas confirmadas? Las pendientes seguirán identificadas. Los cambios posteriores requerirán regularización.'))return;
   setClosing(true);setNotice('');
   try{
    const {data}=await supabase.auth.getSession();
@@ -233,10 +269,33 @@ export default function EnterpriseWorkspace({view,busy,loading,error,message,ref
  })}</tbody></table>{!filtered.length?<p className="p-6 text-sm text-slate-500">No se encontraron conductores con estos filtros.</p>:null}</div>
  </div>;
  const selectedGroup=selectedDriver?monthGroups.find(x=>x.driver.user_id===selectedDriver.user_id):null;
+ const hrDateFilter=<div className="flex flex-wrap items-end gap-2" aria-label="Seleccionar período de liquidación">
+  <label className="text-xs font-semibold text-slate-600">Desde<input type="date" aria-label="Desde fecha de liquidación" className={field+' mt-1'} value={from} onChange={e=>setFrom(e.target.value)}/></label>
+  <label className="text-xs font-semibold text-slate-600">Hasta<input type="date" aria-label="Hasta fecha de liquidación" className={field+' mt-1'} value={to} onChange={e=>setTo(e.target.value)}/></label>
+  <button type="button" className={secondary} onClick={()=>changeMonth(-1)}>Mes anterior</button>
+  <button type="button" className={secondary} onClick={()=>changeMonth(0)}>Este mes</button>
+ </div>;
  const hrTable=<div className={card+' overflow-hidden !p-0'}>
-  <div className="flex flex-wrap items-start justify-between gap-3 p-5"><div><h2 className="text-base font-bold">Liquidación por conductor</h2><p className="text-xs text-slate-500">Importes confirmados del periodo seleccionado, incluidos pluses automáticos ya registrados.</p></div><label className="text-xs font-semibold text-slate-500">Mes <input type="month" className={field+' mt-1'} value={month} onChange={e=>setMonth(e.target.value)}/></label></div>
+  <div className="flex flex-wrap items-end justify-between gap-4 p-5">
+    <div><h2 className="text-base font-bold">Liquidación por conductor</h2><p className="mt-1 text-xs text-slate-500">Dietas y pluses confirmados entre las fechas seleccionadas.</p></div>
+    {hrDateFilter}
+   </div>
+   {!validRange?<p role="alert" className="mx-5 mb-4 rounded-lg bg-rose-50 p-3 text-sm text-rose-700">La fecha Desde debe ser anterior o igual a Hasta.</p>:rangeError?<p role="alert" className="mx-5 mb-4 rounded-lg bg-rose-50 p-3 text-sm text-rose-700">{rangeError}</p>:rangeLoading?<p role="status" className="mx-5 mb-4 rounded-lg bg-blue-50 p-3 text-sm text-blue-700">Cargando liquidación del período…</p>:null}
   <div className="overflow-x-auto"><table className="w-full min-w-[670px] text-left text-sm"><thead className="bg-slate-50 text-xs text-slate-500"><tr><th className="px-4 py-3">Conductor</th><th className="px-4 py-3">Dietas</th><th className="px-4 py-3">Pluses</th><th className="px-4 py-3">Confirmadas</th><th className="px-4 py-3">Pendientes</th><th className="px-4 py-3">Total</th><th className="px-4 py-3">Acción</th></tr></thead><tbody className="divide-y divide-slate-100">{monthGroups.map(x=><tr key={x.driver.user_id}><td className="px-4 py-3 font-semibold">{display(x.driver)}</td><td className="px-4 py-3">{euro(x.summed.diet)}</td><td className="px-4 py-3">{euro(x.summed.plus)}</td><td className="px-4 py-3">{x.ok.length}</td><td className="px-4 py-3">{x.pending+x.disputed}</td><td className="px-4 py-3 font-bold">{euro(x.summed.total)}</td><td className="px-4 py-3"><button className={secondary+' !py-1.5 text-blue-600'} onClick={()=>setDrawer(x.driver.user_id)}>Ver desglose</button></td></tr>)}</tbody></table></div>
-  <div className="flex flex-wrap justify-between gap-3 border-t border-slate-100 bg-slate-50 px-5 py-4"><p className="font-semibold text-slate-700">Total mensual empresa: <strong className="text-lg text-slate-900">{euro(total)}</strong></p><button className={primary} disabled={closing||busy||view.blocked||currentReviews.length===0||view.closures?.some(x=>x.month===month)!==undefined&&Boolean(view.closures?.some(x=>x.month===month))} onClick={()=>void closeMonth()}>{closing?'Cerrando…':view.closures?.some(x=>x.month===month)?'Mes cerrado':'Cerrar mes confirmado'}</button></div>
+  <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 bg-slate-50 px-5 py-4">
+    <div className="text-sm font-semibold text-slate-700">
+     <span>Dietas: <strong>{euro(companyTotals.diet)}</strong></span>
+     <span className="mx-3 text-slate-300">|</span>
+     <span>Pluses: <strong>{euro(companyTotals.plus)}</strong></span>
+     <p className="mt-1 text-base">Total del período: <strong className="text-slate-900">{euro(total)}</strong></p>
+    </div>
+    <div className="text-right">
+     {!fullCalendarMonth?<p className="mb-2 max-w-xs text-xs text-amber-700">El cierre de nómina es mensual. Para cerrar un mes, selecciona todos sus días.</p>:null}
+     <button className={primary} disabled={closing||busy||view.blocked||!validRange||!fullCalendarMonth||rangeLoading||!!rangeError||currentReviews.length===0||Boolean(view.closures?.some(x=>x.month===month))} onClick={()=>void closeMonth()}>
+      {closing?'Cerrando…':view.closures?.some(x=>x.month===month)&&fullCalendarMonth?'Mes cerrado':'Cerrar mes completo'}
+     </button>
+    </div>
+   </div>
  </div>;
  const assigned=<div className={card}><h2 className="text-base font-bold">Asignar conductores a Tráfico</h2><p className="mt-1 text-xs text-slate-500">Solo RRHH puede cambiar los responsables. Cada usuario de Tráfico accede exclusivamente a los conductores asignados.</p><div className="mt-4 space-y-3">{drivers.map(d=>{const current=view.assignments?.find(a=>a.driver_id===d.user_id)?.traffic_user_id||'';return <div key={d.user_id} className="flex flex-wrap items-center gap-3 rounded-xl border border-slate-100 bg-slate-50/60 p-3"><span className="min-w-[170px] flex-1 text-sm font-semibold">{display(d)}</span><select className={field+' sm:!w-64'} value={chosenAssignment[d.user_id]??current} onChange={e=>setChosenAssignment(v=>({...v,[d.user_id]:e.target.value}))}><option value="">Sin asignar</option>{(view.trafficMembers||[]).map(m=><option key={m.user_id} value={m.user_id}>{display(m)}</option>)}</select><button className={primary} disabled={busy||view.blocked} onClick={()=>void saveAssignment(d.user_id)}>Guardar</button></div>})}</div>{!drivers.length?<p className="mt-4 text-sm text-slate-500">No hay conductores vinculados.</p>:null}</div>;
  const summaryTraffic=<>
@@ -277,8 +336,8 @@ export default function EnterpriseWorkspace({view,busy,loading,error,message,ref
  {table}
  </>;
  const summaryHR=<>
-  <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"><Stat icon={Users} label="Conductores" value={drivers.length} sub="Vinculados a la empresa"/><Stat icon={CheckCircle2} label="Confirmadas" value={approvedReviews.length} sub={'En '+month}/><Stat icon={Clock3} label="Pendientes" value={currentReviews.filter(x=>x.status==='awaiting_driver').length} sub="Respuesta del conductor"/><Stat icon={AlertCircle} label="En discrepancia" value={currentReviews.filter(x=>x.status==='disputed').length} sub="Pendientes de revisión"/></div>
-  <div className="grid gap-4 md:grid-cols-3"><div className={card}><p className="text-xs font-semibold text-slate-500">Dietas confirmadas</p><p className="mt-3 text-2xl font-bold">{euro(total-sumPlus)}</p></div><div className={card}><p className="text-xs font-semibold text-slate-500">Pluses confirmados</p><p className="mt-3 text-2xl font-bold">{euro(sumPlus)}</p></div><div className={card}><p className="text-xs font-semibold text-slate-500">Total del mes</p><p className="mt-3 text-2xl font-bold text-blue-700">{euro(total)}</p></div></div>
+  <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"><Stat icon={Users} label="Conductores" value={drivers.length} sub="Vinculados a la empresa"/><Stat icon={CheckCircle2} label="Confirmadas" value={approvedReviews.length} sub={'Del '+displayDate(from)+' al '+displayDate(to)}/><Stat icon={Clock3} label="Pendientes" value={currentReviews.filter(x=>x.status==='awaiting_driver').length} sub="Respuesta del conductor"/><Stat icon={AlertCircle} label="En discrepancia" value={currentReviews.filter(x=>x.status==='disputed').length} sub="Pendientes de revisión"/></div>
+  <div className="grid gap-4 md:grid-cols-3"><div className={card}><p className="text-xs font-semibold text-slate-500">Total dietas</p><p className="mt-3 text-2xl font-bold">{euro(companyTotals.diet)}</p></div><div className={card}><p className="text-xs font-semibold text-slate-500">Total pluses</p><p className="mt-3 text-2xl font-bold">{euro(companyTotals.plus)}</p></div><div className={card}><p className="text-xs font-semibold text-slate-500">Total del período</p><p className="mt-3 text-2xl font-bold text-blue-700">{euro(total)}</p></div></div>
   {hrTable}
  </>;
  const drawerContent=selectedDriver?<div className="fixed inset-0 z-[100] flex justify-end bg-[#06132d]/55" onClick={()=>{setDrawer(null);setSelectedJourney('');}}><div role="dialog" aria-modal="true" aria-label={'Ficha de '+display(selectedDriver)} onClick={e=>e.stopPropagation()} className="flex h-full w-full max-w-xl flex-col bg-white shadow-2xl">
@@ -301,8 +360,26 @@ export default function EnterpriseWorkspace({view,busy,loading,error,message,ref
     {mode==='propose'?<div className="mt-4 space-y-3"><p className="text-sm font-semibold">Dietas propuestas</p>{dietTypes.map((v,i)=><div className="flex gap-2" key={i}><select className={field} value={v} onChange={e=>setDietTypes(old=>old.map((x,k)=>k===i?e.target.value:x))}>{dietChoices.map(d=><option key={d.value} value={d.value}>{d.label}</option>)}</select><button className={secondary} onClick={()=>setDietTypes(old=>old.filter((_,k)=>k!==i))}>Quitar</button></div>)}<button className={secondary} disabled={dietTypes.length>=8} onClick={()=>setDietTypes(old=>[...old,'NACIONAL_100'])}><Plus size={15}/> Añadir dieta</button><p className="text-sm font-semibold">Pluses configurados</p><div className="flex flex-wrap gap-3">{(view.plusOptions?.[selectedDriver.user_id]||[]).map(s=><label key={s} className="flex items-center gap-2 text-xs"><input type="checkbox" checked={plusTypes.includes(s)} onChange={e=>setPlusTypes(old=>e.target.checked?[...old,s]:old.filter(x=>x!==s))}/>{s.replace(/_/g,' ')}</label>)}</div>{!view.plusOptions?.[selectedDriver.user_id]?.length?<p className="text-xs text-amber-700">Este conductor no tiene pluses configurados.</p>:null}<textarea className={field} rows={2} value={reason} onChange={e=>setReason(e.target.value)} placeholder="Justificación obligatoria (mínimo 10 caracteres)"/></div>:null}
     <textarea className={field+' mt-3'} rows={2} value={observation} onChange={e=>setObservation(e.target.value)} placeholder="Observación opcional"/><button className={primary+' mt-3 w-full'} disabled={busy||view.blocked||(mode==='propose'&&reason.trim().length<10)} onClick={()=>void performReview()}>{mode==='confirm'?'Confirmar dieta':'Enviar propuesta al conductor'}</button></div>:null}
    </>:<>
-    <div className="grid grid-cols-2 gap-3"><div className="rounded-xl bg-blue-50 p-4"><p className="text-xs text-slate-500">Dietas confirmadas</p><p className="mt-1 text-xl font-bold">{euro(selectedGroup?.summed.diet||0)}</p></div><div className="rounded-xl bg-blue-50 p-4"><p className="text-xs text-slate-500">Pluses confirmados</p><p className="mt-1 text-xl font-bold">{euro(selectedGroup?.summed.plus||0)}</p></div></div><p className="text-lg font-bold">Total a liquidar: {euro(selectedGroup?.summed.total||0)}</p>
-    <h3 className="font-bold">Conceptos de {month}</h3><div className="space-y-3">{(selectedGroup?.all||[]).map(r=>{const p=components(r);return <div key={r.id} className="rounded-xl border border-slate-200 p-4"><div className="flex flex-wrap items-center justify-between gap-2"><strong className="text-sm">{r.jornada_date||'Sin fecha'}</strong><Pill value={labels[r.status]||r.status}/></div><p className="mt-2 text-sm">Tipo de dieta: {r.status==='accepted'&&r.proposed_diet_type?r.proposed_diet_type:r.original_diet_type||'Sin especificar'}</p><p className="mt-1 text-sm">Dieta: <strong>{euro(p.diet)}</strong></p>{p.plus>0?<p className="mt-1 text-sm">Pluses: <strong>{euro(p.plus)}</strong> {r.automatic_plus_concept?'· '+r.automatic_plus_concept:''}</p>:null}<p className="mt-2 font-bold">Total jornada: {euro(p.total)}</p>{r.change_reason?<p className="mt-2 text-xs text-amber-800">Motivo: {r.change_reason}</p>:null}{r.driver_observation?<p className="mt-1 text-xs text-blue-700">Conductor: {r.driver_observation}</p>:null}</div>})}{!selectedGroup?.all.length?<p className="text-sm text-slate-500">No hay revisiones en este mes.</p>:null}</div>
+    <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-3">
+     <p className="mb-2 text-xs font-semibold text-slate-600">Período de liquidación: {displayDate(from)} – {displayDate(to)}</p>{hrDateFilter}
+    </div>
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+     <div className="rounded-xl bg-blue-50 p-4"><p className="text-xs text-slate-600">Total dietas</p><p className="mt-1 text-xl font-bold">{euro(selectedGroup?.summed.diet||0)}</p></div>
+     <div className="rounded-xl bg-blue-50 p-4"><p className="text-xs text-slate-600">Total pluses</p><p className="mt-1 text-xl font-bold">{euro(selectedGroup?.summed.plus||0)}</p></div>
+     <div className="rounded-xl bg-slate-900 p-4 text-white"><p className="text-xs text-slate-200">Total a liquidar</p><p className="mt-1 text-xl font-bold">{euro(selectedGroup?.summed.total||0)}</p></div>
+    </div>
+    <div><h3 className="font-bold">Desglose diario de importes confirmados</h3><p className="mt-1 text-xs text-slate-500">Cada fecha reúne las dietas y los pluses validados de ese día. Los importes no confirmados quedan fuera del total.</p></div>
+    <div className="space-y-3">{(selectedGroup?.daily||[]).map(day=><div key={day.date} className="rounded-xl border border-slate-200 p-4">
+     <div className="flex items-center justify-between gap-2"><strong className="text-sm">{displayDate(day.date)}</strong><span className="rounded-lg bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">Confirmada</span></div>
+     <dl className="mt-3 space-y-2 text-sm">
+      <div className="flex items-center justify-between gap-3"><dt className="text-slate-600">Dietas</dt><dd className="font-semibold tabular-nums">{euro(day.diet)}</dd></div>
+      <div className="flex items-center justify-between gap-3"><dt className="text-slate-600">Pluses</dt><dd className="font-semibold tabular-nums">{euro(day.plus)}</dd></div>
+      <div className="flex items-center justify-between gap-3 border-t border-slate-100 pt-2"><dt className="font-semibold">Total día</dt><dd className="font-bold tabular-nums">{euro(day.total)}</dd></div>
+     </dl>
+    </div>)}
+    {!selectedGroup?.daily.length?<p className="rounded-lg bg-slate-50 p-4 text-sm text-slate-500">No hay dietas ni pluses confirmados entre las fechas seleccionadas.</p>:null}
+    {(selectedGroup?.pending||0)+(selectedGroup?.disputed||0)>0?<p className="rounded-lg bg-amber-50 p-3 text-xs text-amber-800">Hay {selectedGroup?.pending||0} propuestas pendientes y {selectedGroup?.disputed||0} en discrepancia. No se incluyen en los importes liquidables.</p>:null}
+    </div>
    </>}
   </div>
  </div></div>:null;
