@@ -1,5 +1,13 @@
 name: Verify traffic trip assignment push
 on:
+  push:
+    branches: [main]
+    paths:
+      - 'components/traffic-trip-assignment.tsx'
+      - 'lib/tp-trip-navigation.ts'
+      - 'app/api/empresas/assign-trip/route.ts'
+      - 'app/api/empresas/manage-trip/route.ts'
+      - '.github/workflows/traffic-trip-push-check.yml'
   pull_request:
     branches: [main]
     paths:
