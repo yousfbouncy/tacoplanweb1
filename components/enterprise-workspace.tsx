@@ -8,6 +8,7 @@ import {supabase} from '@/lib/supabase';
 import TrafficTripAssignment from '@/components/traffic-trip-assignment';
 import TrafficDriverLocation from '@/components/traffic-driver-location';
 import TrafficDietManager,{type Entry as TrafficDietEntry,type Adjustment as TrafficDietAdjustment} from '@/components/traffic-diet-manager';
+import {groupConfirmedDays,sumConfirmedReviews} from '@/lib/tp-hr-diet-breakdown';
 
 type Driver={user_id:string;username:string;employee_name?:string|null;joined_at?:string};
 type Journey={id:string;user_id:string;fecha_inicio?:string|null;fecha_fin?:string|null;hora_inicio?:string|null;hora_fin?:string|null;start_at?:string|null;end_at?:string|null;lugar_inicio?:string|null;lugar_fin?:string|null;tipo_ruta?:string|null;dieta_manual_tipo?:string|null;dieta_percent?:number|null;conduccion_min?:number|null;tacho_driving_min?:number|null;tacho_work_min?:number|null;tacho_available_min?:number|null;tacho_rest_min?:number|null;planned_rest_min?:number|null;planned_rest_type?:string|null;descanso_anterior_min?:number|null;tipo_descanso_anterior?:string|null;previous_rest_valid?:boolean|null;previous_rest_start_at?:string|null;previous_rest_end_at?:string|null;previous_rest_legal_type?:string|null;activity_driving_min?:number|null;activity_available_min?:number|null;activity_rest_min?:number|null;activity_work_min?:number|null;legal_summary?:LegalInfo|null};
@@ -60,7 +61,12 @@ const field='w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text
 const primary='inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50';
 const secondary='inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50';
 const card='rounded-2xl border border-slate-200/90 bg-white p-5 shadow-[0_4px_18px_rgba(16,35,70,.045)]';
-const todayMonth=()=>new Date().toISOString().slice(0,7);
+const dateISO=(d:Date)=>[d.getFullYear(),String(d.getMonth()+1).padStart(2,'0'),String(d.getDate()).padStart(2,'0')].join('-');
+const calendarRange=(offset=0)=>{const d=new Date();return {
+ from:dateISO(new Date(d.getFullYear(),d.getMonth()+offset,1)),
+ to:dateISO(new Date(d.getFullYear(),d.getMonth()+offset+1,0))};};
+const monthEnd=(month:string)=>{const [year,index]=month.split('-').map(Number);return dateISO(new Date(year,index,0));};
+const displayDate=(date:string)=>/^\d{4}-\d{2}-\d{2}$/.test(date)?date.slice(8,10)+'/'+date.slice(5,7)+'/'+date.slice(0,4):date;
 const dt=(day?:string|null,time?:string|null)=>day&&time?new Date(day+'T'+time+':00'):null;
 const validDate=(d:Date|null)=>d&&!Number.isNaN(d.getTime())?d:null;
 const hours=(n?:number|null)=>n==null?'Sin datos':Math.floor(n/60)+' h '+String(n%60).padStart(2,'0')+' min';
@@ -81,9 +87,6 @@ const recordedRestDates=(j:Journey)=>{
 };
 const labels:Record<string,string>={confirmed:'Confirmada',accepted:'Aceptada',closed:'Cerrada',awaiting_driver:'Pendiente del conductor',disputed:'En discrepancia'};
 const approved=(r:Review)=>['confirmed','accepted','closed'].includes(r.status);
-const gross=(r:Review)=>Number(r.status==='accepted'?r.proposed_amount??r.original_amount:r.original_amount)||0;
-const items=(r:Review)=>r.status==='accepted'&&r.proposed_pluses!=null?r.proposed_pluses:r.original_pluses||[];
-const components=(r:Review)=>{const base=gross(r),auto=Math.min(base,Number(r.automatic_plus)||0);const extras=items(r).filter(p=>!/dieta|n[oó]mina|salario|sueldo|anticipo/i.test(p.concepto)).reduce((a,p)=>a+(Number(p.importe)||0),0);return {diet:Math.max(0,base-auto),plus:auto+extras,total:base+extras};};
 const initials=(name:string)=>name.split(/\s+/).filter(Boolean).slice(0,2).map(x=>x[0].toUpperCase()).join('')||'TP';
 const status=(j?:Journey,activity?:ActivityRow)=>{
  if(!j)return 'Sin jornada';
@@ -117,7 +120,34 @@ export default function EnterpriseWorkspace({view,busy,loading,error,message,ref
  const [selectedJourney,setSelectedJourney]=useState<string>('');
  const [q,setQ]=useState('');
  const [filter,setFilter]=useState('todos');
- const [month,setMonth]=useState(todayMonth);
+ const [from,setFrom]=useState(()=>calendarRange().from);
+ const [to,setTo]=useState(()=>calendarRange().to);
+ const [rangeReviews,setRangeReviews]=useState<Review[]>([]);
+ const [rangeLoading,setRangeLoading]=useState(false);
+ const [rangeError,setRangeError]=useState('');
+ const validRange=Boolean(from&&to&&/^\d{4}-\d{2}-\d{2}$/.test(from)&&/^\d{4}-\d{2}-\d{2}$/.test(to)&&from<=to);
+ const month=from.slice(0,7);
+ const fullCalendarMonth=validRange&&from===month+'-01'&&to===monthEnd(month);
+ const changeMonth=(offset:number)=>{const dates=calendarRange(offset);setFrom(dates.from);setTo(dates.to);};
+ useEffect(()=>{
+  if(traffic||!validRange||view.blocked){setRangeReviews([]);setRangeError('');setRangeLoading(false);return;}
+  let active=true;
+  const controller=new AbortController();
+  setRangeLoading(true);setRangeError('');
+  const loadPeriod=async()=>{
+   const {data:{session}}=await supabase.auth.getSession();
+   if(!session?.access_token)throw Error('Sesión caducada. Inicia sesión de nuevo.');
+   const response=await fetch('/api/empresas/hr-period?from='+encodeURIComponent(from)+'&to='+encodeURIComponent(to),{
+    cache:'no-store',signal:controller.signal,headers:{Authorization:'Bearer '+session.access_token}
+   });
+   const data=await response.json();
+   if(!response.ok)throw Error(data.error||'No se pudo cargar el período');
+   if(active)setRangeReviews(Array.isArray(data.reviews)?data.reviews:[]);
+  };
+  void loadPeriod().catch(error=>{if(active){setRangeReviews([]);setRangeError(error instanceof Error?error.message:'Error consultando el período');}})
+   .finally(()=>{if(active)setRangeLoading(false);});
+  return()=>{active=false;controller.abort();};
+ },[traffic,from,to,view.blocked,view.reviews]);
  const [mobileMenu,setMobileMenu]=useState(false);
  const [mode,setMode]=useState<'confirm'|'propose'>('confirm');
  const [dietTypes,setDietTypes]=useState<string[]>([]);
@@ -170,11 +200,16 @@ export default function EnterpriseWorkspace({view,busy,loading,error,message,ref
  const selectedDriver=drawer?byId(drawer):undefined;
  const driverJourneys=selectedDriver?journeys.filter(j=>j.user_id===selectedDriver.user_id):[];
  const chosen=journeys.find(j=>j.id===selectedJourney);
- const currentReviews=reviews.filter(r=>r.jornada_date?.startsWith(month));
+ const currentReviews=!traffic&&validRange&&!rangeLoading&&!rangeError?rangeReviews.filter(r=>r.jornada_date&&r.jornada_date>=from&&r.jornada_date<=to):[];
  const approvedReviews=currentReviews.filter(approved);
- const monthGroups=drivers.map(d=>{const all=currentReviews.filter(r=>r.driver_id===d.user_id);const ok=all.filter(approved);const summed=ok.reduce((acc,r)=>{const p=components(r);return {diet:acc.diet+p.diet,plus:acc.plus+p.plus,total:acc.total+p.total};},{diet:0,plus:0,total:0});return {driver:d,all,ok,summed,pending:all.filter(r=>r.status==='awaiting_driver').length,disputed:all.filter(r=>r.status==='disputed').length};});
- const total=monthGroups.reduce((sum,x)=>sum+x.summed.total,0);
- const sumPlus=monthGroups.reduce((sum,x)=>sum+x.summed.plus,0);
+ const monthGroups=drivers.map(d=>{
+  const all=currentReviews.filter(r=>r.driver_id===d.user_id);
+  const ok=all.filter(approved),summed=sumConfirmedReviews(ok),daily=groupConfirmedDays(ok);
+  return {driver:d,all,ok,summed,daily,pending:all.filter(r=>r.status==='awaiting_driver').length,disputed:all.filter(r=>r.status==='disputed').length};
+ });
+ const companyTotals=sumConfirmedReviews(approvedReviews);
+ const total=companyTotals.total;
+ const sumPlus=companyTotals.plus;
  const filtered=drivers.filter(d=>{
   const j=latest.get(d.user_id);
   const query=q.trim().toLowerCase();
@@ -201,7 +236,8 @@ export default function EnterpriseWorkspace({view,busy,loading,error,message,ref
   if(await onAction({action:'assign_driver',driverId,trafficUserId:target||null})){setNotice('Asignación actualizada.');await refresh();}
  };
  const closeMonth=async()=>{
-  if(closing||!window.confirm('¿Cerrar el mes '+month+' con las dietas confirmadas? Los cambios posteriores requerirán una regularización.'))return;
+  // Never close a whole calendar month from a partial or multi-month filter.
+  if(closing||!fullCalendarMonth||rangeLoading||rangeError||!window.confirm('¿Cerrar el mes completo '+month+' con las dietas confirmadas? Las pendientes seguirán identificadas. Los cambios posteriores requerirán regularización.'))return;
   setClosing(true);setNotice('');
   try{
    const {data}=await supabase.auth.getSession();
