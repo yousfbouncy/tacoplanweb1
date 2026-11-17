@@ -27,13 +27,16 @@ function validSettings(value:unknown){
  return {base_name,workplace,agreement,diet_rates:object(raw.diet_rates),plus_rates:object(raw.plus_rates),payroll_terms:object(raw.payroll_terms)};
 }
 export async function POST(req:NextRequest){
- if(!originAllowed(req))return json({error:'Origen no permitido'},403);
+ const sameSite=originAllowed(req);
+ const mobileBearerReply=!req.headers.get('origin') && req.headers.get('x-tacoplan-client')==='mobile' && /^Bearer [^\\s]+$/.test(req.headers.get('authorization')||'');
+ if(!sameSite&&!mobileBearerReply)return json({error:'Origen no permitido'},403);
  const auth=await membership(req);
  if(!auth)return json({error:'Inicia sesión primero'},401);
  let body:Record<string,any>;
  try{body=await req.json();if(!body||typeof body!=='object')throw Error('body');}
  catch{return json({error:'Solicitud no válida'},400);}
  const {db,user,member}=auth,action=body.action;
+ if(!sameSite && action!=='respond') return json({error:'Origen no permitido'},403);
  try{
  if(action==='create_company'){
   if(member)return json({error:'Ya perteneces a una empresa'},409);
