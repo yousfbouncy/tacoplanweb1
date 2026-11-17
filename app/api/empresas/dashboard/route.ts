@@ -45,7 +45,7 @@ export async function GET(req:NextRequest){
   // The original jornada total already includes the automatic extra, so never
   // double-count it as a second payment.
   const reviewRows=reviews.data||[];
-  const jornadaIds=Array.from(new Set(reviewRows.map(r=>r.jornada_id).filter((id):id is string=>typeof id==='string')));
+  const jornadaIds=Array.from(new Set(reviewRows.map(r=>r.jornada_id).filter((id):id is string=>typeof id==='string'&&!id.startsWith('natural_day:'))));
   const linked=jornadaIds.length?await db.from('jornadas').select('id,day_extra_eur,day_flag,diet_base_eur').in('id',jornadaIds):{data:[],error:null};
   if(linked.error)throw linked.error;
   const extras=new Map((linked.data||[]).map(j=>[j.id,{amount:Math.max(0,Number(String(j.day_extra_eur||0).replace(',','.'))||0),concept:String(j.day_flag||'Plus automático')}]));
