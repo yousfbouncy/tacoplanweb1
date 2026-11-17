@@ -110,7 +110,7 @@ export async function POST(req: NextRequest) {
   }
   if(extras && extras.filter((p:any)=>p.source==="automatic").length>1)
    return enterpriseJson({error:"No se puede duplicar el plus automático"},400);
-  if(extras && extras.some((p:any)=>p.source==="automatic" && p.concepto!==automaticConcept))
+  if(extras && extras.some((p:any)=>p.source==="automatic" && !automaticConcept))
    return enterpriseJson({error:"El plus automático no coincide con la jornada"},400);
   const conflict=await db.from("tp_diet_adjustments").select("id").eq("company_id",member.company_id)
    .eq("driver_id",driverId).eq("diet_date",date).eq("status","awaiting_driver");
