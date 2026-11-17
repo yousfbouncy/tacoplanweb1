@@ -42,6 +42,9 @@ export async function POST(req:NextRequest){
   const ctx=await trafficContext(req,driverId);
   if(ctx.error)return ctx.error;
   const {db,user,member}=ctx;
+  const consent=await db!.from('tp_location_consents').select('enabled').eq('company_id',member!.company_id).eq('driver_id',driverId).maybeSingle();
+  if(consent.error)throw consent.error;
+  if(!consent.data?.enabled)return enterpriseJson({error:'El conductor todavía no ha autorizado compartir su ubicación con Tráfico desde Tacoplan móvil.'},403);
   const latest=await db!.from('tp_location_requests').select('id,status,expires_at,requested_at').eq('company_id',member!.company_id).eq('driver_id',driverId).eq('requested_by',user!.id).order('requested_at',{ascending:false}).limit(1).maybeSingle();
   if(latest.error)throw latest.error;
   if(latest.data?.status==='pending'&&Date.parse(latest.data.expires_at)>Date.now())return enterpriseJson({ok:true,id:latest.data.id,status:'pending',reused:true});
