@@ -66,7 +66,7 @@ export async function GET(req:NextRequest){
    db.from('tp_diet_reviews').select('id,jornada_id,jornada_date,driver_id,status,original_diet_type,proposed_diet_type,traffic_observation,change_reason,driver_observation,created_at').eq('company_id',companyId).in('driver_id',ids.length?ids:['00000000-0000-0000-0000-000000000000']).order('created_at',{ascending:false}).limit(1000),
    ids.length?db.from('tp_driver_settings').select('driver_id,plus_rates').eq('company_id',companyId).in('driver_id',ids):Promise.resolve({data:[],error:null}),
    ids.length?db.from('tacho_activities').select('user_id,shift_id,source,tipo,inicio,fin,updated_at').in('user_id',ids).order('inicio',{ascending:false}).limit(750):Promise.resolve({data:[],error:null}),
-   ids.length?db.from('viajes').select('id,user_id,cliente,modo_viaje,fin_lugar,fin_hora,estado,paradas,created_at,updated_at').in('user_id',ids).order('created_at',{ascending:false}).limit(500):Promise.resolve({data:[],error:null})
+   ids.length?db.from('viajes').select('id,user_id,cliente,modo_viaje,fin_lugar,fin_hora,estado,paradas,notas,created_at,updated_at').in('user_id',ids).order('created_at',{ascending:false}).limit(500):Promise.resolve({data:[],error:null})
   ]);
   if(jornadas.error||reviews.error||plusSettings.error||activityRows.error||trips.error)throw jornadas.error||reviews.error||plusSettings.error||activityRows.error||trips.error;
   // Calculate from the same history already authorized for this traffic user.
