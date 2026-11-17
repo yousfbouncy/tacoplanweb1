@@ -5,11 +5,12 @@ import {supabase} from '@/lib/supabase';
 
 type Driver={user_id:string;username:string;employee_name?:string|null};
 type Stop={tipo:'CARGA'|'DESCARGA'|'ENTREGA_REMOLQUE';lugar:string;observaciones:string;fecha_cita?:string|null;hora_cita?:string|null;salidaConfirmada?:boolean};
-type Trip={id:string;user_id:string;cliente?:string|null;modo_viaje?:string|null;estado?:string|null;paradas?:unknown;created_at:string;updated_at?:string|null};
+type Trip={id:string;user_id:string;cliente?:string|null;modo_viaje?:string|null;estado?:string|null;paradas?:unknown;created_at:string;updated_at?:string|null;notas?:string|null};
 const field='w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-blue-500';
 const button='rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-bold text-white disabled:opacity-50';
 const secondary='rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50';
 const blank=(tipo:Stop['tipo']='CARGA'):Stop=>({tipo,lugar:'',observaciones:'',fecha_cita:null,hora_cita:null});
+const readMeta=(trip:Trip):{remolque?:string;observaciones?:string}=>{try{const x=JSON.parse(trip.notas||'{}');return x&&typeof x==='object'?x:{};}catch{return {};}};
 const readStops=(trip:Trip):Stop[]=>Array.isArray(trip.paradas)?trip.paradas.filter((x):x is Stop=>Boolean(x)&&typeof x==='object'&&'tipo' in x&&'lugar' in x).map(x=>({...x,observaciones:x.observaciones||'',fecha_cita:x.fecha_cita||null,hora_cita:x.hora_cita||null})):[];
 
 export default function TrafficTripAssignment({drivers,trips,refresh,blocked=false,initialDriverId='',onClose}:{drivers:Driver[];trips:Trip[];refresh:()=>Promise<void>;blocked?:boolean;initialDriverId?:string;onClose?:()=>void}){
@@ -26,7 +27,7 @@ export default function TrafficTripAssignment({drivers,trips,refresh,blocked=fal
  useEffect(()=>{if(initialDriverId){setDriverId(initialDriverId);setScreen('form');setEditing(false);}},[initialDriverId]);
  const reset=(id='')=>{setEditing(false);setSelectedId('');setDriverId(id);setTipo('CARGA_DESCARGA');setCliente('');setRemolque('');setObservaciones('');setParadas([blank('CARGA'),blank('DESCARGA')]);setMessage('');setScreen('form');};
  const inspect=(t:Trip)=>{setSelectedId(t.id);setScreen('detail');setMessage('');setTransferTo('');};
- const edit=(t:Trip)=>{setSelectedId(t.id);setEditing(true);setDriverId(t.user_id);setTipo(t.modo_viaje||'CARGA_DESCARGA');setCliente(t.cliente||'');setParadas(readStops(t).length?readStops(t):[blank('CARGA')]);setMessage('');setScreen('form');};
+ const edit=(t:Trip)=>{setSelectedId(t.id);setEditing(true);setDriverId(t.user_id);setTipo(t.modo_viaje||'CARGA_DESCARGA');setCliente(t.cliente||'');setRemolque(readMeta(t).remolque||'');setObservaciones(readMeta(t).observaciones||'');setParadas(readStops(t).length?readStops(t):[blank('CARGA')]);setMessage('');setScreen('form');};
  const change=(index:number,key:keyof Stop,value:string)=>setParadas(old=>old.map((p,i)=>i===index?{...p,[key]:value}:p));
  const choose=(value:string)=>{setTipo(value);if(!editing)setParadas(value==='CARGA'?[blank('CARGA')]:value==='DESCARGA'?[blank('DESCARGA')]:value==='ENTREGA_REMOLQUE'?[blank('CARGA'),blank('ENTREGA_REMOLQUE')]:[blank('CARGA'),blank('DESCARGA')]);};
  const call=async(url:string,body:Record<string,unknown>)=>{
