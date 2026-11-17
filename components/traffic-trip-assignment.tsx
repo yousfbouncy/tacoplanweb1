@@ -38,13 +38,19 @@ export default function TrafficTripAssignment({drivers,trips,refresh,blocked=fal
   if(!res.ok)throw Error(data.error||'No se pudo completar la operación');
   return data;
  };
+ const alertNotice=(result:any)=>{
+  if(result?.pushStatus==='no_tokens')return ' Aviso guardado en Tacoplan, pero el conductor no tiene un dispositivo push registrado. Debe abrir la app y permitir las notificaciones.';
+  if(result?.pushStatus==='failed')return ' El viaje se guardó, pero Expo no confirmó el envío push. El conductor debe revisar su bandeja de Tacoplan.';
+  if(result?.pushStatus==='accepted')return ' Aviso push aceptado por Expo (entrega al móvil todavía no confirmada).';
+  return ' Comprueba con el conductor que recibió el aviso.';
+ };
  const save=async(e:React.FormEvent)=>{
   e.preventDefault();if(saving||blocked)return;setSaving(true);setMessage('');
   try{
    if(!driverId||!drivers.some(d=>d.user_id===driverId))throw Error('Selecciona un conductor asignado');
    const body={driverId,tipo,cliente,remolque,observaciones,paradas};
-   await call(editing?'/api/empresas/manage-trip':'/api/empresas/assign-trip',editing?{...body,tripId:selectedId,operation:'edit'}:body);
-   await refresh();setMessage(editing?'Viaje actualizado correctamente':'Viaje asignado correctamente');
+   const result=await call(editing?'/api/empresas/manage-trip':'/api/empresas/assign-trip',editing?{...body,tripId:selectedId,operation:'edit'}:body);
+   await refresh();setMessage(editing?'Viaje actualizado correctamente':'Viaje asignado correctamente.'+alertNotice(result));
    setScreen('list');setEditing(false);
   }catch(error){setMessage(error instanceof Error?error.message:'No se pudo guardar el viaje');}
   finally{setSaving(false);}
@@ -53,7 +59,7 @@ export default function TrafficTripAssignment({drivers,trips,refresh,blocked=fal
   if(!selected||!transferTo||transferTo===selected.user_id||blocked||saving)return;
   if(!window.confirm('¿Transferir este viaje a '+name(transferTo)+'? Dejará de estar asignado al conductor anterior.'))return;
   setSaving(true);setMessage('');
-  try{await call('/api/empresas/manage-trip',{operation:'transfer',tripId:selected.id,driverId:transferTo});await refresh();setMessage('Viaje transferido a '+name(transferTo));setTransferTo('');}
+  try{const result=await call('/api/empresas/manage-trip',{operation:'transfer',tripId:selected.id,driverId:transferTo});await refresh();setMessage('Viaje transferido a '+name(transferTo)+'.'+alertNotice(result));setTransferTo('');}
   catch(error){setMessage(error instanceof Error?error.message:'No se pudo transferir');}
   finally{setSaving(false);}
  };

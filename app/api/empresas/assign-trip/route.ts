@@ -2,6 +2,7 @@ import {NextRequest} from 'next/server';
 import {normalizeStopNavigation} from '@/lib/tp-trip-navigation';
 import {isValidTripAppointmentDate,isValidTripAppointmentTime} from '@/lib/tp-trip-appointment';
 import {randomUUID} from 'node:crypto';
+import {notifyTripAssigned} from '@/lib/tp-trip-push';
 import {membership,enterpriseJson,originAllowed,isPaidAccess,uuid,audit} from '@/lib/tp-enterprise';
 
 export const dynamic='force-dynamic';
@@ -49,40 +50,20 @@ export async function POST(req:NextRequest){
   }).select('id').single();
   if(saved.error)throw saved.error;
   await audit(db,companyId,user.id,'traffic.trip_assigned','trip',id,null,{driver_id:driverId,cliente,tipo,remolque,paradas});
-  // Notification delivery is best effort: the assignment has already been
-  // saved and must never be retried by the UI just because Expo is offline.
-  let pushStatus:'sent'|'no_tokens'|'failed'='no_tokens';
-  try{
-   const tokens=await db.from('push_tokens').select('expo_push_token')
-    .eq('user_id',driverId).eq('notifications_enabled',true);
-   if(tokens.error)throw tokens.error;
-   const destinations=Array.from(new Set((tokens.data||[]).map((t:{expo_push_token:string})=>t.expo_push_token)
-    .filter((token:string)=>/^Expo(nent)?PushToken\[[^\]]+\]$/.test(token))));
-   if(destinations.length){
-    const messages=destinations.map(to=>({
-     to,
-     title:'Tacoplan · Nuevo viaje asignado',
-     body:cliente+' · '+paradas[0].lugar,
-     sound:'tacoplan_viaje.wav',
-     channelId:'traffic-assigned-v1',
-     priority:'high',
-     data:{target:'viaje',tripId:id,source:'traffic',eventId:'assigned:'+id}
-    }));
-    const response=await fetch('https://exp.host/--/api/v2/push/send',{
-     method:'POST',
-     headers:{'Content-Type':'application/json','Accept':'application/json'},
-     body:JSON.stringify(messages),
-     signal:AbortSignal.timeout(7000)
+  // A failed push cannot undo the assignment. Persist an inbox backup and
+  // report Expo ticket acceptance separately from successful trip creation.
+  let alert: Awaited<ReturnType<typeof notifyTripAssigned>> = {
+    pushStatus:'failed',inboxCreated:false,pushAccepted:0,pushFailed:0
+  };
+  try {
+    alert = await notifyTripAssigned(db,{
+      driverId,tripId:id,cliente,firstStop:paradas[0].lugar,operation:'assigned',
     });
-    if(!response.ok)throw new Error('Expo push HTTP '+response.status);
-    const result=await response.json() as {data?:Array<{status?:string}>};
-    pushStatus=result.data?.some(x=>x.status==='ok')?'sent':'failed';
-   }
-  }catch(error){
-   pushStatus='failed';
-   console.warn('[TRAFFIC] Push de nueva asignación pendiente',error);
+  } catch(error) {
+    console.warn('[TRAFFIC] Could not create trip assignment alert',
+      error instanceof Error ? error.message : 'Unknown failure');
   }
-  return enterpriseJson({ok:true,id,pushStatus});
+  return enterpriseJson({ok:true,id,...alert});
  }catch(error){
   return enterpriseJson({error:error instanceof Error?error.message:'No se pudo asignar el viaje'},500);
  }

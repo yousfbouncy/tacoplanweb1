@@ -2,6 +2,7 @@ import {NextRequest} from 'next/server';
 import {normalizeStopNavigation} from '@/lib/tp-trip-navigation';
 import {isValidTripAppointmentDate,isValidTripAppointmentTime} from '@/lib/tp-trip-appointment';
 import {membership,enterpriseJson,originAllowed,isPaidAccess,uuid,audit} from '@/lib/tp-enterprise';
+import {notifyTripAssigned} from '@/lib/tp-trip-push';
 
 export const dynamic='force-dynamic';
 const plain=(x:unknown,max=250)=>typeof x==='string'?x.trim().slice(0,max):'';
@@ -49,7 +50,20 @@ export async function POST(req:NextRequest){
    if(updated.error)throw updated.error;
    if(!updated.data)return enterpriseJson({error:'No se ha podido transferir: el conductor ha cambiado'},409);
    await audit(db,companyId,user.id,'traffic.trip_transferred','trip',tripId,{driver_id:trip.user_id},{driver_id:newDriverId});
-   return enterpriseJson({ok:true});
+   let alert: Awaited<ReturnType<typeof notifyTripAssigned>> = {
+    pushStatus:'failed',inboxCreated:false,pushAccepted:0,pushFailed:0
+   };
+   try {
+    const stops=Array.isArray(trip.paradas)?trip.paradas as Stop[]:[];
+    alert=await notifyTripAssigned(db,{
+     driverId:newDriverId,tripId,cliente:trip.cliente||'Viaje asignado',
+     firstStop:stops[0]?.lugar||'Consulta tu viaje',operation:'transferred'
+    });
+   }catch(error){
+    console.warn('[TRAFFIC] Could not create transferred-trip alert',
+      error instanceof Error?error.message:'Unknown failure');
+   }
+   return enterpriseJson({ok:true,...alert});
   }
   const cliente=plain(body?.cliente,120),tipo=plain(body?.tipo,40),remolque=plain(body?.remolque,80),observaciones=plain(body?.observaciones,1000);
   if(!cliente||!['CARGA','DESCARGA','CARGA_DESCARGA','ENTREGA_REMOLQUE'].includes(tipo))return enterpriseJson({error:'Indica cliente y tipo de viaje'},400);
