@@ -10,6 +10,11 @@ export function normalizeStopNavigation(value: unknown): string {
     if (url.protocol !== "https:" || !url.hostname || url.username || url.password) {
       throw new Error("La ubicación debe ser un enlace HTTPS seguro");
     }
+    const host = url.hostname.toLowerCase();
+    const googleMaps = host === "maps.app.goo.gl" || host === "maps.google.com" ||
+      (host === "www.google.com" || host === "google.com") && url.pathname.startsWith("/maps") ||
+      host === "goo.gl" && url.pathname.startsWith("/maps/");
+    if (!googleMaps) throw new Error("Utiliza un enlace de Google Maps, coordenadas o una dirección");
     return url.toString();
   }
   if (/^[a-z][a-z0-9+.-]*:/i.test(input)) throw new Error("Enlace de ubicación no admitido");
