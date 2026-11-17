@@ -43,11 +43,30 @@ alter table public.tp_payroll_closures
   alter column period_to set not null,
   drop constraint if exists tp_payroll_closures_company_id_month_driver_id_key;
 
-alter table public.tp_payroll_closures
-  add constraint tp_payroll_period_valid check (period_from <= period_to),
-  add constraint tp_payroll_period_no_overlap
-    exclude using gist (company_id with =, driver_id with =,
-                        daterange(period_from, period_to, '[]') with &&);
+-- These guards also make the migration repeatable if the live database was
+-- upgraded through the SQL editor before migration history was registered.
+do $tp_payroll_schema$
+begin
+  if not exists (
+    select 1 from pg_constraint
+    where conrelid = 'public.tp_payroll_closures'::regclass
+      and conname = 'tp_payroll_period_valid'
+  ) then
+    alter table public.tp_payroll_closures
+      add constraint tp_payroll_period_valid check (period_from <= period_to);
+  end if;
+  if not exists (
+    select 1 from pg_constraint
+    where conrelid = 'public.tp_payroll_closures'::regclass
+      and conname = 'tp_payroll_period_no_overlap'
+  ) then
+    alter table public.tp_payroll_closures
+      add constraint tp_payroll_period_no_overlap
+      exclude using gist (company_id with =, driver_id with =,
+                          daterange(period_from, period_to, '[]') with &&);
+  end if;
+end;
+$tp_payroll_schema$;
 
 create index if not exists tp_payroll_company_period
   on public.tp_payroll_closures (company_id, period_from, period_to);
