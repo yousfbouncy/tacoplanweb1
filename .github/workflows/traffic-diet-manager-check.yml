@@ -1,0 +1,22 @@
+name: Verify traffic diet manager
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'components/traffic-diet-manager.tsx'
+      - 'components/enterprise-workspace.tsx'
+      - 'app/api/empresas/dashboard/route.ts'
+      - 'app/api/empresas/diet-adjustments/route.ts'
+      - '.github/workflows/traffic-diet-manager-check.yml'
+  workflow_dispatch:
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npm run typecheck
