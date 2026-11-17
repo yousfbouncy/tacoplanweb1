@@ -335,10 +335,31 @@ export default function EnterpriseWorkspace({view,busy,loading,error,message,ref
  <p className="text-xs text-slate-500">Solo se muestran tiempos registrados. Los datos pendientes de sincronización no se inventan.</p>
  {table}
  </>;
+ const closedPeriods=Array.from((view.closures||[]).reduce((groups,entry)=>{
+  const key=entry.period_from+'_'+entry.period_to;
+  const prev=groups.get(key)||{from:entry.period_from,to:entry.period_to,drivers:0,diets:0,pluses:0,closedAt:entry.closed_at};
+  prev.drivers++;
+  prev.diets+=Math.round(Number(entry.total_diets||0)*100);
+  prev.pluses+=Math.round(Number(entry.total_pluses||0)*100);
+  groups.set(key,prev);
+  return groups;
+ },new Map<string,{from:string;to:string;drivers:number;diets:number;pluses:number;closedAt:string}>()).values())
+ .sort((a,b)=>b.closedAt.localeCompare(a.closedAt)).slice(0,8);
  const summaryHR=<>
   <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"><Stat icon={Users} label="Conductores" value={drivers.length} sub="Vinculados a la empresa"/><Stat icon={CheckCircle2} label="Confirmadas" value={approvedReviews.length} sub={'Del '+displayDate(from)+' al '+displayDate(to)}/><Stat icon={Clock3} label="Pendientes" value={currentReviews.filter(x=>x.status==='awaiting_driver').length} sub="Respuesta del conductor"/><Stat icon={AlertCircle} label="En discrepancia" value={currentReviews.filter(x=>x.status==='disputed').length} sub="Pendientes de revisión"/></div>
   <div className="grid gap-4 md:grid-cols-3"><div className={card}><p className="text-xs font-semibold text-slate-500">Total dietas</p><p className="mt-3 text-2xl font-bold">{euro(companyTotals.diet)}</p></div><div className={card}><p className="text-xs font-semibold text-slate-500">Total pluses</p><p className="mt-3 text-2xl font-bold">{euro(companyTotals.plus)}</p></div><div className={card}><p className="text-xs font-semibold text-slate-500">Total del período</p><p className="mt-3 text-2xl font-bold text-blue-700">{euro(total)}</p></div></div>
   {hrTable}
+  <div className={card}>
+   <h3 className="text-base font-bold">Últimos períodos cerrados</h3>
+   <p className="mt-1 text-xs text-slate-500">Cierres guardados con fechas exactas. No modifican las dietas originales del conductor.</p>
+   <div className="mt-3 space-y-2">
+    {closedPeriods.map(period=><div key={period.from+'_'+period.to} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm">
+     <div><strong>{displayDate(period.from)} – {displayDate(period.to)}</strong><p className="mt-1 text-xs text-slate-500">{period.drivers} conductor(es)</p></div>
+     <div className="text-right text-xs"><p>Dietas: <strong>{euro(period.diets/100)}</strong> · Pluses: <strong>{euro(period.pluses/100)}</strong></p><p className="mt-1 font-bold">Total: {euro((period.diets+period.pluses)/100)}</p></div>
+    </div>)}
+    {!closedPeriods.length?<p className="text-sm text-slate-500">Todavía no hay períodos cerrados.</p>:null}
+   </div>
+  </div>
  </>;
  const drawerContent=selectedDriver?<div className="fixed inset-0 z-[100] flex justify-end bg-[#06132d]/55" onClick={()=>{setDrawer(null);setSelectedJourney('');}}><div role="dialog" aria-modal="true" aria-label={'Ficha de '+display(selectedDriver)} onClick={e=>e.stopPropagation()} className="flex h-full w-full max-w-xl flex-col bg-white shadow-2xl">
   <div className="flex items-start justify-between gap-3 border-b border-slate-100 px-5 py-4"><div><p className="text-xs font-bold uppercase tracking-wide text-blue-600">{traffic?'Ficha operativa':'Liquidación individual'}</p><h2 className="mt-1 text-xl font-bold">{display(selectedDriver)}</h2><p className="text-xs text-slate-500">@{selectedDriver.username}</p></div><button aria-label="Cerrar ficha" className={secondary+' !p-2'} onClick={()=>{setDrawer(null);setSelectedJourney('');}}><X size={18}/></button></div>
