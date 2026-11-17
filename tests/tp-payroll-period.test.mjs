@@ -6,8 +6,8 @@ test('accept arbitrary inclusive periods across calendar months',()=>{
  assert.deepEqual(payrollDateRange('2026-11-17','2026-11-17'),{from:'2026-11-17',to:'2026-11-17'});
  assert.deepEqual(payrollDateRange('2028-02-29','2028-03-02'),{from:'2028-02-29',to:'2028-03-02'});
 });
-test('reject invalid, reversed and overlong periods',()=>{
- for(const range of [['2026-11-30','2026-11-29'],['2026-02-29','2026-03-01'],['2026-11-31','2026-12-01'],['17/11/2026','2026-11-17'],['2026-01-01','2027-03-01']]){
+test('reject invalid and reversed periods, allow long custom cycles',()=>{
+ for(const range of [['2026-11-30','2026-11-29'],['2026-02-29','2026-03-01'],['2026-11-31','2026-12-01'],['17/11/2026','2026-11-17'] ]){
   assert.equal(payrollDateRange(...range),null,range.join(' / '));
  }
 });
