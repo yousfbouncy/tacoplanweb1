@@ -6,6 +6,10 @@ on:
       - 'app/api/empresas/action/route.ts'
       - 'app/api/empresas/dashboard/route.ts'
       - 'app/api/empresas/hr-period/route.ts'
+      - 'app/api/empresas/payroll/route.ts'
+      - 'lib/tp-payroll-period.ts'
+      - 'tests/tp-payroll-period.test.mjs'
+      - 'supabase/migrations/20261117_tp_payroll_custom_ranges.sql'
       - 'components/enterprise-workspace.tsx'
       - 'lib/tp-hr-diet-breakdown.ts'
       - 'tests/tp-hr-diet-breakdown.test.mjs'
@@ -16,6 +20,10 @@ on:
       - 'app/api/empresas/action/route.ts'
       - 'app/api/empresas/dashboard/route.ts'
       - 'app/api/empresas/hr-period/route.ts'
+      - 'app/api/empresas/payroll/route.ts'
+      - 'lib/tp-payroll-period.ts'
+      - 'tests/tp-payroll-period.test.mjs'
+      - 'supabase/migrations/20261117_tp_payroll_custom_ranges.sql'
       - 'components/enterprise-workspace.tsx'
       - 'lib/tp-hr-diet-breakdown.ts'
       - 'tests/tp-hr-diet-breakdown.test.mjs'
@@ -32,4 +40,4 @@ jobs:
           cache: npm
       - run: npm ci --ignore-scripts
       - run: npm run typecheck
-      - run: node --experimental-strip-types --test tests/tp-hr-diet-breakdown.test.mjs
+      - run: node --experimental-strip-types --test tests/tp-hr-diet-breakdown.test.mjs tests/tp-payroll-period.test.mjs
