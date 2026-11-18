@@ -1,15 +1,16 @@
 'use client';
 import {useEffect,useState} from 'react';
+import Link from 'next/link';
 import {supabase} from '@/lib/supabase';
 type Plan={slug:string;monthly_cents:number;annual_cents:number|null;trial_days:number};
 type Data={billing_enabled:boolean;pilot_access?:boolean;pro_access?:boolean;audience:string;plans:Plan[];subscription:{status:string}|null};
 export default function DriverPlansClient(){
- const [info,setInfo]=useState<Data|null>(null),[busy,setBusy]=useState(false),[error,setError]=useState('');
+ const [info,setInfo]=useState<Data|null>(null),[busy,setBusy]=useState(false),[error,setError]=useState(''),[needsLogin,setNeedsLogin]=useState(false);
  const request=async(action?:'checkout'|'portal',plan?:string,interval?:'month'|'year')=>{
-  setError('');setBusy(true);
+  setError('');setNeedsLogin(false);setBusy(true);
   try{
    const {data}=await supabase.auth.getSession();
-   if(!data.session)throw Error('Inicia sesión para consultar o contratar planes.');
+   if(!data.session){setNeedsLogin(true);throw Error('Debes iniciar sesión en esta web para consultar los planes.');}
    const res=await fetch('/api/driver/subscription',{method:action?'POST':'GET',headers:{Authorization:'Bearer '+data.session.access_token,...(action?{'Content-Type':'application/json'}:{})},...(action?{body:JSON.stringify({action,plan,interval})}:{})});
    const j=await res.json();
    if(!res.ok)throw Error(j.error||'Servicio no disponible');
@@ -23,7 +24,7 @@ export default function DriverPlansClient(){
  return <main className="mx-auto max-w-5xl space-y-7 px-4 py-12">
   <h1 className="text-3xl font-bold">Planes Tacoplan</h1>
   <p>Plus y Pro incluyen siete días de prueba gratuita si todavía no la has utilizado. Consulta el precio y la fecha de renovación antes de confirmar.</p>
-  {error&&<p role="alert" className="rounded border border-red-500 p-3 text-red-700">{error}</p>}
+  {error&&<div role="alert" className="rounded border border-red-500 p-3 text-red-700"><p>{error}</p>{needsLogin&&<Link href="/login?next=%2Fplanes" className="mt-3 inline-block rounded bg-blue-700 px-4 py-2 font-semibold text-white">Iniciar sesión para ver planes</Link>}</div>}
   {info&&<p role="status">{info.pro_access?'Prueba Pro autorizada para esta cuenta · ':''}{info.billing_enabled?'Contratación disponible':'Cobros desactivados'} · {info.subscription?.status||'Sin suscripción'}</p>}
   <div className="grid gap-4 md:grid-cols-3">
   {(['free','plus','pro'] as const).map(tier=>{
