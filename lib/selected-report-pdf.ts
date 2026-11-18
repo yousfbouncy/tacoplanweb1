@@ -113,7 +113,8 @@ export function buildSelectedReportPdf(report:SharedReportData):Uint8Array {
   const tableH=fields.includes('diet_amount')?49:38;
   if(y-tableH<72)nextPage();
   text(38,y,'CANTIDAD DE DIETAS POR TIPO',9,true);y-=9;
-  paint(38,y-tableH,519,tableH,'0.92 0.96 0.99');\n  paint(427,y-tableH,130,tableH,'0.07 0.25 0.46');
+  paint(38,y-tableH,519,tableH,'0.92 0.96 0.99');
+  paint(427,y-tableH,130,tableH,'0.07 0.25 0.46');
   const cells=[
    ...counts,
    {label:'TOTAL',count:recorded.length,amount:recorded.reduce((sum,r)=>sum+(r.dietAmount||0),0)}
