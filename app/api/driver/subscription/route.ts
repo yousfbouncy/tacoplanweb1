@@ -7,7 +7,11 @@ async function stripe(path:string,params:URLSearchParams){
  if(!key)throw Error('Stripe no está configurado');
  const r=await fetch('https://api.stripe.com/v1/'+path,{method:'POST',headers:{Authorization:'Bearer '+key,'Content-Type':'application/x-www-form-urlencoded'},body:params.toString(),cache:'no-store'});
  const j=await r.json();
- if(!r.ok)throw Error('Stripe rechazó la solicitud');
+ if(!r.ok){
+  const e=j?.error;
+  console.error('Tacoplan Stripe API failure', {path,status:r.status,code:typeof e?.code==='string'?e.code:'unknown',type:typeof e?.type==='string'?e.type:'unknown',message:typeof e?.message==='string'?e.message:'unknown'});
+  throw Error('Stripe rechazó la solicitud');
+ }
  return j as {url?:string;id:string};
 }
 async function identify(req:NextRequest){
@@ -88,5 +92,5 @@ export async function POST(req:NextRequest){
  if(sub.data?.stripe_customer_id)form.set('customer',sub.data.stripe_customer_id);
  else if(ctx.user.email)form.set('customer_email',ctx.user.email);
  try{const session=await stripe('checkout/sessions',form);if(!session.url)throw Error('No URL');return reply({url:session.url});}
- catch{return reply({error:'No se pudo iniciar el pago'},503);}
+ catch(err){console.error('Tacoplan checkout failed',err instanceof Error?err.message:'unknown');return reply({error:'No se pudo iniciar el pago'},503);}
 }
