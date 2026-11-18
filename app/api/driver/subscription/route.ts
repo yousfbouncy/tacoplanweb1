@@ -40,7 +40,7 @@ export async function GET(req:NextRequest){
  const gifted=grant.data?.enabled===true?grant.data.plan:null;
  const effectivePlan=gifted==='pro'||isPilot&&pilot.data?.pro_access===true?'pro':gifted==='plus'&&paidTier!=='pro'?'plus':paidTier;
  const restrictionsEnabled=runtime.data?.restrictions_enabled===true;
- const canCheckout=runtime.data?.billing_enabled===true||(isPilot&&pilot.data?.checkout_enabled===true);
+ const canCheckout=runtime.data?.billing_enabled===true;
  return reply({billing_enabled:canCheckout,restrictions_enabled:restrictionsEnabled,all_features_unlocked:!restrictionsEnabled,
   complimentary_plan:gifted,can_manage_subscription:!!subscription.data?.status && !['inactive','canceled','incomplete_expired'].includes(subscription.data.status),
   pilot_access:isPilot,effective_plan:effectivePlan,pro_access:!restrictionsEnabled||effectivePlan==='pro',
@@ -68,7 +68,7 @@ export async function POST(req:NextRequest){
   try{const session=await stripe('billing_portal/sessions',params);return reply({url:session.url});}catch{return reply({error:'Portal no disponible'},503);}
  }
  if(body.action!=='checkout'||!['plus','pro'].includes(body.plan||'')||!['month','year'].includes(body.interval||''))return reply({error:'Plan o periodo inválido'},400);
- if(!(runtime.data?.billing_enabled===true || pilot.data?.enabled===true && pilot.data?.checkout_enabled===true))return reply({error:'Contratación en preparación, sin cobros activados'},503);
+ if(runtime.data?.billing_enabled!==true)return reply({error:'Contratación en preparación, sin cobros activados'},503);
  if(body.skip_trial!==undefined && typeof body.skip_trial!=='boolean')return reply({error:'Opción de prueba inválida'},400);
  if(['active','trialing','past_due','unpaid','incomplete'].includes(sub.data?.status||''))return reply({error:'Gestiona tu suscripción existente desde el portal'},409);
  const audience=assignment.data?.audience||'standard';
