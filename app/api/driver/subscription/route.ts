@@ -28,7 +28,12 @@ export async function GET(req:NextRequest){
  ]);
  if(runtime.error||catalog.error||assignment.error||subscription.error||pilot.error)return reply({error:'Catálogo no disponible'},503);
  const isPilot=pilot.data?.enabled===true;
- return reply({billing_enabled:isPilot && pilot.data?.checkout_enabled===true,can_manage_subscription:!!subscription.data?.status && !['inactive','canceled','incomplete_expired'].includes(subscription.data.status),pilot_access:isPilot,pro_access:isPilot && pilot.data?.pro_access===true,audience:assignment.data?.audience||'standard',plans:catalog.data,subscription:subscription.data});
+ const status=subscription.data?.status;
+ const paidTier=(status==='active'||status==='trialing')
+   ? subscription.data?.price_slug?.startsWith('pro')?'pro':subscription.data?.price_slug?.startsWith('plus')?'plus':'free'
+   : 'free';
+ const effectivePlan=isPilot?(pilot.data?.pro_access===true?'pro':paidTier):'free';
+ return reply({billing_enabled:isPilot && pilot.data?.checkout_enabled===true,can_manage_subscription:!!subscription.data?.status && !['inactive','canceled','incomplete_expired'].includes(subscription.data.status),pilot_access:isPilot,effective_plan:effectivePlan,pro_access:effectivePlan==='pro',audience:assignment.data?.audience||'standard',plans:catalog.data,subscription:subscription.data});
 }
 export async function POST(req:NextRequest){
  if(!sameOrigin(req))return reply({error:'Origen no autorizado'},403);
@@ -47,7 +52,7 @@ export async function POST(req:NextRequest){
  // even if new checkout is disabled or their pilot eligibility changes.
  if(body.action==='portal'){
   if(!sub.data?.stripe_customer_id)return reply({error:'No tienes suscripción que gestionar'},409);
-  const params=new URLSearchParams({customer:sub.data.stripe_customer_id,return_url:req.nextUrl.origin+'/?subscription=return'});
+  const params=new URLSearchParams({customer:sub.data.stripe_customer_id,return_url:req.nextUrl.origin+'/planes?subscription=return'});
   try{const session=await stripe('billing_portal/sessions',params);return reply({url:session.url});}catch{return reply({error:'Portal no disponible'},503);}
  }
  if(body.action!=='checkout'||!['plus','pro'].includes(body.plan||'')||!['month','year'].includes(body.interval||''))return reply({error:'Plan o periodo inválido'},400);
@@ -75,8 +80,8 @@ export async function POST(req:NextRequest){
  form.set('subscription_data[metadata][tp_driver_id]',userId);
  form.set('subscription_data[metadata][tp_price_slug]',slug);
  if(!sub.data?.trial_used&&price.trial_days>0)form.set('subscription_data[trial_period_days]',String(price.trial_days));
- form.set('success_url',req.nextUrl.origin+'/?subscription=success');
- form.set('cancel_url',req.nextUrl.origin+'/?subscription=cancel');
+ form.set('success_url',req.nextUrl.origin+'/planes?subscription=success');
+ form.set('cancel_url',req.nextUrl.origin+'/planes?subscription=cancel');
  if(sub.data?.stripe_customer_id)form.set('customer',sub.data.stripe_customer_id);
  else if(ctx.user.email)form.set('customer_email',ctx.user.email);
  try{const session=await stripe('checkout/sessions',form);if(!session.url)throw Error('No URL');return reply({url:session.url});}
