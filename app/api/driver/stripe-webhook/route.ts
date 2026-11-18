@@ -29,6 +29,18 @@ export async function POST(req:NextRequest){
  }
  try{
   const o=event.data?.object||{};
+  // Never write driver subscriptions for non-pilot accounts during the owner-only rollout.
+  const accountId=o.metadata?.tp_driver_id||(event.type==='checkout.session.completed'?o.client_reference_id:null);
+  if(['checkout.session.completed','customer.subscription.created','customer.subscription.updated','customer.subscription.deleted'].includes(event.type)){
+   if(typeof accountId!=='string')return response({received:true,ignored:'not_a_pilot_event'});
+   const {data:pilot,error:pilotError}=await db.from('tp_driver_pilot_access').select('enabled').eq('user_id',accountId).maybeSingle();
+   if(pilotError)throw pilotError;
+   if(pilot?.enabled!==true){
+    const ignored=await db.from('tp_driver_billing_events').update({processed_at:new Date().toISOString()}).eq('event_id',event.id);
+    if(ignored.error)throw ignored.error;
+    return response({received:true,ignored:'not_a_pilot_account'});
+   }
+  }
   if(event.type==='checkout.session.completed'&&o.mode==='subscription'){
    const uid=o.metadata?.tp_driver_id||o.client_reference_id;
    const slug=o.metadata?.tp_price_slug;
