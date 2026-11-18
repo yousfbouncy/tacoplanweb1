@@ -49,8 +49,7 @@ export async function POST(req:NextRequest){
  if(body.action!=='checkout'||!['plus','pro'].includes(body.plan||'')||!['month','year'].includes(body.interval||''))return reply({error:'Plan o periodo inválido'},400);
  if(['active','trialing','past_due','unpaid','incomplete'].includes(sub.data?.status||''))return reply({error:'Gestiona tu suscripción existente desde el portal'},409);
  const audience=assignment.data?.audience||'standard';
- const slug=audience==='founder'?'pro_founder':audience==='existing'?body.plan+'_existing':body.plan!;
- if(audience==='founder'&&body.plan!=='pro')return reply({error:'La tarifa fundador corresponde a Pro'},400);
+ const slug=audience==='founder'?(body.plan==='plus'?'plus_existing':'pro_founder'):audience==='existing'?body.plan+'_existing':body.plan!;
  const {data:price,error}=await db.from('tp_subscription_price_catalog').select('*').eq('slug',slug).single();
  if(error||!price)return reply({error:'Tarifa no disponible'},404);
  const amount=body.interval==='year'?price.annual_cents:price.monthly_cents;
@@ -67,7 +66,6 @@ export async function POST(req:NextRequest){
  form.set('payment_method_collection','always');form.set('billing_address_collection','required');
  form.set('automatic_tax[enabled]',taxMode==='automatic'?'true':'false');
  form.set('client_reference_id',userId);
- form.set('metadata][ignored]','');form.delete('metadata][ignored]');
  form.set('metadata[tp_driver_id]',userId);form.set('metadata[tp_price_slug]',slug);
  form.set('subscription_data[metadata][tp_driver_id]',userId);
  form.set('subscription_data[metadata][tp_price_slug]',slug);
