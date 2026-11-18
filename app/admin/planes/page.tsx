@@ -10,7 +10,7 @@ const labels:Record<string,string>={
 };
 const money=(n:number|null)=>n===null?'Sin definir':(n/100).toFixed(2).replace('.',',')+' €';
 const inputMoney=(n:number|null)=>n===null?'':(n/100).toFixed(2);
-const parseCents=(v:string)=>{if(!/^\\d{1,5}([.,]\\d{1,2})?$/.test(v.trim()))return null;return Math.round(Number(v.replace(',','.'))*100);};
+const parseCents=(v:string)=>{if(!/^\d{1,5}([.,]\d{1,2})?$/.test(v.trim()))return null;return Math.round(Number(v.replace(',','.'))*100);};
 
 export default function AdminPlansPage(){
  const [payload,setPayload]=useState<Payload|null>(null);
