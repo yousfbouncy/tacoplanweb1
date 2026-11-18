@@ -23,21 +23,29 @@ async function identify(req:NextRequest){
 }
 export async function GET(req:NextRequest){
  const ctx=await identify(req);if(!ctx)return reply({error:'Inicia sesión'},401);
- const [runtime,catalog,assignment,subscription,pilot]=await Promise.all([
-  ctx.db.from('tp_subscription_runtime').select('billing_enabled').eq('id',1).single(),
+ const [runtime,catalog,assignment,subscription,pilot,grant]=await Promise.all([
+  ctx.db.from('tp_subscription_runtime').select('billing_enabled,restrictions_enabled').eq('id',1).single(),
   ctx.db.from('tp_subscription_price_catalog').select('slug,plan,audience,monthly_cents,annual_cents,trial_days'),
   ctx.db.from('tp_driver_price_entitlements').select('audience').eq('user_id',ctx.user.id).maybeSingle(),
   ctx.db.from('tp_driver_subscriptions').select('price_slug,status,trial_ends_at,current_period_end,trial_used').eq('user_id',ctx.user.id).maybeSingle(),
-  ctx.db.from('tp_driver_pilot_access').select('enabled,pro_access,checkout_enabled').eq('user_id',ctx.user.id).maybeSingle()
+  ctx.db.from('tp_driver_pilot_access').select('enabled,pro_access,checkout_enabled').eq('user_id',ctx.user.id).maybeSingle(),
+  ctx.db.from('tp_subscription_grants').select('plan,enabled').eq('user_id',ctx.user.id).maybeSingle()
  ]);
- if(runtime.error||catalog.error||assignment.error||subscription.error||pilot.error)return reply({error:'Catálogo no disponible'},503);
+ if(runtime.error||catalog.error||assignment.error||subscription.error||pilot.error||grant.error)return reply({error:'Catálogo no disponible'},503);
  const isPilot=pilot.data?.enabled===true;
  const status=subscription.data?.status;
  const paidTier=(status==='active'||status==='trialing')
    ? subscription.data?.price_slug?.startsWith('pro')?'pro':subscription.data?.price_slug?.startsWith('plus')?'plus':'free'
    : 'free';
- const effectivePlan=isPilot?(pilot.data?.pro_access===true?'pro':paidTier):'free';
- return reply({billing_enabled:isPilot && pilot.data?.checkout_enabled===true,can_manage_subscription:!!subscription.data?.status && !['inactive','canceled','incomplete_expired'].includes(subscription.data.status),pilot_access:isPilot,effective_plan:effectivePlan,pro_access:effectivePlan==='pro',audience:assignment.data?.audience||'standard',plans:catalog.data,subscription:subscription.data});
+ const gifted=grant.data?.enabled===true?grant.data.plan:null;
+ const effectivePlan=gifted==='pro'||isPilot&&pilot.data?.pro_access===true?'pro':gifted==='plus'&&paidTier!=='pro'?'plus':paidTier;
+ const restrictionsEnabled=runtime.data?.restrictions_enabled===true;
+ const canCheckout=runtime.data?.billing_enabled===true||(isPilot&&pilot.data?.checkout_enabled===true);
+ return reply({billing_enabled:canCheckout,restrictions_enabled:restrictionsEnabled,all_features_unlocked:!restrictionsEnabled,
+  complimentary_plan:gifted,can_manage_subscription:!!subscription.data?.status && !['inactive','canceled','incomplete_expired'].includes(subscription.data.status),
+  pilot_access:isPilot,effective_plan:effectivePlan,pro_access:!restrictionsEnabled||effectivePlan==='pro',
+  plus_access:!restrictionsEnabled||['plus','pro'].includes(effectivePlan),
+  audience:assignment.data?.audience||'standard',plans:catalog.data,subscription:subscription.data});
 }
 export async function POST(req:NextRequest){
  if(!sameOrigin(req))return reply({error:'Origen no autorizado'},403);
@@ -60,7 +68,7 @@ export async function POST(req:NextRequest){
   try{const session=await stripe('billing_portal/sessions',params);return reply({url:session.url});}catch{return reply({error:'Portal no disponible'},503);}
  }
  if(body.action!=='checkout'||!['plus','pro'].includes(body.plan||'')||!['month','year'].includes(body.interval||''))return reply({error:'Plan o periodo inválido'},400);
- if(!(pilot.data?.enabled===true && pilot.data?.checkout_enabled===true))return reply({error:'Contratación en preparación, sin cobros activados'},503);
+ if(!(runtime.data?.billing_enabled===true || pilot.data?.enabled===true && pilot.data?.checkout_enabled===true))return reply({error:'Contratación en preparación, sin cobros activados'},503);
  if(body.skip_trial!==undefined && typeof body.skip_trial!=='boolean')return reply({error:'Opción de prueba inválida'},400);
  if(['active','trialing','past_due','unpaid','incomplete'].includes(sub.data?.status||''))return reply({error:'Gestiona tu suscripción existente desde el portal'},409);
  const audience=assignment.data?.audience||'standard';

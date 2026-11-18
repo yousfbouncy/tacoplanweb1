@@ -36,14 +36,20 @@ export async function POST(req:NextRequest){
   return data?response({ok:true}):response({error:'Enlace inexistente o ya desactivado'},404);
  }
  if(body?.action!=='create')return response({error:'Acción no admitida'},400);
- // Only the two pilot users are subject to Pro reports until general plan restrictions launch.
- const {data:pilot,error:pilotError}=await a.db.from('tp_driver_pilot_access').select('enabled,pro_access').eq('user_id',a.id).maybeSingle();
- if(pilotError)return response({error:'No se pudo verificar el acceso a informes'},503);
- if(pilot?.enabled===true && pilot.pro_access!==true){
-  const {data:sub,error:subError}=await a.db.from('tp_driver_subscriptions').select('price_slug,status').eq('user_id',a.id).maybeSingle();
-  if(subError)return response({error:'No se pudo verificar la suscripción'},503);
-  const proActive=!!sub && sub.price_slug.startsWith('pro') && ['active','trialing'].includes(sub.status);
-  if(!proActive)return response({error:'Los informes nuevos están incluidos en el plan Pro. Puedes gestionar tus enlaces existentes.'},403);
+ // Free mode leaves all report features unlocked. When enabled, Pro is required
+ // unless the driver has a complimentary Pro grant.
+ const [settings,grant,pilot,sub]=await Promise.all([
+  a.db.from('tp_subscription_runtime').select('restrictions_enabled').eq('id',1).single(),
+  a.db.from('tp_subscription_grants').select('plan,enabled').eq('user_id',a.id).maybeSingle(),
+  a.db.from('tp_driver_pilot_access').select('enabled,pro_access').eq('user_id',a.id).maybeSingle(),
+  a.db.from('tp_driver_subscriptions').select('price_slug,status').eq('user_id',a.id).maybeSingle()
+ ]);
+ if(settings.error||grant.error||pilot.error||sub.error)return response({error:'No se pudieron verificar los permisos'},503);
+ if(settings.data?.restrictions_enabled===true){
+  const gifted=grant.data?.enabled===true&&grant.data.plan==='pro';
+  const legacyPilot=pilot.data?.enabled===true&&pilot.data.pro_access===true;
+  const paid=!!sub.data&&sub.data.price_slug.startsWith('pro')&&['active','trialing'].includes(sub.data.status);
+  if(!gifted&&!legacyPilot&&!paid)return response({error:'Generar informes requiere Pro. Los enlaces ya existentes pueden gestionarse.'},403);
  }
  const from=body.from,to=body.to;
  if(!validDate(from)||!validDate(to)||to<from)return response({error:'Selecciona fechas válidas'},400);

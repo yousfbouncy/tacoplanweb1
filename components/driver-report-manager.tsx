@@ -25,7 +25,7 @@ export function DriverReportManager({name}:{name:string}){
     const r=await fetch('/api/driver/subscription',{headers:{Authorization:'Bearer '+session.data.session.access_token},cache:'no-store'});
     if(!r.ok)return;
     const data=await r.json();
-    if(mounted)setReportRestricted(data.pilot_access===true&&data.effective_plan!=='pro');
+    if(mounted)setReportRestricted(data.restrictions_enabled===true&&data.pro_access!==true);
    }catch{ /* Preserve existing report access for non-pilot drivers on network errors. */ }
   };
   void check();
