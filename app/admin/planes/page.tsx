@@ -1,5 +1,5 @@
-import Link from 'next/link';
 'use client';
+import Link from 'next/link';
 import { useEffect, useState } from 'react';
 
 type Plan={slug:string;plan:string;audience:string;monthly_cents:number;annual_cents:number|null;trial_days:number};
