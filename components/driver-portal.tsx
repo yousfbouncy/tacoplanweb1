@@ -38,6 +38,23 @@ export function DriverPortal(){
  const [period,setPeriod]=useState<Period>('30'),[expanded,setExpanded]=useState<string|null>(null);
  const [logging,setLogging]=useState<'google'|'apple'|null>(null);
  const [identity,setIdentity]=useState(''),[password,setPassword]=useState(''),[passwordBusy,setPasswordBusy]=useState(false);
+ const [pilotPlansVisible,setPilotPlansVisible]=useState(false);
+ useEffect(()=>{
+  let active=true;
+  const check=async()=>{
+   if(!user){setPilotPlansVisible(false);return;}
+   try{
+    const {data}=await supabase.auth.getSession();
+    if(!data.session)return;
+    const res=await fetch('/api/driver/subscription',{headers:{Authorization:'Bearer '+data.session.access_token},cache:'no-store'});
+    if(!res.ok)return;
+    const details=await res.json();
+    if(active)setPilotPlansVisible(details.pilot_access===true);
+   }catch{if(active)setPilotPlansVisible(false);}
+  };
+  void check();
+  return()=>{active=false;};
+ },[user?.id]);
  const refresh=async()=>{
   if(!user)return;
   setFetching(true);setError('');
@@ -120,7 +137,7 @@ export function DriverPortal(){
  const displayName=(profile?.display_name||profile?.name||user.user_metadata?.full_name||'Conductor').trim();
  return <main className="min-h-screen bg-slate-50 px-4 py-8 sm:py-12"><div className="mx-auto max-w-6xl space-y-6">
   <header className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-xs font-bold uppercase tracking-widest text-blue-700">ÁREA PERSONAL</p><h1 className="mt-1 text-2xl font-extrabold text-slate-900 sm:text-3xl">Mi Tacoplan</h1><p className="mt-1 text-sm text-slate-500">Hola, {displayName}. Tus datos de la aplicación, también en la web.</p></div>
-   <div className="flex gap-2"><button type="button" onClick={()=>void refresh()} disabled={fetching} className="flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-700 disabled:opacity-50"><RefreshCw className={'h-4 w-4 '+(fetching?'animate-spin':'')}/>Actualizar</button><button type="button" onClick={()=>void signOut()} className="flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-700"><LogOut className="h-4 w-4"/>Salir</button></div>
+   <div className="flex flex-wrap gap-2">{pilotPlansVisible?<Link href="/planes" className="flex items-center gap-2 rounded-xl bg-blue-700 px-3 py-2 text-xs font-bold text-white">Planes y suscripción</Link>:null}<button type="button" onClick={()=>void refresh()} disabled={fetching} className="flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-700 disabled:opacity-50"><RefreshCw className={'h-4 w-4 '+(fetching?'animate-spin':'')}/>Actualizar</button><button type="button" onClick={()=>void signOut()} className="flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-700"><LogOut className="h-4 w-4"/>Salir</button></div>
   </header>
   <div className="grid gap-3 sm:grid-cols-3"><div className="rounded-2xl border bg-white p-4"><p className="text-xs text-slate-500">Cuenta</p><p className="mt-1 break-all text-sm font-semibold text-slate-900">{user.email||'Correo oculto por el proveedor'}</p></div><div className="rounded-2xl border bg-white p-4"><p className="text-xs text-slate-500">Base configurada</p><p className="mt-1 text-sm font-semibold text-slate-900">{profile?.base_name||profile?.base_city||'Sin configurar'}</p></div><div className="rounded-2xl border bg-white p-4"><p className="text-xs text-slate-500">Configuración inicial</p><p className="mt-1 text-sm font-semibold text-slate-900">{profile?.onboarding_completed?'Completada':'Pendiente'}</p></div></div>
   {error?<div role="alert" className="rounded-xl bg-red-50 p-4 text-sm text-red-700">{error}</div>:null}

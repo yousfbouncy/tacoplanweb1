@@ -32,7 +32,8 @@ export default function LoginPage() {
 
       if (signInError) throw signInError;
 
-      router.push('/');
+      const next = new URLSearchParams(window.location.search).get('next');
+      router.push(next && next.startsWith('/') && !next.startsWith('//') && !next.includes('\\') ? next : '/');
     } catch (err: unknown) {
       if (err instanceof Error) {
         setError(err.message);
