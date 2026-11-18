@@ -36,6 +36,15 @@ export async function POST(req:NextRequest){
   return data?response({ok:true}):response({error:'Enlace inexistente o ya desactivado'},404);
  }
  if(body?.action!=='create')return response({error:'Acción no admitida'},400);
+ // Only the two pilot users are subject to Pro reports until general plan restrictions launch.
+ const {data:pilot,error:pilotError}=await a.db.from('tp_driver_pilot_access').select('enabled,pro_access').eq('user_id',a.id).maybeSingle();
+ if(pilotError)return response({error:'No se pudo verificar el acceso a informes'},503);
+ if(pilot?.enabled===true && pilot.pro_access!==true){
+  const {data:sub,error:subError}=await a.db.from('tp_driver_subscriptions').select('price_slug,status').eq('user_id',a.id).maybeSingle();
+  if(subError)return response({error:'No se pudo verificar la suscripción'},503);
+  const proActive=!!sub && sub.price_slug.startsWith('pro') && ['active','trialing'].includes(sub.status);
+  if(!proActive)return response({error:'Los informes nuevos están incluidos en el plan Pro. Puedes gestionar tus enlaces existentes.'},403);
+ }
  const from=body.from,to=body.to;
  if(!validDate(from)||!validDate(to)||to<from)return response({error:'Selecciona fechas válidas'},400);
  const days=(Date.parse(to+'T00:00:00Z')-Date.parse(from+'T00:00:00Z'))/DAY;
