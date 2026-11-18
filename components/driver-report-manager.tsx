@@ -15,6 +15,22 @@ export function DriverReportManager({name}:{name:string}){
  const [busy,setBusy]=useState(false),[error,setError]=useState(''),[info,setInfo]=useState('');
  const [grants,setGrants]=useState<Grant[]>([]),[linksOpen,setLinksOpen]=useState(false);
  const [freshLink,setFreshLink]=useState<string|null>(null);
+ const [reportRestricted,setReportRestricted]=useState(false);
+ useEffect(()=>{
+  let mounted=true;
+  const check=async()=>{
+   try{
+    const session=await supabase.auth.getSession();
+    if(!session.data.session)return;
+    const r=await fetch('/api/driver/subscription',{headers:{Authorization:'Bearer '+session.data.session.access_token},cache:'no-store'});
+    if(!r.ok)return;
+    const data=await r.json();
+    if(mounted)setReportRestricted(data.pilot_access===true&&data.effective_plan!=='pro');
+   }catch{ /* Preserve existing report access for non-pilot drivers on network errors. */ }
+  };
+  void check();
+  return()=>{mounted=false;};
+ },[]);
  const switchField=(f:ReportField)=>setFields(prev=>prev.includes(f)?prev.filter(x=>x!==f):[...prev,f]);
  const token=async()=>{const s=await supabase.auth.getSession();if(!s.data.session?.access_token)throw Error('Tu sesión ha caducado. Inicia sesión de nuevo.');return s.data.session.access_token;};
  const loadGrants=async()=>{
@@ -41,7 +57,9 @@ export function DriverReportManager({name}:{name:string}){
    generatedAt:new Date().toISOString()};
  };
  const action=async(kind:'download'|'share'|'link')=>{
-  if(busy)return;setBusy(true);setError('');setInfo('');
+  if(busy)return;
+  if(reportRestricted){setError('Para generar informes necesitas el plan Pro. Puedes seguir gestionando tus enlaces anteriores.');return;}
+  setBusy(true);setError('');setInfo('');
   try{
    if(kind==='link'){
     validate();const jwt=await token();
@@ -81,15 +99,16 @@ export function DriverReportManager({name}:{name:string}){
    <button type="button" onClick={()=>setOpened(!opened)} className="flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-bold text-blue-800"><Settings2 className="h-4 w-4"/>{opened?'Cerrar opciones':'Preparar informe'}{opened?<ChevronUp className="h-4 w-4"/>:<ChevronDown className="h-4 w-4"/>}</button>
   </div>
   {opened?<div className="space-y-5 p-4 sm:p-6">
+   {reportRestricted?<p role="status" className="rounded-xl border border-blue-200 p-3 text-sm text-blue-800">Los informes nuevos están reservados para Pro en tu cuenta piloto. <a className="underline" href="/planes">Consultar suscripciones</a>. Puedes gestionar o revocar los enlaces anteriores.</p>:null}
    <div className="grid gap-3 sm:grid-cols-2"><label className="text-sm font-semibold text-slate-800">Desde<input type="date" value={from} max={to} onChange={e=>setFrom(e.target.value)} className="mt-2 w-full rounded-xl border border-slate-300 p-3 text-slate-900"/></label><label className="text-sm font-semibold text-slate-800">Hasta<input type="date" value={to} min={from} max={today()} onChange={e=>setTo(e.target.value)} className="mt-2 w-full rounded-xl border border-slate-300 p-3 text-slate-900"/></label></div>
    <div><div className="mb-3 flex flex-wrap items-center justify-between gap-2"><h3 className="text-sm font-bold text-slate-900">Selecciona los datos que aparecerán</h3><div className="flex gap-2"><button type="button" className="text-xs font-bold text-blue-700" onClick={()=>setFields(DEFAULT_REPORT_FIELDS)}>Básico</button><button type="button" className="text-xs font-bold text-blue-700" onClick={()=>setFields(REPORT_FIELD_OPTIONS.map(x=>x.key))}>Todos</button></div></div>
     <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">{REPORT_FIELD_OPTIONS.map(x=><label key={x.key} className={'flex items-start gap-2 rounded-xl border p-3 text-xs sm:text-sm '+(fields.includes(x.key)?'border-blue-300 bg-blue-50 text-blue-900':'border-slate-200 text-slate-600')}><input type="checkbox" checked={fields.includes(x.key)} onChange={()=>switchField(x.key)} className="mt-0.5 h-4 w-4 accent-blue-700"/>{x.label}</label>)}</div>
     <p className="mt-2 text-xs text-slate-500">La fecha de cada jornada siempre se muestra para que el historial tenga sentido. Los demás campos solo aparecerán si los marcas.</p>
    </div>
-   <div className="grid gap-2 sm:grid-cols-2"><button type="button" onClick={()=>void action('download')} disabled={busy} className="flex items-center justify-center gap-2 rounded-xl border border-blue-300 bg-white px-4 py-3 font-bold text-blue-800 disabled:opacity-50"><Download className="h-4 w-4"/>Descargar PDF personalizado</button><button type="button" onClick={()=>void action('share')} disabled={busy} className="flex items-center justify-center gap-2 rounded-xl bg-blue-700 px-4 py-3 font-bold text-white disabled:opacity-50"><Share2 className="h-4 w-4"/>Compartir PDF</button></div>
+   <div className="grid gap-2 sm:grid-cols-2"><button type="button" onClick={()=>void action('download')} disabled={busy||reportRestricted} className="flex items-center justify-center gap-2 rounded-xl border border-blue-300 bg-white px-4 py-3 font-bold text-blue-800 disabled:opacity-50"><Download className="h-4 w-4"/>Descargar PDF personalizado</button><button type="button" onClick={()=>void action('share')} disabled={busy||reportRestricted} className="flex items-center justify-center gap-2 rounded-xl bg-blue-700 px-4 py-3 font-bold text-white disabled:opacity-50"><Share2 className="h-4 w-4"/>Compartir PDF</button></div>
    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4"><div className="flex items-center gap-2"><ShieldCheck className="h-5 w-5 text-blue-700"/><h3 className="font-bold text-slate-900">Crear panel web para tu empresa</h3></div><p className="mt-2 text-sm text-slate-600">La empresa podrá abrir el historial permitido desde un enlace. No tendrá acceso a tu cuenta ni a fechas o datos no autorizados.</p>
     <label className="mt-3 block text-sm font-semibold text-slate-800">Caducidad del enlace<select value={expireDays} onChange={e=>setExpireDays(Number(e.target.value))} className="mt-2 w-full rounded-xl border border-slate-300 bg-white p-3"><option value={1}>24 horas</option><option value={7}>7 días</option><option value={30}>30 días</option></select></label>
-    <button type="button" disabled={busy} onClick={()=>void action('link')} className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-[#0d2346] px-4 py-3 font-bold text-white disabled:opacity-50"><Link2 className="h-4 w-4"/>{busy?'Procesando…':'Generar enlace privado'}</button>
+    <button type="button" disabled={busy||reportRestricted} onClick={()=>void action('link')} className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-[#0d2346] px-4 py-3 font-bold text-white disabled:opacity-50"><Link2 className="h-4 w-4"/>{busy?'Procesando…':'Generar enlace privado'}</button>
     {freshLink?<div className="mt-3 rounded-xl border border-blue-200 bg-white p-3"><p className="text-xs font-bold text-blue-700">Nuevo enlace (guárdalo ahora)</p><div className="mt-2 flex items-center gap-2"><input readOnly value={freshLink} aria-label="Enlace privado" onFocus={e=>e.currentTarget.select()} className="min-w-0 flex-1 rounded-lg border p-2 text-xs"/><button type="button" onClick={()=>void copy()} className="rounded-lg bg-blue-600 p-2 text-white" aria-label="Copiar enlace"><Copy className="h-4 w-4"/></button></div><p className="mt-2 text-xs text-slate-500">Por seguridad el enlace completo solo se muestra al crearlo. Si lo pierdes, revoca el anterior y genera uno nuevo.</p></div>:null}
    </div>
    <div><button type="button" onClick={()=>{setLinksOpen(!linksOpen);if(!linksOpen)void loadGrants();}} className="flex w-full items-center justify-between rounded-xl border border-slate-200 p-3 text-left font-semibold text-slate-900">Gestionar enlaces de empresa ({grants.filter(g=>!g.revoked_at&&new Date(g.expires_at).getTime()>Date.now()).length} activos){linksOpen?<ChevronUp className="h-5 w-5"/>:<ChevronDown className="h-5 w-5"/>}</button>
