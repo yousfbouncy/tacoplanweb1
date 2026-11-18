@@ -11,6 +11,9 @@ const formattedDate=(d:string)=>{const [yy,mm,dd]=d.split('-');return dd&&mm&&yy
 const dateTime=(d:string|null,t:string|null)=>formattedDate(d||'')+(t?' '+t:'');
 const routeLabel=(type:string|null)=>truncate((type||'Sin tipo de ruta').toUpperCase(),24);
 
+// Original illustration adapted from the approved Tacoplan report preview.
+// Embedded once so PDF exports work offline and retain their visual identity.
+const TRUCK_HEADER_JPEG = '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';
 export function buildSelectedReportPdf(report:SharedReportData):Uint8Array {
  const pages:Page[]=[];
  let ops:Page=[],y=0;
@@ -23,36 +26,43 @@ export function buildSelectedReportPdf(report:SharedReportData):Uint8Array {
   const first=pages.length===0;
   paint(0,0,595,842,'1 1 1');
   if(first){
-   // Corporate header: two distinct audiences, one connected platform.
-   paint(0,717,595,125,'0.025 0.102 0.220');
-   paint(0,717,595,18,'0.028 0.165 0.340');
-   // Discreet curved blue line, echoing the Tacoplan road identity.
-   ops.push('0.09 0.62 0.98 RG 3 w 0 721 m 180 702 375 712 595 720 c S');
-   paint(186,749,1,74,'0.22 0.56 0.85');
-   paint(394,749,1,74,'0.22 0.56 0.85');
-   // Minimal vehicle mark, rendered as native PDF vector artwork.
-   ops.push('0.32 0.77 1 RG 1.6 w 32 806 m 50 806 l 50 815 l 43 821 l 32 821 l h S');
-   paint(35,801,6,3,'0.32 0.77 1');
-   paint(45,801,6,3,'0.32 0.77 1');
-   text(57,809,'TACOPLAN',17,true,'1 1 1');
-   text(57,789,'INFORME DE ACTIVIDAD',8.2,true,'0.48 0.76 1');
-   text(199,810,'APLICACIÓN Y LIBRETA DIGITAL',8,true,'1 1 1');
-   text(199,799,'AUTOMATIZADA PARA CONDUCTORES',8,true,'1 1 1');
-   text(199,778,'Control de jornadas y apoyo para',7.4,false,'0.82 0.91 1');
-   text(199,767,'prevenir infracciones del tacógrafo',7.4,false,'0.82 0.91 1');
-   text(407,810,'TACOPLAN PARA EMPRESAS',9.1,true,'1 1 1');
-   text(407,790,'Conexión y transparencia',8.2,false,'0.89 0.95 1');
-   text(407,778,'entre conductores, Tráfico y RRHH',7.8,false,'0.89 0.95 1');
-   paint(405,742,158,25,'0.07 0.39 0.76');
-   text(418,751,'tacoplan.es/empresas',9.2,true,'1 1 1');
-   y=696;
+   paint(0,730,595,112,'0.018 0.094 0.205');
+   // Photographic truck artwork, included in the PDF rather than a web dependency.
+   ops.push('q 145 0 0 108 450 734 cm /TruckHeader Do Q');
+   // Tone the transition from the blue background to the photo.
+   paint(447,734,4,108,'0.018 0.094 0.205');
+   paint(188,754,1.1,70,'0.16 0.53 0.84');
+   paint(327,754,1.1,70,'0.16 0.53 0.84');
+   // Truck-inspired brand icon.
+   ops.push('0.33 0.74 0.99 RG 1.8 w 29 791 m 46 791 l 51 799 l 62 799 l 62 815 l 29 815 l h S');
+   paint(35,786,6,3,'0.39 0.79 1');
+   paint(53,786,6,3,'0.39 0.79 1');
+   text(69,805,'TACOPLAN',17,true,'1 1 1');
+   text(69,789,'INFORME DE ACTIVIDAD',9.1,true,'0.42 0.76 1');
+   text(200,809,'APLICACIÓN Y LIBRETA DIGITAL',7.8,true,'1 1 1');
+   text(200,797,'AUTOMATIZADA',8.2,true,'1 1 1');
+   text(200,785,'PARA CONDUCTORES',8.2,true,'1 1 1');
+   text(200,765,'Control de jornadas y apoyo',7.1,false,'0.83 0.91 0.99');
+   text(200,755,'para prevenir infracciones',7.1,false,'0.83 0.91 0.99');
+   text(200,745,'del tacógrafo',7.1,false,'0.83 0.91 0.99');
+   text(339,809,'TACOPLAN',8.3,true,'1 1 1');
+   text(339,797,'PARA EMPRESAS',8.3,true,'1 1 1');
+   text(339,780,'Conexión y transparencia',7.1,false,'0.90 0.94 1');
+   text(339,769,'entre conductores,',7.1,false,'0.90 0.94 1');
+   text(339,758,'Tráfico y RRHH',7.1,false,'0.90 0.94 1');
+   // Website label integrated in the dark banner.
+   paint(444,736,140,19,'0.05 0.37 0.73');
+   text(453,742,'tacoplan.es/empresas',8.5,true,'1 1 1');
+   // Blue road-like line curves into the white document.
+   ops.push('0.09 0.62 0.98 RG 5 w 0 729 m 145 711 405 717 595 727 c S');
+   y=704;
   } else {
-   paint(0,783,595,59,'0.025 0.102 0.220');
+   paint(0,783,595,59,'0.018 0.094 0.205');
    paint(0,783,595,3,'0.09 0.62 0.98');
    text(38,808,'TACOPLAN',17,true,'1 1 1');
    text(38,792,'INFORME DE ACTIVIDAD',8,false,'0.73 0.85 0.99');
-   text(363,805,'CONEXIÓN Y TRANSPARENCIA',8,true,'1 1 1');
-   text(363,791,'tacoplan.es/empresas',8,false,'0.48 0.76 1');
+   text(358,805,'CONEXIÓN Y TRANSPARENCIA',8,true,'1 1 1');
+   text(358,791,'tacoplan.es/empresas',8,false,'0.48 0.76 1');
    y=764;
   }
   paint(38,40,519,.6,'0.79 0.87 0.96');
@@ -87,13 +97,20 @@ export function buildSelectedReportPdf(report:SharedReportData):Uint8Array {
  if(fields.includes('km'))
   summaries.push(['Kilómetros',new Intl.NumberFormat('es-ES').format(report.rows.reduce((n,j)=>n+(j.km||0),0))+' km']);
 
- const summaryHeight=Math.ceil(summaries.length/4)*40+10;
- paint(38,y-summaryHeight+7,519,summaryHeight,'0.937 0.963 0.991');
+ // Seven compact KPI columns reproduce the approved PDF layout.
+ const summaryCols=Math.min(7,Math.max(1,summaries.length));
+ const summaryRows=Math.ceil(summaries.length/summaryCols);
+ const rowHeight=58;
+ const summaryHeight=summaryRows*rowHeight+6;
+ paint(38,y-summaryHeight+7,519,summaryHeight,'0.926 0.951 0.981');
  for(let i=0;i<summaries.length;i++){
-  const [label,value]=summaries[i],column=i%4,row=Math.floor(i/4),x=48+column*129;
-  if(column>0)paint(x-9,y-summaryHeight+11+row*40,0.55,32,'0.75 0.84 0.94');
-  text(x,y-11-row*40,truncate(label.toUpperCase(),21),6.8,true,'0.26 0.39 0.57');
-  text(x,y-29-row*40,truncate(value,19),10.5,true,'0.07 0.16 0.31');
+  const [label,value]=summaries[i],column=i%summaryCols,row=Math.floor(i/summaryCols);
+  const cellWidth=519/summaryCols,x=44+column*cellWidth,offset=row*rowHeight;
+  if(column>0)paint(x-6,y-summaryHeight+11+offset,0.5,42,'0.75 0.84 0.94');
+  // Accent glyph above each result, kept in PDF vector format.
+  ops.push('0.10 0.36 0.66 RG 1.2 w '+(x+12)+' '+(y-13-offset)+' m '+(x+27)+' '+(y-13-offset)+' l S');
+  text(x,y-29-offset,truncate(label.toUpperCase(),16),6.45,true,'0.12 0.30 0.54');
+  text(x,y-44-offset,truncate(value,17),8.9,true,'0.04 0.12 0.26');
  }
  y-=summaryHeight+12;
  // Compact breakdown by recorded diet type, for the current authorised/filtered rows only.
@@ -248,20 +265,23 @@ export function buildSelectedReportPdf(report:SharedReportData):Uint8Array {
  text(38,y,'Solo se incluyen las fechas y datos autorizados por el conductor.',7,false,'0.38 0.46 0.56');
  pages.push(ops);
 
- const objects:string[]=[];
+ const objects:(string|Uint8Array)[]=[];
+ const truckBytes=Uint8Array.from(atob(TRUCK_HEADER_JPEG),c=>c.charCodeAt(0));
+ const joinBytes=(parts:Uint8Array[])=>{const out=new Uint8Array(parts.reduce((total,p)=>total+p.length,0));let pos=0;for(const part of parts){out.set(part,pos);pos+=part.length;}return out;};
+ objects[5]=joinBytes([winAnsi('<< /Type /XObject /Subtype /Image /Width 210 /Height 156 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length '+truckBytes.length+' >>\nstream\n'),truckBytes,winAnsi('\nendstream')]);
  objects[1]='<< /Type /Catalog /Pages 2 0 R >>';
  objects[3]='<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>';
  objects[4]='<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>';
  const children:number[]=[];
  pages.forEach((ops,index)=>{
-  const page=5+index*2,streamID=page+1;children.push(page);
-  objects[page]='<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents '+streamID+' 0 R >>';
+  const page=6+index*2,streamID=page+1;children.push(page);
+  objects[page]='<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> /XObject << /TruckHeader 5 0 R >> >> /Contents '+streamID+' 0 R >>';
   const stream=ops.join('\n')+'\n';
   objects[streamID]='<< /Length '+winAnsi(stream).length+' >>\nstream\n'+stream+'endstream';
  });
  objects[2]='<< /Type /Pages /Kids ['+children.map(n=>n+' 0 R').join(' ')+'] /Count '+pages.length+' >>';
  const chunks:Uint8Array[]=[];let total=0;
- const push=(s:string)=>{const b=winAnsi(s);chunks.push(b);total+=b.length;};
+ const push=(s:string|Uint8Array)=>{const b=typeof s==='string'?winAnsi(s):s;chunks.push(b);total+=b.length;};
  push('%PDF-1.4\n%Tacoplan-report\n');
  const offsets=[0];
  for(let i=1;i<objects.length;i++){offsets[i]=total;push(i+' 0 obj\n'+objects[i]+'\nendobj\n');}
