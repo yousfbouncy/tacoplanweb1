@@ -38,7 +38,7 @@ export async function GET(req:NextRequest){
 export async function POST(req:NextRequest){
  if(!sameOrigin(req))return reply({error:'Origen no autorizado'},403);
  const ctx=await identify(req);if(!ctx)return reply({error:'Inicia sesión'},401);
- let body:{action?:string;plan?:string;interval?:string};
+ let body:{action?:string;plan?:string;interval?:string;skip_trial?:boolean};
  try{body=await req.json();}catch{return reply({error:'Solicitud inválida'},400);}
  const db=ctx.db,userId=ctx.user.id;
  const [runtime,assignment,sub,pilot]=await Promise.all([
@@ -57,6 +57,7 @@ export async function POST(req:NextRequest){
  }
  if(body.action!=='checkout'||!['plus','pro'].includes(body.plan||'')||!['month','year'].includes(body.interval||''))return reply({error:'Plan o periodo inválido'},400);
  if(!(pilot.data?.enabled===true && pilot.data?.checkout_enabled===true))return reply({error:'Contratación en preparación, sin cobros activados'},503);
+ if(body.skip_trial!==undefined && typeof body.skip_trial!=='boolean')return reply({error:'Opción de prueba inválida'},400);
  if(['active','trialing','past_due','unpaid','incomplete'].includes(sub.data?.status||''))return reply({error:'Gestiona tu suscripción existente desde el portal'},409);
  const audience=assignment.data?.audience||'standard';
  const slug=audience==='founder'?(body.plan==='plus'?'plus_existing':'pro_founder'):audience==='existing'?body.plan+'_existing':body.plan!;
@@ -69,6 +70,8 @@ export async function POST(req:NextRequest){
  const form=new URLSearchParams();
  form.set('mode','subscription');
  form.set('line_items[0][price_data][currency]','eur');
+ // Consumer-facing catalog prices are final amounts; keep any applicable tax inside the quoted total.
+ form.set('line_items[0][price_data][tax_behavior]','inclusive');
  form.set('line_items[0][price_data][unit_amount]',String(amount));
  form.set('line_items[0][price_data][product_data][name]','Tacoplan '+body.plan+' ('+audience+')');
  form.set('line_items[0][price_data][recurring][interval]',body.interval!);
@@ -79,7 +82,7 @@ export async function POST(req:NextRequest){
  form.set('metadata[tp_driver_id]',userId);form.set('metadata[tp_price_slug]',slug);
  form.set('subscription_data[metadata][tp_driver_id]',userId);
  form.set('subscription_data[metadata][tp_price_slug]',slug);
- if(!sub.data?.trial_used&&price.trial_days>0)form.set('subscription_data[trial_period_days]',String(price.trial_days));
+ if(!body.skip_trial && !sub.data?.trial_used&&price.trial_days>0)form.set('subscription_data[trial_period_days]',String(price.trial_days));
  form.set('success_url',req.nextUrl.origin+'/planes?subscription=success');
  form.set('cancel_url',req.nextUrl.origin+'/planes?subscription=cancel');
  if(sub.data?.stripe_customer_id)form.set('customer',sub.data.stripe_customer_id);
