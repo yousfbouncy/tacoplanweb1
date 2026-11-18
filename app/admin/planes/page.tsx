@@ -1,3 +1,4 @@
+import Link from 'next/link';
 'use client';
 import { useEffect, useState } from 'react';
 
@@ -52,8 +53,8 @@ export default function AdminPlansPage(){
  };
  return <main className="min-h-screen bg-slate-50 px-4 py-10 text-slate-900">
   <div className="mx-auto max-w-6xl space-y-6">
-   <header><h1 className="text-3xl font-extrabold">Planes y suscripciones · Administración</h1>
-    <p className="mt-2 text-slate-600">Edita los precios y revisa usuarios. No activa pagos ni bloquea funciones.</p></header>
+   <header><div className="flex flex-wrap items-center justify-between gap-3"><h1 className="text-3xl font-extrabold">Planes y suscripciones · Administración</h1><Link href="/admin/suscriptores" className="rounded-lg bg-blue-700 px-4 py-2 font-bold text-white">Gestionar suscriptores y acceso gratis</Link></div>
+    <p className="mt-2 text-slate-600">Edita los precios y revisa usuarios. Activa o desactiva las restricciones desde Suscriptores.</p></header>
    {loading?<p>Cargando catálogo…</p>:null}
    {error?<p role="alert" className="rounded-lg border border-red-300 bg-red-50 p-3 text-red-800">{error}. Accede primero con tu sesión de administrador.</p>:null}
    {notice?<p role="status" className="rounded-lg border border-green-200 bg-green-50 p-3 text-green-800">{notice}</p>:null}
@@ -61,7 +62,7 @@ export default function AdminPlansPage(){
     {[['Registrados',payload.summary.registered],['Con jornadas en 30 días',payload.summary.recording30],['Fundadores confirmados',payload.summary.eligibleVerified],['Por revisar',payload.summary.eligiblePending]].map(([name,n])=><div key={name} className="rounded-xl bg-white p-4 shadow-sm"><p className="text-sm text-slate-600">{name}</p><p className="text-2xl font-bold">{n}</p></div>)}
    </section>
    <section className="rounded-xl border border-amber-200 bg-amber-50 p-4">
-    <p className="font-bold text-amber-950">Modo preparación · cobros {payload.control.billing_enabled?'ACTIVOS (revisar)':'desactivados'} · restricciones {payload.control.restrictions_enabled?'ACTIVAS (revisar)':'desactivadas'}</p>
+    <p className="font-bold text-amber-950">Estado actual · cobros {payload.control.billing_enabled?'ACTIVOS (revisar)':'desactivados'} · restricciones {payload.control.restrictions_enabled?'ACTIVAS (revisar)':'desactivadas'}</p>
     <p className="mt-1 text-sm text-amber-900">Cambiar el catálogo no cambia un precio ya contratado ni inicia suscripciones. La elegibilidad del 70 % requiere confirmar días realmente trabajados; no se asignará automáticamente.</p>
    </section>
    <section className="rounded-xl bg-white p-5 shadow-sm">
