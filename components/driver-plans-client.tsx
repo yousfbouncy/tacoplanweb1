@@ -38,6 +38,6 @@ export default function DriverPlansClient(){
   })}
   </div>
   {info?.subscription&&<button disabled={busy||!info.billing_enabled} className="rounded border px-4 py-3 disabled:opacity-40" onClick={()=>void request('portal')}>Gestionar o cancelar suscripción</button>}
-  <p className="text-sm text-gray-600">{info?.pro_access?'El acceso piloto no inicia una suscripción ni genera cobros. Las funciones Pro aún requieren integración en cada servicio. ':' '}Las suscripciones se renuevan automáticamente hasta su cancelación. Stripe muestra el importe y las condiciones antes de aceptar el pago.</p>
+  <p className="text-sm text-gray-600">{info?.pilot_access?'El piloto no concede Pro gratis: el acceso dependerá de la suscripción contratada. ':' '}Las suscripciones se renuevan automáticamente hasta su cancelación. Stripe muestra el importe y las condiciones antes de aceptar el pago.</p>
  </main>;
 }
