@@ -3,7 +3,7 @@ import {useEffect,useState} from 'react';
 import Link from 'next/link';
 import {supabase} from '@/lib/supabase';
 type Plan={slug:string;monthly_cents:number;annual_cents:number|null;trial_days:number};
-type Data={billing_enabled:boolean;pilot_access?:boolean;pro_access?:boolean;audience:string;plans:Plan[];subscription:{status:string}|null};
+type Data={billing_enabled:boolean;can_manage_subscription?:boolean;pilot_access?:boolean;pro_access?:boolean;audience:string;plans:Plan[];subscription:{status:string}|null};
 export default function DriverPlansClient(){
  const [info,setInfo]=useState<Data|null>(null),[busy,setBusy]=useState(false),[error,setError]=useState(''),[needsLogin,setNeedsLogin]=useState(false);
  const request=async(action?:'checkout'|'portal',plan?:string,interval?:'month'|'year')=>{
@@ -38,7 +38,7 @@ export default function DriverPlansClient(){
    </section>;
   })}
   </div>
-  {info?.subscription&&<button disabled={busy||!info.billing_enabled} className="rounded border px-4 py-3 disabled:opacity-40" onClick={()=>void request('portal')}>Gestionar o cancelar suscripción</button>}
+  {info?.can_manage_subscription&&<button disabled={busy} className="rounded border px-4 py-3 disabled:opacity-40" onClick={()=>void request('portal')}>Gestionar o cancelar suscripción</button>}
   <p className="text-sm text-gray-600">{info?.pilot_access?'El piloto no concede Pro gratis: el acceso dependerá de la suscripción contratada. ':' '}Las suscripciones se renuevan automáticamente hasta su cancelación. Stripe muestra el importe y las condiciones antes de aceptar el pago.</p>
  </main>;
 }
