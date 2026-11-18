@@ -1,0 +1,24 @@
+name: Validate subscriber admin
+on:
+  pull_request:
+    paths:
+      - 'app/api/admin/subscribers/**'
+      - 'app/admin/suscriptores/**'
+      - 'app/admin/planes/**'
+      - 'app/api/driver/subscription/**'
+      - 'app/api/driver/report-shares/**'
+      - 'components/driver-plans-client.tsx'
+      - 'components/driver-report-manager.tsx'
+      - 'supabase/migrations/**'
+      - '.github/workflows/subscriber-admin-check.yml'
+jobs:
+  typecheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+      - run: npm ci --no-audit
+      - run: npm run typecheck
