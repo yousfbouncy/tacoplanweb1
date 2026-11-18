@@ -20,14 +20,43 @@ export function buildSelectedReportPdf(report:SharedReportData):Uint8Array {
  const line=(yy:number)=>paint(38,yy,519,.5,'0.84 0.89 0.95');
  const startPage=()=>{
   ops=[];
+  const first=pages.length===0;
   paint(0,0,595,842,'1 1 1');
-  paint(0,783,595,59,'0.04 0.10 0.21');
-  paint(38,799,4,25,'0.17 0.43 0.95');
-  text(52,811,'TACOPLAN',17,true,'1 1 1');
-  text(52,796,'INFORME DE ACTIVIDAD',8,false,'0.78 0.86 0.98');
+  if(first){
+   // Corporate header: two distinct audiences, one connected platform.
+   paint(0,717,595,125,'0.025 0.102 0.220');
+   paint(0,717,595,18,'0.028 0.165 0.340');
+   // Discreet curved blue line, echoing the Tacoplan road identity.
+   ops.push('0.09 0.62 0.98 RG 3 w 0 721 m 180 702 375 712 595 720 c S');
+   paint(186,749,1,74,'0.22 0.56 0.85');
+   paint(394,749,1,74,'0.22 0.56 0.85');
+   // Minimal vehicle mark, rendered as native PDF vector artwork.
+   ops.push('0.32 0.77 1 RG 1.6 w 32 806 m 50 806 l 50 815 l 43 821 l 32 821 l h S');
+   paint(35,801,6,3,'0.32 0.77 1');\n   paint(45,801,6,3,'0.32 0.77 1');
+   text(57,809,'TACOPLAN',17,true,'1 1 1');
+   text(57,789,'INFORME DE ACTIVIDAD',8.2,true,'0.48 0.76 1');
+   text(199,810,'APLICACIÓN Y LIBRETA DIGITAL',8,true,'1 1 1');
+   text(199,799,'AUTOMATIZADA PARA CONDUCTORES',8,true,'1 1 1');
+   text(199,778,'Control de jornadas y apoyo para',7.4,false,'0.82 0.91 1');
+   text(199,767,'prevenir infracciones del tacógrafo',7.4,false,'0.82 0.91 1');
+   text(407,810,'TACOPLAN PARA EMPRESAS',9.1,true,'1 1 1');
+   text(407,790,'Conexión y transparencia',8.2,false,'0.89 0.95 1');
+   text(407,778,'entre conductores, Tráfico y RRHH',7.8,false,'0.89 0.95 1');
+   paint(405,742,158,25,'0.07 0.39 0.76');
+   text(418,751,'tacoplan.es/empresas',9.2,true,'1 1 1');
+   y=696;
+  } else {
+   paint(0,783,595,59,'0.025 0.102 0.220');
+   paint(0,783,595,3,'0.09 0.62 0.98');
+   text(38,808,'TACOPLAN',17,true,'1 1 1');
+   text(38,792,'INFORME DE ACTIVIDAD',8,false,'0.73 0.85 0.99');
+   text(363,805,'CONEXIÓN Y TRANSPARENCIA',8,true,'1 1 1');
+   text(363,791,'tacoplan.es/empresas',8,false,'0.48 0.76 1');
+   y=764;
+  }
+  paint(38,40,519,.6,'0.79 0.87 0.96');
   text(38,26,'Datos del conductor. Informe orientativo, no sustituye al tacógrafo.',7,false,'0.42 0.48 0.59');
-  text(505,26,'Pág. '+(pages.length+1),7,false,'0.42 0.48 0.59');
-  y=763;
+  text(505,26,'Pág. '+(pages.length+1),7,true,'0.15 0.30 0.53');
  };
  const nextPage=()=>{pages.push(ops);startPage();};
  startPage();
@@ -57,12 +86,13 @@ export function buildSelectedReportPdf(report:SharedReportData):Uint8Array {
  if(fields.includes('km'))
   summaries.push(['Kilómetros',new Intl.NumberFormat('es-ES').format(report.rows.reduce((n,j)=>n+(j.km||0),0))+' km']);
 
- const summaryHeight=Math.ceil(summaries.length/3)*29+10;
- paint(38,y-summaryHeight+7,519,summaryHeight,'0.948 0.968 0.993');
+ const summaryHeight=Math.ceil(summaries.length/4)*40+10;
+ paint(38,y-summaryHeight+7,519,summaryHeight,'0.937 0.963 0.991');
  for(let i=0;i<summaries.length;i++){
-  const [label,value]=summaries[i],column=i%3,row=Math.floor(i/3),x=48+column*172;
-  text(x,y-10-row*29,truncate(label.toUpperCase(),27),7,true,'0.37 0.46 0.60');
-  text(x,y-24-row*29,truncate(value,24),10,true);
+  const [label,value]=summaries[i],column=i%4,row=Math.floor(i/4),x=48+column*129;
+  if(column>0)paint(x-9,y-summaryHeight+11+row*40,0.55,32,'0.75 0.84 0.94');
+  text(x,y-11-row*40,truncate(label.toUpperCase(),21),6.8,true,'0.26 0.39 0.57');
+  text(x,y-29-row*40,truncate(value,19),10.5,true,'0.07 0.16 0.31');
  }
  y-=summaryHeight+12;
  // Compact breakdown by recorded diet type, for the current authorised/filtered rows only.
@@ -82,7 +112,7 @@ export function buildSelectedReportPdf(report:SharedReportData):Uint8Array {
   const tableH=fields.includes('diet_amount')?49:38;
   if(y-tableH<72)nextPage();
   text(38,y,'CANTIDAD DE DIETAS POR TIPO',9,true);y-=9;
-  paint(38,y-tableH,519,tableH,'0.94 0.96 0.99');
+  paint(38,y-tableH,519,tableH,'0.92 0.96 0.99');\n  paint(427,y-tableH,130,tableH,'0.07 0.25 0.46');
   const cells=[
    ...counts,
    {label:'TOTAL',count:recorded.length,amount:recorded.reduce((sum,r)=>sum+(r.dietAmount||0),0)}
@@ -96,7 +126,7 @@ export function buildSelectedReportPdf(report:SharedReportData):Uint8Array {
   y-=tableH+11;
   if(unknown>0){text(38,y,'Sin tipo identificado: '+unknown,7,false,'0.41 0.48 0.59');y-=13;}
  }
- text(38,y,'HISTORIAL DE VIAJES',10,true);y-=8;line(y);y-=12;
+ text(38,y,'HISTORIAL DE VIAJES',10,true);y-=8;line(y);paint(38,y-1,155,2,'0.07 0.58 0.94');y-=12;
 
  // Compact journey sections. Only authorised fields are rendered.
  // The blue band contains start/end with locations and the diet type.
