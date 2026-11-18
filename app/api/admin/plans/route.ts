@@ -36,7 +36,7 @@ export async function GET(req: NextRequest) {
     const workdays = new Map<string,Set<string>>();
     for (const shift of shifts) {
       const date = shift.fecha_inicio;
-      if (!date || !/^\\d{4}-\\d{2}-\\d{2}$/.test(date) || date < cutoff || date > new Date().toISOString().slice(0,10)) continue;
+      if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date) || date < cutoff || date > new Date().toISOString().slice(0,10)) continue;
       const set = workdays.get(shift.user_id) || new Set<string>();
       set.add(date);workdays.set(shift.user_id,set);
     }
