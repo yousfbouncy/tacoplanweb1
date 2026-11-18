@@ -19,14 +19,16 @@ async function identify(req:NextRequest){
 }
 export async function GET(req:NextRequest){
  const ctx=await identify(req);if(!ctx)return reply({error:'Inicia sesión'},401);
- const [runtime,catalog,assignment,subscription]=await Promise.all([
+ const [runtime,catalog,assignment,subscription,pilot]=await Promise.all([
   ctx.db.from('tp_subscription_runtime').select('billing_enabled').eq('id',1).single(),
   ctx.db.from('tp_subscription_price_catalog').select('slug,plan,audience,monthly_cents,annual_cents,trial_days'),
   ctx.db.from('tp_driver_price_entitlements').select('audience').eq('user_id',ctx.user.id).maybeSingle(),
-  ctx.db.from('tp_driver_subscriptions').select('price_slug,status,trial_ends_at,current_period_end,trial_used').eq('user_id',ctx.user.id).maybeSingle()
+  ctx.db.from('tp_driver_subscriptions').select('price_slug,status,trial_ends_at,current_period_end,trial_used').eq('user_id',ctx.user.id).maybeSingle(),
+  ctx.db.from('tp_driver_pilot_access').select('enabled,pro_access,checkout_enabled').eq('user_id',ctx.user.id).maybeSingle()
  ]);
- if(runtime.error||catalog.error||assignment.error||subscription.error)return reply({error:'Catálogo no disponible'},503);
- return reply({billing_enabled:runtime.data.billing_enabled,audience:assignment.data?.audience||'standard',plans:catalog.data,subscription:subscription.data});
+ if(runtime.error||catalog.error||assignment.error||subscription.error||pilot.error)return reply({error:'Catálogo no disponible'},503);
+ const isPilot=pilot.data?.enabled===true;
+ return reply({billing_enabled:runtime.data.billing_enabled || (isPilot && pilot.data?.checkout_enabled===true),pilot_access:isPilot,pro_access:isPilot && pilot.data?.pro_access===true,audience:assignment.data?.audience||'standard',plans:catalog.data,subscription:subscription.data});
 }
 export async function POST(req:NextRequest){
  if(!sameOrigin(req))return reply({error:'Origen no autorizado'},403);
@@ -34,13 +36,14 @@ export async function POST(req:NextRequest){
  let body:{action?:string;plan?:string;interval?:string};
  try{body=await req.json();}catch{return reply({error:'Solicitud inválida'},400);}
  const db=ctx.db,userId=ctx.user.id;
- const [runtime,assignment,sub]=await Promise.all([
+ const [runtime,assignment,sub,pilot]=await Promise.all([
   db.from('tp_subscription_runtime').select('billing_enabled').eq('id',1).single(),
   db.from('tp_driver_price_entitlements').select('audience').eq('user_id',userId).maybeSingle(),
-  db.from('tp_driver_subscriptions').select('*').eq('user_id',userId).maybeSingle()
+  db.from('tp_driver_subscriptions').select('*').eq('user_id',userId).maybeSingle(),
+  db.from('tp_driver_pilot_access').select('enabled,checkout_enabled').eq('user_id',userId).maybeSingle()
  ]);
- if(runtime.error||assignment.error||sub.error)return reply({error:'No se pudo comprobar la cuenta'},503);
- if(!runtime.data.billing_enabled)return reply({error:'Contratación en preparación, sin cobros activados'},503);
+ if(runtime.error||assignment.error||sub.error||pilot.error)return reply({error:'No se pudo comprobar la cuenta'},503);
+ if(!runtime.data.billing_enabled && !(pilot.data?.enabled===true && pilot.data?.checkout_enabled===true))return reply({error:'Contratación en preparación, sin cobros activados'},503);
  if(body.action==='portal'){
   if(!sub.data?.stripe_customer_id)return reply({error:'No tienes suscripción que gestionar'},409);
   const params=new URLSearchParams({customer:sub.data.stripe_customer_id,return_url:req.nextUrl.origin+'/?subscription=return'});
