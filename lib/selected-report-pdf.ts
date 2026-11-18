@@ -284,7 +284,7 @@ export function buildSelectedReportPdf(report:SharedReportData):Uint8Array {
  const push=(s:string|Uint8Array)=>{const b=typeof s==='string'?winAnsi(s):s;chunks.push(b);total+=b.length;};
  push('%PDF-1.4\n%Tacoplan-report\n');
  const offsets=[0];
- for(let i=1;i<objects.length;i++){offsets[i]=total;push(i+' 0 obj\n'+objects[i]+'\nendobj\n');}
+ for(let i=1;i<objects.length;i++){offsets[i]=total;push(i+' 0 obj\n');push(objects[i]);push('\nendobj\n');}
  const xref=total;push('xref\n0 '+objects.length+'\n0000000000 65535 f \n');
  for(let i=1;i<objects.length;i++)push(String(offsets[i]).padStart(10,'0')+' 00000 n \n');
  push('trailer\n<< /Size '+objects.length+' /Root 1 0 R >>\nstartxref\n'+xref+'\n%%EOF');
