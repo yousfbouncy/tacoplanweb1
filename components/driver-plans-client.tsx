@@ -6,12 +6,12 @@ type Plan={slug:string;monthly_cents:number;annual_cents:number|null;trial_days:
 type Data={billing_enabled:boolean;can_manage_subscription?:boolean;pilot_access?:boolean;pro_access?:boolean;effective_plan?:'free'|'plus'|'pro';audience:string;plans:Plan[];subscription:{status:string}|null};
 export default function DriverPlansClient(){
  const [info,setInfo]=useState<Data|null>(null),[busy,setBusy]=useState(false),[error,setError]=useState(''),[needsLogin,setNeedsLogin]=useState(false);
- const request=async(action?:'checkout'|'portal',plan?:string,interval?:'month'|'year')=>{
+ const request=async(action?:'checkout'|'portal',plan?:string,interval?:'month'|'year',skipTrial=false)=>{
   setError('');setNeedsLogin(false);setBusy(true);
   try{
    const {data}=await supabase.auth.getSession();
    if(!data.session){setNeedsLogin(true);throw Error('Debes iniciar sesión en esta web para consultar los planes.');}
-   const res=await fetch('/api/driver/subscription',{method:action?'POST':'GET',headers:{Authorization:'Bearer '+data.session.access_token,...(action?{'Content-Type':'application/json'}:{})},...(action?{body:JSON.stringify({action,plan,interval})}:{})});
+   const res=await fetch('/api/driver/subscription',{method:action?'POST':'GET',headers:{Authorization:'Bearer '+data.session.access_token,...(action?{'Content-Type':'application/json'}:{})},...(action?{body:JSON.stringify({action,plan,interval,skip_trial:skipTrial})}:{})});
    const j=await res.json();
    if(!res.ok)throw Error(j.error||'Servicio no disponible');
    if(j.url){window.location.assign(j.url);return;}
@@ -33,7 +33,8 @@ export default function DriverPlansClient(){
     <h2 className="text-xl font-bold">{tier==='free'?'Gratis':tier==='plus'?'Plus':'Pro'}</h2>
     <p className="text-2xl font-semibold">{p?price(p.monthly_cents)+'/mes':'0 €'}</p>
     <p>{tier==='free'?'Jornadas y descansos; historial 30 días':tier==='plus'?'AutoStart, dietas y pluses; historial 12 meses':'Acceso completo con estimación de nómina e informes PDF'}</p>
-    {p&&<button className="w-full rounded bg-blue-700 p-3 text-white disabled:opacity-40" disabled={busy||!info?.billing_enabled} onClick={()=>void request('checkout',tier,'month')}>Elegir mensual</button>}
+    {p&&<button className="w-full rounded bg-blue-700 p-3 text-white disabled:opacity-40" disabled={busy||!info?.billing_enabled} onClick={()=>void request('checkout',tier,'month')}>Elegir mensual · con prueba gratuita</button>}
+    {p&&<button className="w-full rounded border border-blue-700 p-3 font-semibold text-blue-700 disabled:opacity-40" disabled={busy||!info?.billing_enabled} onClick={()=>void request('checkout',tier,'month',true)}>Contratar y pagar ahora (sin prueba gratuita)</button>}
     {p?.annual_cents!=null&&<button className="w-full rounded border p-3 disabled:opacity-40" disabled={busy||!info?.billing_enabled} onClick={()=>void request('checkout',tier,'year')}>Anual {price(p.annual_cents)}</button>}
    </section>;
   })}
