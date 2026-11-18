@@ -2,7 +2,7 @@
 import {useEffect,useState} from 'react';
 import {supabase} from '@/lib/supabase';
 type Plan={slug:string;monthly_cents:number;annual_cents:number|null;trial_days:number};
-type Data={billing_enabled:boolean;audience:string;plans:Plan[];subscription:{status:string}|null};
+type Data={billing_enabled:boolean;pilot_access?:boolean;pro_access?:boolean;audience:string;plans:Plan[];subscription:{status:string}|null};
 export default function DriverPlansClient(){
  const [info,setInfo]=useState<Data|null>(null),[busy,setBusy]=useState(false),[error,setError]=useState('');
  const request=async(action?:'checkout'|'portal',plan?:string,interval?:'month'|'year')=>{
@@ -24,7 +24,7 @@ export default function DriverPlansClient(){
   <h1 className="text-3xl font-bold">Planes Tacoplan</h1>
   <p>Plus y Pro incluyen siete días de prueba gratuita si todavía no la has utilizado. Consulta el precio y la fecha de renovación antes de confirmar.</p>
   {error&&<p role="alert" className="rounded border border-red-500 p-3 text-red-700">{error}</p>}
-  {info&&<p role="status">{info.billing_enabled?'Contratación disponible':'Cobros aún desactivados'} · {info.subscription?.status||'Sin suscripción'}</p>}
+  {info&&<p role="status">{info.pro_access?'Prueba Pro autorizada para esta cuenta · ':''}{info.billing_enabled?'Contratación disponible':'Cobros desactivados'} · {info.subscription?.status||'Sin suscripción'}</p>}
   <div className="grid gap-4 md:grid-cols-3">
   {(['free','plus','pro'] as const).map(tier=>{
    const p=tier==='free'?null:chosen(tier);
@@ -38,6 +38,6 @@ export default function DriverPlansClient(){
   })}
   </div>
   {info?.subscription&&<button disabled={busy||!info.billing_enabled} className="rounded border px-4 py-3 disabled:opacity-40" onClick={()=>void request('portal')}>Gestionar o cancelar suscripción</button>}
-  <p className="text-sm text-gray-600">Las suscripciones se renuevan automáticamente hasta su cancelación. Stripe muestra el importe y las condiciones antes de aceptar el pago.</p>
+  <p className="text-sm text-gray-600">{info?.pro_access?'El acceso piloto no inicia una suscripción ni genera cobros. Las funciones Pro aún requieren integración en cada servicio. ':' '}Las suscripciones se renuevan automáticamente hasta su cancelación. Stripe muestra el importe y las condiciones antes de aceptar el pago.</p>
  </main>;
 }
