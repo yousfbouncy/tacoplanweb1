@@ -78,6 +78,8 @@ export async function POST(req:NextRequest){
  form.set('line_items[0][price_data][tax_behavior]','inclusive');
  form.set('line_items[0][price_data][unit_amount]',String(amount));
  form.set('line_items[0][price_data][product_data][name]','Tacoplan '+body.plan+' ('+audience+')');
+ // Professional drivers use the downloadable Tacoplan SaaS app; specify per-item tax category for Stripe Tax.
+ form.set('line_items[0][price_data][product_data][tax_code]','txcd_10103101');
  form.set('line_items[0][price_data][recurring][interval]',body.interval!);
  form.set('line_items[0][quantity]','1');
  form.set('payment_method_collection','always');form.set('billing_address_collection','required');
