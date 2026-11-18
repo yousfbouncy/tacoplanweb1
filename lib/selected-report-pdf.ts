@@ -32,7 +32,8 @@ export function buildSelectedReportPdf(report:SharedReportData):Uint8Array {
    paint(394,749,1,74,'0.22 0.56 0.85');
    // Minimal vehicle mark, rendered as native PDF vector artwork.
    ops.push('0.32 0.77 1 RG 1.6 w 32 806 m 50 806 l 50 815 l 43 821 l 32 821 l h S');
-   paint(35,801,6,3,'0.32 0.77 1');\n   paint(45,801,6,3,'0.32 0.77 1');
+   paint(35,801,6,3,'0.32 0.77 1');
+   paint(45,801,6,3,'0.32 0.77 1');
    text(57,809,'TACOPLAN',17,true,'1 1 1');
    text(57,789,'INFORME DE ACTIVIDAD',8.2,true,'0.48 0.76 1');
    text(199,810,'APLICACIÓN Y LIBRETA DIGITAL',8,true,'1 1 1');
