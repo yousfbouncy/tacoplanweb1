@@ -19,7 +19,7 @@ export default function DriverPlansClient(){
  };
  useEffect(()=>{void request();},[]);
  const price=(c:number)=>(c/100).toLocaleString('es-ES',{style:'currency',currency:'EUR'});
- const chosen=(tier:'plus'|'pro')=>info?.plans.find(p=>p.slug===(info.audience==='founder'?'pro_founder':info.audience==='existing'?tier+'_existing':tier));
+ const chosen=(tier:'plus'|'pro')=>info?.plans.find(p=>p.slug===(info.audience==='founder'?(tier==='plus'?'plus_existing':'pro_founder'):info.audience==='existing'?tier+'_existing':tier));
  return <main className="mx-auto max-w-5xl space-y-7 px-4 py-12">
   <h1 className="text-3xl font-bold">Planes Tacoplan</h1>
   <p>Plus y Pro incluyen siete días de prueba gratuita si todavía no la has utilizado. Consulta el precio y la fecha de renovación antes de confirmar.</p>
