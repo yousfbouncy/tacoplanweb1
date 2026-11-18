@@ -28,7 +28,7 @@ export async function GET(req:NextRequest){
  ]);
  if(runtime.error||catalog.error||assignment.error||subscription.error||pilot.error)return reply({error:'Catálogo no disponible'},503);
  const isPilot=pilot.data?.enabled===true;
- return reply({billing_enabled:isPilot && pilot.data?.checkout_enabled===true,pilot_access:isPilot,pro_access:isPilot && pilot.data?.pro_access===true,audience:assignment.data?.audience||'standard',plans:catalog.data,subscription:subscription.data});
+ return reply({billing_enabled:isPilot && pilot.data?.checkout_enabled===true,can_manage_subscription:!!subscription.data?.status && !['inactive','canceled','incomplete_expired'].includes(subscription.data.status),pilot_access:isPilot,pro_access:isPilot && pilot.data?.pro_access===true,audience:assignment.data?.audience||'standard',plans:catalog.data,subscription:subscription.data});
 }
 export async function POST(req:NextRequest){
  if(!sameOrigin(req))return reply({error:'Origen no autorizado'},403);
@@ -43,13 +43,15 @@ export async function POST(req:NextRequest){
   db.from('tp_driver_pilot_access').select('enabled,checkout_enabled').eq('user_id',userId).maybeSingle()
  ]);
  if(runtime.error||assignment.error||sub.error||pilot.error)return reply({error:'No se pudo comprobar la cuenta'},503);
- if(!(pilot.data?.enabled===true && pilot.data?.checkout_enabled===true))return reply({error:'Contratación en preparación, sin cobros activados'},503);
+ // A paying user must always be able to manage or cancel their existing subscription,
+ // even if new checkout is disabled or their pilot eligibility changes.
  if(body.action==='portal'){
   if(!sub.data?.stripe_customer_id)return reply({error:'No tienes suscripción que gestionar'},409);
   const params=new URLSearchParams({customer:sub.data.stripe_customer_id,return_url:req.nextUrl.origin+'/?subscription=return'});
   try{const session=await stripe('billing_portal/sessions',params);return reply({url:session.url});}catch{return reply({error:'Portal no disponible'},503);}
  }
  if(body.action!=='checkout'||!['plus','pro'].includes(body.plan||'')||!['month','year'].includes(body.interval||''))return reply({error:'Plan o periodo inválido'},400);
+ if(!(pilot.data?.enabled===true && pilot.data?.checkout_enabled===true))return reply({error:'Contratación en preparación, sin cobros activados'},503);
  if(['active','trialing','past_due','unpaid','incomplete'].includes(sub.data?.status||''))return reply({error:'Gestiona tu suscripción existente desde el portal'},409);
  const audience=assignment.data?.audience||'standard';
  const slug=audience==='founder'?(body.plan==='plus'?'plus_existing':'pro_founder'):audience==='existing'?body.plan+'_existing':body.plan!;
