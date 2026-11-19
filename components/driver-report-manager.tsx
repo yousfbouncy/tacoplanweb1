@@ -77,7 +77,9 @@ export function DriverReportManager({name}:{name:string}){
     validate();const jwt=await token();
     const r=await fetch('/api/driver/report-shares',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+jwt},body:JSON.stringify({action:'create',from,to,fields,days:expireDays})});
     const j=await r.json();if(!r.ok)throw Error(j.error||t('No se pudo crear el enlace'));
-    setFreshLink(j.url);setInfo(t('Enlace privado creado. Cópialo y envíaselo a la empresa.'));setLinksOpen(true);
+    const reportUrl=new URL(j.url,window.location.origin);
+    reportUrl.searchParams.set('lang',reportLocale);
+    setFreshLink(reportUrl.toString());setInfo(t('Enlace privado creado. Cópialo y envíaselo a la empresa.'));setLinksOpen(true);
     await loadGrants();
    }else{
     const report=await localReport();
