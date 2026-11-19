@@ -5,6 +5,7 @@ import {Download,Share2,Link2,Copy,ShieldCheck,Trash2,ChevronDown,ChevronUp,Sett
 import {supabase} from '@/lib/supabase';
 import {REPORT_FIELD_OPTIONS,DEFAULT_REPORT_FIELDS,REPORT_DB_COLUMNS,validDate,ReportField,SharedReportData,RawReportJornada,mapReportRow,redactRows} from '@/lib/report-sharing';
 import {saveReportPdf,buildSelectedReportPdf} from '@/lib/selected-report-pdf';
+import {printArabicReport} from '@/lib/arabic-report-print';
 
 type Grant={id:string;date_from:string;date_to:string;fields:ReportField[];created_at:string;expires_at:string;revoked_at:string|null};
 const today=()=>new Date().toLocaleDateString('en-CA');
@@ -68,6 +69,8 @@ export function DriverReportManager({name}:{name:string}){
  const action=async(kind:'download'|'share'|'link')=>{
   if(busy)return;
   if(reportRestricted){setError(t('Para generar informes necesitas el plan Pro. Puedes seguir gestionando tus enlaces anteriores.'));return;}
+  // Opening synchronously is important: Safari blocks tabs opened after await.
+  const arabicPrintTab=reportLocale==='ar'&&kind!=='link'?window.open('','_blank'):null;
   setBusy(true);setError('');setInfo('');
   try{
    if(kind==='link'){
@@ -78,17 +81,20 @@ export function DriverReportManager({name}:{name:string}){
     await loadGrants();
    }else{
     const report=await localReport();
-    if(kind==='download'){saveReportPdf(report);setInfo(t('PDF generado con las fechas y campos seleccionados.'));}
+    if(reportLocale==='ar'){
+      if(!printArabicReport(report,arabicPrintTab))throw Error(t('Permite las ventanas emergentes para abrir el informe árabe.'));
+      setInfo(t('Se abrió el informe en árabe. Utiliza Imprimir para guardarlo como PDF y compartirlo.'));
+    }else if(kind==='download'){saveReportPdf(report,reportLocale);setInfo(t('PDF generado con las fechas y campos seleccionados.'));}
     else{
-     const pdf=buildSelectedReportPdf(report);
+     const pdf=buildSelectedReportPdf(report,reportLocale);
      const file=new File([pdf],'Tacoplan-'+from+'-'+to+'.pdf',{type:'application/pdf'});
      if(navigator.share&&navigator.canShare?.({files:[file]})){
       try{await navigator.share({files:[file],title:t('Informe de Tacoplan'),text:t('Informe del periodo seleccionado.')});setInfo(t('Informe preparado para compartir.'));}
-      catch(e:unknown){if(e instanceof Error&&e.name==='AbortError')setInfo(t('Has cancelado la opción de compartir.'));else{saveReportPdf(report);setInfo(t('Se ha descargado el PDF para que puedas enviarlo.'));}}
-     }else{saveReportPdf(report);setInfo(t('Se ha descargado el PDF para compartirlo por WhatsApp o correo.'));}
+      catch(e:unknown){if(e instanceof Error&&e.name==='AbortError')setInfo(t('Has cancelado la opción de compartir.'));else{saveReportPdf(report,reportLocale);setInfo(t('Se ha descargado el PDF para que puedas enviarlo.'));}}
+     }else{saveReportPdf(report,reportLocale);setInfo(t('Se ha descargado el PDF para compartirlo por WhatsApp o correo.'));}
     }
    }
-  }catch(e:unknown){setError(e instanceof Error?e.message:t('No se pudo generar el informe'));}
+  }catch(e:unknown){if(arabicPrintTab&&!arabicPrintTab.closed)arabicPrintTab.close();setError(e instanceof Error?e.message:t('No se pudo generar el informe'));}
   finally{setBusy(false);}
  };
  const revoke=async(id:string)=>{
@@ -115,7 +121,7 @@ export function DriverReportManager({name}:{name:string}){
     <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">{REPORT_FIELD_OPTIONS.map(x=><label key={x.key} className={'flex items-start gap-2 rounded-xl border p-3 text-xs sm:text-sm '+(fields.includes(x.key)?'border-blue-300 bg-blue-50 text-blue-900':'border-slate-200 text-slate-600')}><input type="checkbox" checked={fields.includes(x.key)} onChange={()=>switchField(x.key)} className="mt-0.5 h-4 w-4 accent-blue-700"/>{t(x.label)}</label>)}</div>
     <p className="mt-2 text-xs text-slate-500">{t('La fecha de cada jornada siempre se muestra para que el historial tenga sentido. Los demás campos solo aparecerán si los marcas.')}</p>
    </div>
-   <div className="grid gap-2 sm:grid-cols-2"><button type="button" onClick={()=>void action('download')} disabled={busy||reportRestricted} className="flex items-center justify-center gap-2 rounded-xl border border-blue-300 bg-white px-4 py-3 font-bold text-blue-800 disabled:opacity-50"><Download className="h-4 w-4"/>{t('Descargar PDF personalizado')}</button><button type="button" onClick={()=>void action('share')} disabled={busy||reportRestricted} className="flex items-center justify-center gap-2 rounded-xl bg-blue-700 px-4 py-3 font-bold text-white disabled:opacity-50"><Share2 className="h-4 w-4"/>{t('Compartir PDF')}</button></div>
+   <div className="grid gap-2 sm:grid-cols-2"><button type="button" onClick={()=>void action('download')} disabled={busy||reportRestricted} className="flex items-center justify-center gap-2 rounded-xl border border-blue-300 bg-white px-4 py-3 font-bold text-blue-800 disabled:opacity-50"><Download className="h-4 w-4"/>{reportLocale==='ar'?t('Imprimir o guardar PDF en árabe'):t('Descargar PDF personalizado')}</button><button type="button" onClick={()=>void action('share')} disabled={busy||reportRestricted} className="flex items-center justify-center gap-2 rounded-xl bg-blue-700 px-4 py-3 font-bold text-white disabled:opacity-50"><Share2 className="h-4 w-4"/>{reportLocale==='ar'?t('Abrir informe para compartir'):t('Compartir PDF')}</button></div>
    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4"><div className="flex items-center gap-2"><ShieldCheck className="h-5 w-5 text-blue-700"/><h3 className="font-bold text-slate-900">{t('Crear panel web para tu empresa')}</h3></div><p className="mt-2 text-sm text-slate-600">{t('La empresa podrá abrir el historial permitido desde un enlace. No tendrá acceso a tu cuenta ni a fechas o datos no autorizados.')}</p>
     <label className="mt-3 block text-sm font-semibold text-slate-800">{t('Caducidad del enlace')}<select value={expireDays} onChange={e=>setExpireDays(Number(e.target.value))} className="mt-2 w-full rounded-xl border border-slate-300 bg-white p-3"><option value={1}>{t('24 horas')}</option><option value={7}>{t('7 días')}</option><option value={30}>{t('30 días')}</option></select></label>
     <button type="button" disabled={busy||reportRestricted} onClick={()=>void action('link')} className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-[#0d2346] px-4 py-3 font-bold text-white disabled:opacity-50"><Link2 className="h-4 w-4"/>{busy?t('Procesando…'):t('Generar enlace privado')}</button>
