@@ -40,74 +40,74 @@ export function DriverReportManager({name}:{name:string}){
   return()=>{mounted=false;};
  },[]);
  const switchField=(f:ReportField)=>setFields(prev=>prev.includes(f)?prev.filter(x=>x!==f):[...prev,f]);
- const token=async()=>{const s=await supabase.auth.getSession();if(!s.data.session?.access_token)throw Error('Tu sesión ha caducado. Inicia sesión de nuevo.');return s.data.session.access_token;};
+ const token=async()=>{const s=await supabase.auth.getSession();if(!s.data.session?.access_token)throw Error(t('Tu sesión ha caducado. Inicia sesión de nuevo.'));return s.data.session.access_token;};
  const loadGrants=async()=>{
   try{const jwt=await token();const r=await fetch('/api/driver/report-shares',{headers:{Authorization:'Bearer '+jwt},cache:'no-store'});
-   const j=await r.json();if(!r.ok)throw Error(j.error||'No se pudieron consultar los enlaces');
-   setGrants(j.items||[]);}catch(e:unknown){setError(e instanceof Error?e.message:'Error consultando enlaces');}
+   const j=await r.json();if(!r.ok)throw Error(j.error||t('No se pudieron consultar los enlaces'));
+   setGrants(j.items||[]);}catch(e:unknown){setError(e instanceof Error?e.message:t('Error consultando enlaces'));}
  };
  useEffect(()=>{if(opened)void loadGrants();},[opened]);
  const validate=()=>{
-  if(!validDate(from)||!validDate(to)||to<from)throw Error('Selecciona un periodo correcto (desde / hasta).');
-  if(Date.parse(to+'T00:00:00Z')-Date.parse(from+'T00:00:00Z')>366*86400000)throw Error('Selecciona como máximo 366 días.');
-  if(to>today())throw Error('La fecha «hasta» no puede ser posterior a hoy.');
-  if(!fields.length)throw Error('Elige al menos un campo del informe.');
+  if(!validDate(from)||!validDate(to)||to<from)throw Error(t('Selecciona un periodo correcto (desde / hasta).'));
+  if(Date.parse(to+'T00:00:00Z')-Date.parse(from+'T00:00:00Z')>366*86400000)throw Error(t('Selecciona como máximo 366 días.'));
+  if(to>today())throw Error(t('La fecha «hasta» no puede ser posterior a hoy.'));
+  if(!fields.length)throw Error(t('Elige al menos un campo del informe.'));
  };
  const localReport=async():Promise<SharedReportData>=>{
   validate();
   const {data,error:qError}=await supabase.from('jornadas').select(REPORT_DB_COLUMNS)
     .gte('fecha_inicio',from).lte('fecha_inicio',to).order('fecha_inicio',{ascending:false}).limit(1000);
-  if(qError)throw Error('No se pudieron cargar tus jornadas. '+qError.message);
+  if(qError)throw Error(t('No se pudieron cargar tus jornadas. ')+qError.message);
   const rows=(data||[]).map(j=>mapReportRow(j as unknown as RawReportJornada));
-  if(!rows.length)throw Error('No hay jornadas guardadas entre las fechas seleccionadas.');
-  return {title:'Informe de actividad · Tacoplan',from,to,fields,
+  if(!rows.length)throw Error(t('No hay jornadas guardadas entre las fechas seleccionadas.'));
+  return {title:t('Informe de actividad · Tacoplan'),from,to,fields,
    driverName:fields.includes('driver_name')?name:null,rows:redactRows(rows,fields),
    generatedAt:new Date().toISOString()};
  };
  const action=async(kind:'download'|'share'|'link')=>{
   if(busy)return;
-  if(reportRestricted){setError('Para generar informes necesitas el plan Pro. Puedes seguir gestionando tus enlaces anteriores.');return;}
+  if(reportRestricted){setError(t('Para generar informes necesitas el plan Pro. Puedes seguir gestionando tus enlaces anteriores.'));return;}
   setBusy(true);setError('');setInfo('');
   try{
    if(kind==='link'){
     validate();const jwt=await token();
     const r=await fetch('/api/driver/report-shares',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+jwt},body:JSON.stringify({action:'create',from,to,fields,days:expireDays})});
-    const j=await r.json();if(!r.ok)throw Error(j.error||'No se pudo crear el enlace');
-    setFreshLink(j.url);setInfo('Enlace privado creado. Cópialo y envíaselo a la empresa.');setLinksOpen(true);
+    const j=await r.json();if(!r.ok)throw Error(j.error||t('No se pudo crear el enlace'));
+    setFreshLink(j.url);setInfo(t('Enlace privado creado. Cópialo y envíaselo a la empresa.'));setLinksOpen(true);
     await loadGrants();
    }else{
     const report=await localReport();
-    if(kind==='download'){saveReportPdf(report);setInfo('PDF generado con las fechas y campos seleccionados.');}
+    if(kind==='download'){saveReportPdf(report);setInfo(t('PDF generado con las fechas y campos seleccionados.'));}
     else{
      const pdf=buildSelectedReportPdf(report);
      const file=new File([pdf],'Tacoplan-'+from+'-'+to+'.pdf',{type:'application/pdf'});
      if(navigator.share&&navigator.canShare?.({files:[file]})){
-      try{await navigator.share({files:[file],title:'Informe de Tacoplan',text:'Informe del periodo seleccionado.'});setInfo('Informe preparado para compartir.');}
-      catch(e:unknown){if(e instanceof Error&&e.name==='AbortError')setInfo('Has cancelado la opción de compartir.');else{saveReportPdf(report);setInfo('Se ha descargado el PDF para que puedas enviarlo.');}}
-     }else{saveReportPdf(report);setInfo('Se ha descargado el PDF para compartirlo por WhatsApp o correo.');}
+      try{await navigator.share({files:[file],title:t('Informe de Tacoplan'),text:t('Informe del periodo seleccionado.')});setInfo(t('Informe preparado para compartir.'));}
+      catch(e:unknown){if(e instanceof Error&&e.name==='AbortError')setInfo(t('Has cancelado la opción de compartir.'));else{saveReportPdf(report);setInfo(t('Se ha descargado el PDF para que puedas enviarlo.'));}}
+     }else{saveReportPdf(report);setInfo(t('Se ha descargado el PDF para compartirlo por WhatsApp o correo.'));}
     }
    }
-  }catch(e:unknown){setError(e instanceof Error?e.message:'No se pudo generar el informe');}
+  }catch(e:unknown){setError(e instanceof Error?e.message:t('No se pudo generar el informe'));}
   finally{setBusy(false);}
  };
  const revoke=async(id:string)=>{
-  if(busy||!window.confirm('¿Desactivar este enlace de empresa? Dejará de mostrar el informe inmediatamente.'))return;
+  if(busy||!window.confirm(t('¿Desactivar este enlace de empresa? Dejará de mostrar el informe inmediatamente.')))return;
   setBusy(true);setError('');setInfo('');
   try{const jwt=await token();const r=await fetch('/api/driver/report-shares',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+jwt},body:JSON.stringify({action:'revoke',id})});
-   const j=await r.json();if(!r.ok)throw Error(j.error||'No se pudo desactivar el enlace');
-   setInfo('Enlace desactivado. Ya no se podrá consultar.');setFreshLink(null);await loadGrants();
-  }catch(e:unknown){setError(e instanceof Error?e.message:'No se pudo desactivar');}finally{setBusy(false);}
+   const j=await r.json();if(!r.ok)throw Error(j.error||t('No se pudo desactivar el enlace'));
+   setInfo(t('Enlace desactivado. Ya no se podrá consultar.'));setFreshLink(null);await loadGrants();
+  }catch(e:unknown){setError(e instanceof Error?e.message:t('No se pudo desactivar'));}finally{setBusy(false);}
  };
- const copy=async()=>{if(!freshLink)return;try{await navigator.clipboard.writeText(freshLink);setInfo('Enlace copiado. Cualquiera con él puede consultar los campos elegidos mientras esté activo.');}catch{setInfo('Mantén pulsado el enlace para copiarlo.');}};
+ const copy=async()=>{if(!freshLink)return;try{await navigator.clipboard.writeText(freshLink);setInfo(t('Enlace copiado. Cualquiera con él puede consultar los campos elegidos mientras esté activo.'));}catch{setInfo(t('Mantén pulsado el enlace para copiarlo.'));}};
  return <section id="generar-informe" className="scroll-mt-24 overflow-hidden rounded-2xl border border-blue-200 bg-white shadow-sm">
   <div className="flex flex-wrap items-center justify-between gap-3 bg-gradient-to-r from-[#0d2346] to-[#173d79] p-5 text-white">
    <div><div className="flex items-center gap-2"><FileText className="h-5 w-5 text-blue-200"/><h2 className="text-lg font-extrabold">{t('Informes y acceso para empresas')}</h2></div>
     <p className="mt-1 max-w-xl text-sm text-blue-100">{t('Decide qué fechas y datos quieres mostrar. Descarga, comparte un PDF o crea un enlace web revocable.')}</p>
    </div>
-   <button type="button" onClick={()=>setOpened(!opened)} className="flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-bold text-blue-800"><Settings2 className="h-4 w-4"/>{opened?'Cerrar opciones':'Preparar informe'}{opened?<ChevronUp className="h-4 w-4"/>:<ChevronDown className="h-4 w-4"/>}</button>
+   <button type="button" onClick={()=>setOpened(!opened)} className="flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-bold text-blue-800"><Settings2 className="h-4 w-4"/>{opened?t('Cerrar opciones'):t('Preparar informe')}{opened?<ChevronUp className="h-4 w-4"/>:<ChevronDown className="h-4 w-4"/>}</button>
   </div>
   {opened?<div className="space-y-5 p-4 sm:p-6">
-   {reportRestricted?<p role="status" className="rounded-xl border border-blue-200 p-3 text-sm text-blue-800">Los informes nuevos están reservados para Pro en tu cuenta piloto. <a className="underline" href="/planes">Consultar suscripciones</a>. Puedes gestionar o revocar los enlaces anteriores.</p>:null}
+   {reportRestricted?<p role="status" className="rounded-xl border border-blue-200 p-3 text-sm text-blue-800">{t("Los informes nuevos están reservados para Pro en tu cuenta piloto.")} <a className="underline" href="/planes">{t("Consultar suscripciones")}</a>. {t("Puedes gestionar o revocar los enlaces anteriores.")}</p>:null}
    <div className="grid gap-3 sm:grid-cols-2"><label className="text-sm font-semibold text-slate-800">{t('Desde')}<input type="date" value={from} max={to} onChange={e=>setFrom(e.target.value)} className="mt-2 w-full rounded-xl border border-slate-300 p-3 text-slate-900"/></label><label className="text-sm font-semibold text-slate-800">{t('Hasta')}<input type="date" value={to} min={from} max={today()} onChange={e=>setTo(e.target.value)} className="mt-2 w-full rounded-xl border border-slate-300 p-3 text-slate-900"/></label></div>
    <div><div className="mb-3 flex flex-wrap items-center justify-between gap-2"><h3 className="text-sm font-bold text-slate-900">{t('Selecciona los datos que aparecerán')}</h3><div className="flex gap-2"><button type="button" className="text-xs font-bold text-blue-700" onClick={()=>setFields(DEFAULT_REPORT_FIELDS)}>{t('Básico')}</button><button type="button" className="text-xs font-bold text-blue-700" onClick={()=>setFields(REPORT_FIELD_OPTIONS.map(x=>x.key))}>{t('Todos')}</button></div></div>
     <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">{REPORT_FIELD_OPTIONS.map(x=><label key={x.key} className={'flex items-start gap-2 rounded-xl border p-3 text-xs sm:text-sm '+(fields.includes(x.key)?'border-blue-300 bg-blue-50 text-blue-900':'border-slate-200 text-slate-600')}><input type="checkbox" checked={fields.includes(x.key)} onChange={()=>switchField(x.key)} className="mt-0.5 h-4 w-4 accent-blue-700"/>{t(x.label)}</label>)}</div>
@@ -116,11 +116,11 @@ export function DriverReportManager({name}:{name:string}){
    <div className="grid gap-2 sm:grid-cols-2"><button type="button" onClick={()=>void action('download')} disabled={busy||reportRestricted} className="flex items-center justify-center gap-2 rounded-xl border border-blue-300 bg-white px-4 py-3 font-bold text-blue-800 disabled:opacity-50"><Download className="h-4 w-4"/>{t('Descargar PDF personalizado')}</button><button type="button" onClick={()=>void action('share')} disabled={busy||reportRestricted} className="flex items-center justify-center gap-2 rounded-xl bg-blue-700 px-4 py-3 font-bold text-white disabled:opacity-50"><Share2 className="h-4 w-4"/>{t('Compartir PDF')}</button></div>
    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4"><div className="flex items-center gap-2"><ShieldCheck className="h-5 w-5 text-blue-700"/><h3 className="font-bold text-slate-900">{t('Crear panel web para tu empresa')}</h3></div><p className="mt-2 text-sm text-slate-600">{t('La empresa podrá abrir el historial permitido desde un enlace. No tendrá acceso a tu cuenta ni a fechas o datos no autorizados.')}</p>
     <label className="mt-3 block text-sm font-semibold text-slate-800">{t('Caducidad del enlace')}<select value={expireDays} onChange={e=>setExpireDays(Number(e.target.value))} className="mt-2 w-full rounded-xl border border-slate-300 bg-white p-3"><option value={1}>{t('24 horas')}</option><option value={7}>{t('7 días')}</option><option value={30}>{t('30 días')}</option></select></label>
-    <button type="button" disabled={busy||reportRestricted} onClick={()=>void action('link')} className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-[#0d2346] px-4 py-3 font-bold text-white disabled:opacity-50"><Link2 className="h-4 w-4"/>{busy?'Procesando…':'Generar enlace privado'}</button>
+    <button type="button" disabled={busy||reportRestricted} onClick={()=>void action('link')} className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-[#0d2346] px-4 py-3 font-bold text-white disabled:opacity-50"><Link2 className="h-4 w-4"/>{busy?t('Procesando…'):t('Generar enlace privado')}</button>
     {freshLink?<div className="mt-3 rounded-xl border border-blue-200 bg-white p-3"><p className="text-xs font-bold text-blue-700">{t('Nuevo enlace (guárdalo ahora)')}</p><div className="mt-2 flex items-center gap-2"><input readOnly value={freshLink} aria-label={t('Enlace privado')} onFocus={e=>e.currentTarget.select()} className="min-w-0 flex-1 rounded-lg border p-2 text-xs"/><button type="button" onClick={()=>void copy()} className="rounded-lg bg-blue-600 p-2 text-white" aria-label={t('Copiar enlace')}><Copy className="h-4 w-4"/></button></div><p className="mt-2 text-xs text-slate-500">{t('Por seguridad el enlace completo solo se muestra al crearlo. Si lo pierdes, revoca el anterior y genera uno nuevo.')}</p></div>:null}
    </div>
-   <div><button type="button" onClick={()=>{setLinksOpen(!linksOpen);if(!linksOpen)void loadGrants();}} className="flex w-full items-center justify-between rounded-xl border border-slate-200 p-3 text-left font-semibold text-slate-900">Gestionar enlaces de empresa ({grants.filter(g=>!g.revoked_at&&new Date(g.expires_at).getTime()>Date.now()).length} activos){linksOpen?<ChevronUp className="h-5 w-5"/>:<ChevronDown className="h-5 w-5"/>}</button>
-    {linksOpen?<div className="divide-y rounded-xl border border-slate-200">{!grants.length?<p className="p-4 text-sm text-slate-500">{t('Todavía no hay enlaces creados.')}</p>:grants.map(g=>{const active=!g.revoked_at&&new Date(g.expires_at).getTime()>Date.now();return <div key={g.id} className="flex flex-wrap items-center justify-between gap-3 p-3"><div><p className="text-sm font-bold text-slate-900">{g.date_from} → {g.date_to}</p><p className="mt-1 text-xs text-slate-500">{active?t('Activo hasta')+' ' +new Date(g.expires_at).toLocaleDateString(locale==='ar'?'ar':locale==='fr'?'fr-FR':locale==='en'?'en-GB':'es-ES'):g.revoked_at?t('Desactivado'):t('Caducado')} · {g.fields.length} campos autorizados</p></div>{active?<button type="button" onClick={()=>void revoke(g.id)} disabled={busy} className="flex items-center gap-1 rounded-lg border border-red-200 px-3 py-2 text-xs font-bold text-red-700"><Trash2 className="h-4 w-4"/>{t('Desactivar')}</button>:null}</div>;})}</div>:null}
+   <div><button type="button" onClick={()=>{setLinksOpen(!linksOpen);if(!linksOpen)void loadGrants();}} className="flex w-full items-center justify-between rounded-xl border border-slate-200 p-3 text-left font-semibold text-slate-900" >{t('Gestionar enlaces de empresa')} ({grants.filter(g=>!g.revoked_at&&new Date(g.expires_at).getTime()>Date.now()).length} {t('activos')}){linksOpen?<ChevronUp className="h-5 w-5"/>:<ChevronDown className="h-5 w-5"/>}</button>
+    {linksOpen?<div className="divide-y rounded-xl border border-slate-200">{!grants.length?<p className="p-4 text-sm text-slate-500">{t('Todavía no hay enlaces creados.')}</p>:grants.map(g=>{const active=!g.revoked_at&&new Date(g.expires_at).getTime()>Date.now();return <div key={g.id} className="flex flex-wrap items-center justify-between gap-3 p-3"><div><p className="text-sm font-bold text-slate-900">{g.date_from} → {g.date_to}</p><p className="mt-1 text-xs text-slate-500">{active?t('Activo hasta')+' ' +new Date(g.expires_at).toLocaleDateString(locale==='ar'?'ar':locale==='fr'?'fr-FR':locale==='en'?'en-GB':'es-ES'):g.revoked_at?t('Desactivado'):t('Caducado')} · {g.fields.length} {t('campos autorizados')}</p></div>{active?<button type="button" onClick={()=>void revoke(g.id)} disabled={busy} className="flex items-center gap-1 rounded-lg border border-red-200 px-3 py-2 text-xs font-bold text-red-700"><Trash2 className="h-4 w-4"/>{t('Desactivar')}</button>:null}</div>;})}</div>:null}
    </div>
    {error?<p role="alert" className="rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</p>:null}
    {info?<p role="status" className="rounded-xl bg-green-50 p-3 text-sm text-green-800">{info}</p>:null}
