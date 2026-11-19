@@ -10,6 +10,12 @@ const today=()=>new Date().toLocaleDateString('en-CA');
 const monthAgo=()=>{const d=new Date();d.setDate(d.getDate()-30);return d.toLocaleDateString('en-CA');};
 export function DriverReportManager({name}:{name:string}){
  const [opened,setOpened]=useState(false),[from,setFrom]=useState(monthAgo),[to,setTo]=useState(today);
+ useEffect(()=>{
+  if(window.location.hash !== "#generar-informe")return;
+  setOpened(true);
+  const frame=window.requestAnimationFrame(()=>document.getElementById("generar-informe")?.scrollIntoView({behavior:"smooth",block:"start"}));
+  return()=>window.cancelAnimationFrame(frame);
+ },[]);
  const [fields,setFields]=useState<ReportField[]>(DEFAULT_REPORT_FIELDS);
  const [expireDays,setExpireDays]=useState(7);
  const [busy,setBusy]=useState(false),[error,setError]=useState(''),[info,setInfo]=useState('');
@@ -91,7 +97,7 @@ export function DriverReportManager({name}:{name:string}){
   }catch(e:unknown){setError(e instanceof Error?e.message:'No se pudo desactivar');}finally{setBusy(false);}
  };
  const copy=async()=>{if(!freshLink)return;try{await navigator.clipboard.writeText(freshLink);setInfo('Enlace copiado. Cualquiera con él puede consultar los campos elegidos mientras esté activo.');}catch{setInfo('Mantén pulsado el enlace para copiarlo.');}};
- return <section className="overflow-hidden rounded-2xl border border-blue-200 bg-white shadow-sm">
+ return <section id="generar-informe" className="scroll-mt-24 overflow-hidden rounded-2xl border border-blue-200 bg-white shadow-sm">
   <div className="flex flex-wrap items-center justify-between gap-3 bg-gradient-to-r from-[#0d2346] to-[#173d79] p-5 text-white">
    <div><div className="flex items-center gap-2"><FileText className="h-5 w-5 text-blue-200"/><h2 className="text-lg font-extrabold">Informes y acceso para empresas</h2></div>
     <p className="mt-1 max-w-xl text-sm text-blue-100">Decide qué fechas y datos quieres mostrar. Descarga, comparte un PDF o crea un enlace web revocable.</p>
