@@ -28,8 +28,8 @@ export function buildTripPushMessages(tokens: string[], trip: TripPayload) {
     to,
     title,
     body: `${trip.cliente} · ${trip.firstStop}`,
-    sound: "tacoplan_viaje.wav",
-    channelId: "traffic-assigned-v1",
+    sound: "tacoplan_viaje_3.wav",
+    channelId: "traffic-assigned-v2",
     priority: "high" as const,
     data: {
       target: "viaje",
