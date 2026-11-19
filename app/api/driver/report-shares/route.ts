@@ -38,14 +38,15 @@ export async function POST(req:NextRequest){
  if(body?.action!=='create')return response({error:'Acción no admitida'},400);
  // Free mode leaves all report features unlocked. When enabled, Pro is required
  // unless the driver has a complimentary Pro grant.
- const [settings,grant,pilot,sub]=await Promise.all([
+ const [settings,grant,pilot,sub,member]=await Promise.all([
   a.db.from('tp_subscription_runtime').select('restrictions_enabled').eq('id',1).single(),
   a.db.from('tp_subscription_grants').select('plan,enabled').eq('user_id',a.id).maybeSingle(),
   a.db.from('tp_driver_pilot_access').select('enabled,pro_access').eq('user_id',a.id).maybeSingle(),
-  a.db.from('tp_driver_subscriptions').select('price_slug,status').eq('user_id',a.id).maybeSingle()
+  a.db.from('tp_driver_subscriptions').select('price_slug,status').eq('user_id',a.id).maybeSingle(),
+  a.db.from('tp_company_members').select('id').eq('user_id',a.id).eq('active',true).in('role',['driver','traffic','hr']).limit(1)
  ]);
- if(settings.error||grant.error||pilot.error||sub.error)return response({error:'No se pudieron verificar los permisos'},503);
- if(settings.data?.restrictions_enabled===true){
+ if(settings.error||grant.error||pilot.error||sub.error||member.error)return response({error:'No se pudieron verificar los permisos'},503);
+ if(settings.data?.restrictions_enabled===true&&!member.data?.length){
   const gifted=grant.data?.enabled===true&&grant.data.plan==='pro';
   const legacyPilot=pilot.data?.enabled===true&&pilot.data.pro_access===true;
   const paid=!!sub.data&&sub.data.price_slug.startsWith('pro')&&['active','trialing'].includes(sub.data.status);
