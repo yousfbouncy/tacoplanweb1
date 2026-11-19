@@ -38,6 +38,19 @@ export default function RootLayout({
   return (
     <html lang="es">
       <body className={inter.className}>
+        {/* Recovery URLs from older app versions may fall back to the Site URL.
+            Intercept only recovery fragments, before client-side auth initializes. */}
+        <script dangerouslySetInnerHTML={{ __html: `(function(){try{
+          var locationPath=window.location.pathname;
+          if(locationPath!=='/'&&locationPath!=='/auth/callback'&&locationPath!=='/auth/confirm')return;
+          var hash=window.location.hash;
+          var hp=new URLSearchParams(hash.slice(1));
+          var qs=new URLSearchParams(window.location.search);
+          var type=hp.get('type')||qs.get('type');
+          if(type!=='recovery')return;
+          if(!hp.has('access_token')&&!hp.has('error')&&!qs.has('token_hash')&&!qs.has('code')&&!qs.has('error'))return;
+          window.location.replace('/restablecer-contrasena'+window.location.search+hash);
+        }catch(e){}})();` }} />
         <AuthProvider>
           <div className="flex flex-col min-h-screen">
             <WebAnalyticsTracker />
