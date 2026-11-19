@@ -3,7 +3,7 @@ import {useEffect,useState} from 'react';
 import Link from 'next/link';
 import {supabase} from '@/lib/supabase';
 type Plan={slug:string;monthly_cents:number;annual_cents:number|null;trial_days:number};
-type Data={billing_enabled:boolean;restrictions_enabled?:boolean;all_features_unlocked?:boolean;complimentary_plan?:'plus'|'pro'|null;can_manage_subscription?:boolean;pilot_access?:boolean;pro_access?:boolean;effective_plan?:'free'|'plus'|'pro';audience:string;plans:Plan[];subscription:{status:string}|null};
+type Data={employee_free?:boolean;billing_enabled:boolean;restrictions_enabled?:boolean;all_features_unlocked?:boolean;complimentary_plan?:'plus'|'pro'|null;can_manage_subscription?:boolean;pilot_access?:boolean;pro_access?:boolean;effective_plan?:'free'|'plus'|'pro';audience:string;plans:Plan[];subscription:{status:string}|null};
 export default function DriverPlansClient(){
  const [info,setInfo]=useState<Data|null>(null),[busy,setBusy]=useState(false),[error,setError]=useState(''),[needsLogin,setNeedsLogin]=useState(false);
  const request=async(action?:'checkout'|'portal',plan?:string,interval?:'month'|'year',skipTrial=false)=>{
@@ -26,12 +26,13 @@ export default function DriverPlansClient(){
   <p>Plus y Pro incluyen siete días de prueba gratuita si todavía no la has utilizado. Consulta el precio y la fecha de renovación antes de confirmar.</p>
   {error&&<div role="alert" className="rounded border border-red-500 p-3 text-red-700"><p>{error}</p>{needsLogin&&<Link href="/login?next=%2Fplanes" className="mt-3 inline-block rounded bg-blue-700 px-4 py-2 font-semibold text-white">Iniciar sesión para ver planes</Link>}</div>}
   {info&&<div role="status" className="space-y-2 rounded-xl border border-blue-100 bg-blue-50 p-4 text-sm text-blue-900">
-   <p className="font-semibold">{info.all_features_unlocked?'Tacoplan gratis · todas las funciones disponibles':('Plan actual: '+(info.effective_plan==='pro'?'Pro':info.effective_plan==='plus'?'Plus':'Gratis'))}</p>
+   <p className="font-semibold">{info.employee_free?'Plan Empleado · Gratis (0 €), incluido por tu empresa':info.all_features_unlocked?'Tacoplan gratis · todas las funciones disponibles':('Plan actual: '+(info.effective_plan==='pro'?'Pro':info.effective_plan==='plus'?'Plus':'Gratis'))}</p>
+   {info.employee_free?<p>Tu cuenta está vinculada a una empresa activa. No necesitas contratar Plus ni Pro personalmente y tienes las funciones disponibles mientras continúe la vinculación.</p>:null}
    <p>{'Suscripción registrada: '+(info.subscription?.status||'Sin suscripción')+' · '}{info.billing_enabled?'Contratación disponible':'Contratación desactivada'}</p>
    {info.complimentary_plan?<p>Acceso gratuito de administración: {info.complimentary_plan.toUpperCase()}</p>:null}
    {!info.restrictions_enabled?<p>Las restricciones por plan todavía no están activadas. No se bloquea ninguna función.</p>:null}
   </div>}
-  <div className="grid gap-4 md:grid-cols-3">
+  {!info?.employee_free&&<div className="grid gap-4 md:grid-cols-3">
   {(['free','plus','pro'] as const).map(tier=>{
    const p=tier==='free'?null:chosen(tier);
    return <section key={tier} className="space-y-4 rounded-xl border p-5">
@@ -43,8 +44,8 @@ export default function DriverPlansClient(){
     {p?.annual_cents!=null&&<button className="w-full rounded border p-3 disabled:opacity-40" disabled={busy||!info?.billing_enabled} onClick={()=>void request('checkout',tier,'year')}>Anual {price(p.annual_cents)}</button>}
    </section>;
   })}
-  </div>
+  </div>}
   {info?.can_manage_subscription&&<button disabled={busy} className="rounded border px-4 py-3 disabled:opacity-40" onClick={()=>void request('portal')}>Gestionar o cancelar suscripción</button>}
-  <p className="text-sm text-gray-600">{info?.pilot_access?'El piloto no concede Pro gratis: el acceso dependerá de la suscripción contratada. ':' '}Las suscripciones se renuevan automáticamente hasta su cancelación. Stripe muestra el importe y las condiciones antes de aceptar el pago.</p>
+  {!info?.employee_free&&<p className="text-sm text-gray-600">{info?.pilot_access?'El piloto no concede Pro gratis: el acceso dependerá de la suscripción contratada. ':' '}Las suscripciones se renuevan automáticamente hasta su cancelación. Stripe muestra el importe y las condiciones antes de aceptar el pago.</p>}
  </main>;
 }
