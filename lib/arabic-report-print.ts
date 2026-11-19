@@ -41,11 +41,13 @@ export function printArabicReport(report:SharedReportData,existingPopup?:Window|
    'table{border-collapse:collapse;width:100%}th,td{text-align:right;vertical-align:top;padding:7px 9px;border-bottom:1px solid #e5eaf0}th{width:32%;background:#f2f6fc;color:#315070}'+
    'footer{border-top:1px solid #ccc;color:#667;margin-top:20px;padding-top:10px;font-size:10px}.print{margin:12px 0;background:#1266cd;border:0;color:white;padding:10px 16px;cursor:pointer}'+
    '@media print{.print{display:none}header{-webkit-print-color-adjust:exact;print-color-adjust:exact}}'+
-   '</style></head><body><button class="print" onclick="window.print()">طباعة أو حفظ PDF</button>'+
+   '</style></head><body><button id="print-report" class="print" type="button">طباعة أو حفظ PDF</button>'+
    '<header><h1>TACOPLAN · '+escapeHtml(title)+'</h1><p>'+escapeHtml(tr('PERIODO: '))+' '+escapeHtml(report.from)+' — '+escapeHtml(report.to)+'</p>'+
    (fields.has('driver_name')&&report.driverName?'<p>'+escapeHtml(tr('Conductor: '))+escapeHtml(report.driverName)+'</p>':'')+
    '</header><h2>'+escapeHtml(tr('Jornadas'))+': '+report.rows.length+'</h2>'+
    cards+'<footer>'+escapeHtml(tr('Solo se incluyen las fechas y datos autorizados por el conductor.'))+'</footer></body></html>';
- popup.document.open();popup.document.write(html);popup.document.close();popup.focus();
+ popup.document.open();popup.document.write(html);popup.document.close();
+ popup.document.getElementById("print-report")?.addEventListener("click",()=>popup.print());
+ popup.focus();
  return true;
 }
