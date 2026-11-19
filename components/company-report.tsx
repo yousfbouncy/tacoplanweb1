@@ -96,7 +96,7 @@ export function CompanyReport({token}:{token:string}){
    <section className="rounded-2xl border border-[#2c4263] bg-[#12233f] p-4 sm:p-6">
     <div className="flex flex-wrap items-center justify-between gap-3">
      <div><h2 className="text-lg font-bold">{report.driverName||t('Informe compartido por un conductor')}</h2><p className="mt-1 text-xs text-slate-400">{t("Datos autorizados por el conductor")}</p></div>
-     <div className="flex gap-2"><button type="button" onClick={()=>void refresh()} className="rounded-xl border border-[#395477] p-2" aria-label={t('Actualizar')}><RefreshCw className="h-5 w-5"/></button><button onClick={download} type="button" className="flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-bold text-white"><Download className="h-4 w-4"/>{t("Descargar PDF")}</button></div>
+     <div className="flex gap-2"><button type="button" onClick={()=>void refresh()} className="rounded-xl border border-[#395477] p-2" aria-label={t('Actualizar')}><RefreshCw className="h-5 w-5"/></button><button onClick={download} type="button" className="flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-bold text-white"><Download className="h-4 w-4"/>{locale==="ar"?t("Imprimir o guardar PDF en árabe"):t("Descargar PDF")}</button></div>
     </div>
     <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
      <label className="text-xs font-bold text-slate-300">{t("Desde")}<input type="date" min={report.from} max={to} value={from} onChange={e=>{setFrom(e.target.value);setPage(1);}} className="mt-1 w-full rounded-lg border border-[#3a5579] bg-[#0c1a32] p-2 text-sm text-white [color-scheme:dark]"/></label>
