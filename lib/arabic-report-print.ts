@@ -6,8 +6,8 @@ import {reportLabel} from '@/lib/selected-report-pdf';
 const escapeHtml=(value:unknown)=>String(value??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]!));
 const minutes=(value:number|null)=>value===null?'—':Math.floor(value/60)+' س '+String(Math.round(value%60)).padStart(2,'0')+' د';
 const euros=(value:number|null)=>value===null?'—':new Intl.NumberFormat('ar',{style:'currency',currency:'EUR'}).format(value);
-export function printArabicReport(report:SharedReportData):boolean {
- const popup=window.open('','_blank');
+export function printArabicReport(report:SharedReportData,existingPopup?:Window|null):boolean {
+ const popup=existingPopup||window.open('','_blank');
  if(!popup)return false;
  const tr=(x:string)=>reportLabel('ar',x);
  const row=(label:string,value:unknown)=>'<tr><th>'+escapeHtml(label)+'</th><td>'+escapeHtml(value)+'</td></tr>';
