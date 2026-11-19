@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
 import { DriverDrivingInsights } from '@/components/driver-driving-insights';
+import { DriverReportManager } from '@/components/driver-report-manager';
 import { CalendarDays, Clock3, Truck, Wallet, ShieldCheck, LogOut, RefreshCw, ChevronDown, ChevronUp, LockKeyhole } from 'lucide-react';
 
 type Jornada = {
@@ -142,6 +143,7 @@ export function DriverPortal(){
   <div className="grid gap-3 sm:grid-cols-3"><div className="rounded-2xl border bg-white p-4"><p className="text-xs text-slate-500">Cuenta</p><p className="mt-1 break-all text-sm font-semibold text-slate-900">{user.email||'Correo oculto por el proveedor'}</p></div><div className="rounded-2xl border bg-white p-4"><p className="text-xs text-slate-500">Base configurada</p><p className="mt-1 text-sm font-semibold text-slate-900">{profile?.base_name||profile?.base_city||'Sin configurar'}</p></div><div className="rounded-2xl border bg-white p-4"><p className="text-xs text-slate-500">Configuración inicial</p><p className="mt-1 text-sm font-semibold text-slate-900">{profile?.onboarding_completed?'Completada':'Pendiente'}</p></div></div>
   {error?<div role="alert" className="rounded-xl bg-red-50 p-4 text-sm text-red-700">{error}</div>:null}
   <DriverDrivingInsights jornadas={jornadas} name={displayName} base={profile?.base_name||profile?.base_city||'No configurada'} reportRows={rows} reportPeriod={period==='all'?'Todos los registros cargados':'Últimos '+period+' días'} />
+  <DriverReportManager name={displayName} />
   <section className="space-y-4"><div className="flex flex-wrap items-center justify-between gap-3"><h2 className="text-xl font-bold text-slate-900">Resumen de tus registros</h2><select aria-label="Periodo" value={period} onChange={e=>setPeriod(e.target.value as Period)} className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm"><option value="7">Últimos 7 días</option><option value="14">Últimos 14 días</option><option value="30">Últimos 30 días</option><option value="all">Todos los registros cargados</option></select></div>
   <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
    {[{icon:CalendarDays,label:'Jornadas registradas',value:String(rows.length)},
