@@ -15,8 +15,8 @@ test('traffic push accepts both Expo token formats and deduplicates devices',()=
   'ExponentPushToken[abc]','ExponentPushToken[abc]','ExpoPushToken[xyz]','invalid'
  ],trip);
  assert.equal(result.length,2);
- assert.equal(result[0].sound,'tacoplan_viaje.wav');
- assert.equal(result[0].channelId,'traffic-assigned-v1');
+ assert.equal(result[0].sound,'tacoplan_viaje_3.wav');
+ assert.equal(result[0].channelId,'traffic-assigned-v2');
  assert.equal(result[0].data.target,'viaje');
  assert.equal(result[0].data.tripId,'traffic-trip-1');
  assert.equal(result[0].data.eventId,'assigned:traffic-trip-1');
