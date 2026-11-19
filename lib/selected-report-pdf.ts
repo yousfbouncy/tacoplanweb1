@@ -13,7 +13,7 @@ const escapePdf=(v:string)=>latin(v).replace(/\\/g,'\\\\').replace(/\(/g,'\\(').
 const winAnsi=(s:string)=>{const b=new Uint8Array(s.length);for(let i=0;i<s.length;i++){const c=s.charCodeAt(i);b[i]=c===8364?128:c<=255?c:63;}return b;};
 const formattedDate=(d:string)=>{const [yy,mm,dd]=d.split('-');return dd&&mm&&yy?dd+'/'+mm+'/'+yy:d;};
 const dateTime=(d:string|null,t:string|null)=>formattedDate(d||'')+(t?' '+t:'');
-const routeLabel=(type:string|null)=>truncate((type||tx('Sin tipo de ruta')).toUpperCase(),24);
+const routeLabel=(type:string|null)=>truncate((type||'Sin tipo de ruta').toUpperCase(),24);
 
 // Original illustration adapted from the approved Tacoplan report preview.
 // Embedded once so PDF exports work offline and retain their visual identity.
@@ -83,7 +83,7 @@ export function buildSelectedReportPdf(report:SharedReportData,locale:PdfReportL
  if(report.fields.includes('driver_name')&&report.driverName){
   text(38,y,truncate(tx('Conductor: ')+report.driverName,93),8);y-=15;
  }
- text(38,y,tx('Generado: ')+new Date(report.generatedAt).toLocaleString('es-ES'),7,false,'0.38 0.46 0.56');y-=20;
+ text(38,y,tx('Generado: ')+new Date(report.generatedAt).toLocaleString(locale==='fr'?'fr-FR':locale==='en'?'en-GB':'es-ES'),7,false,'0.38 0.46 0.56');y-=20;
 
  const fields=report.fields;
  const summaries:[string,string][]=[[tx('Jornadas'),String(report.rows.length)]];
@@ -122,9 +122,9 @@ export function buildSelectedReportPdf(report:SharedReportData,locale:PdfReportL
  // Compact breakdown by recorded diet type, for the current authorised/filtered rows only.
  if(fields.includes('diet_type')){
   const categories=[
-   {label:tx('NACIONAL'),test:(kind:string)=>kind.includes(tx('NACIONAL'))&&!kind.includes(tx('INTERNACIONAL'))},
-   {label:tx('INTERNACIONAL'),test:(kind:string)=>kind.includes(tx('INTERNACIONAL'))||kind.includes('INTERNATIONAL')},
-   {label:tx('REGIONAL'),test:(kind:string)=>kind.includes(tx('REGIONAL'))}
+   {label:tx('NACIONAL'),test:(kind:string)=>kind.includes('NACIONAL')&&!kind.includes('INTERNACIONAL')},
+   {label:tx('INTERNACIONAL'),test:(kind:string)=>kind.includes('INTERNACIONAL')||kind.includes('INTERNATIONAL')},
+   {label:tx('REGIONAL'),test:(kind:string)=>kind.includes('REGIONAL')}
   ];
   const counts=categories.map(cat=>{
    const matches=report.rows.filter(r=>cat.test((r.dietType||'').toUpperCase()));
