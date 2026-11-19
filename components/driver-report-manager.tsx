@@ -1,6 +1,6 @@
 'use client';
 import { useEffect,useState } from 'react';
-import {useDriverWebLocale} from '@/lib/driver-web-locale';
+import {useDriverWebLocale,type DriverWebLocale} from '@/lib/driver-web-locale';
 import {Download,Share2,Link2,Copy,ShieldCheck,Trash2,ChevronDown,ChevronUp,Settings2,FileText} from 'lucide-react';
 import {supabase} from '@/lib/supabase';
 import {REPORT_FIELD_OPTIONS,DEFAULT_REPORT_FIELDS,REPORT_DB_COLUMNS,validDate,ReportField,SharedReportData,RawReportJornada,mapReportRow,redactRows} from '@/lib/report-sharing';
@@ -11,6 +11,7 @@ const today=()=>new Date().toLocaleDateString('en-CA');
 const monthAgo=()=>{const d=new Date();d.setDate(d.getDate()-30);return d.toLocaleDateString('en-CA');};
 export function DriverReportManager({name}:{name:string}){
  const {locale,t}=useDriverWebLocale();
+ const [reportLocale,setReportLocale]=useState<DriverWebLocale>("es");
  const [opened,setOpened]=useState(false),[from,setFrom]=useState(monthAgo),[to,setTo]=useState(today);
  useEffect(()=>{
   if(window.location.hash !== "#generar-informe")return;
@@ -108,6 +109,7 @@ export function DriverReportManager({name}:{name:string}){
   </div>
   {opened?<div className="space-y-5 p-4 sm:p-6">
    {reportRestricted?<p role="status" className="rounded-xl border border-blue-200 p-3 text-sm text-blue-800">{t("Los informes nuevos están reservados para Pro en tu cuenta piloto.")} <a className="underline" href="/planes">{t("Consultar suscripciones")}</a>. {t("Puedes gestionar o revocar los enlaces anteriores.")}</p>:null}
+   <div className="mb-3"><label className="block text-sm font-semibold text-slate-800">{t('Idioma del informe')}<select aria-label={t('Idioma del informe')} value={reportLocale} onChange={e=>setReportLocale(e.target.value as DriverWebLocale)} className="mt-2 w-full rounded-xl border border-slate-300 bg-white p-3 text-slate-900"><option value="es">Español</option><option value="en">English</option><option value="fr">Français</option><option value="ar">العربية</option></select></label><p className="mt-1 text-xs text-slate-500">{t('El idioma del informe es independiente del idioma de la aplicación.')}</p></div>
    <div className="grid gap-3 sm:grid-cols-2"><label className="text-sm font-semibold text-slate-800">{t('Desde')}<input type="date" value={from} max={to} onChange={e=>setFrom(e.target.value)} className="mt-2 w-full rounded-xl border border-slate-300 p-3 text-slate-900"/></label><label className="text-sm font-semibold text-slate-800">{t('Hasta')}<input type="date" value={to} min={from} max={today()} onChange={e=>setTo(e.target.value)} className="mt-2 w-full rounded-xl border border-slate-300 p-3 text-slate-900"/></label></div>
    <div><div className="mb-3 flex flex-wrap items-center justify-between gap-2"><h3 className="text-sm font-bold text-slate-900">{t('Selecciona los datos que aparecerán')}</h3><div className="flex gap-2"><button type="button" className="text-xs font-bold text-blue-700" onClick={()=>setFields(DEFAULT_REPORT_FIELDS)}>{t('Básico')}</button><button type="button" className="text-xs font-bold text-blue-700" onClick={()=>setFields(REPORT_FIELD_OPTIONS.map(x=>x.key))}>{t('Todos')}</button></div></div>
     <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">{REPORT_FIELD_OPTIONS.map(x=><label key={x.key} className={'flex items-start gap-2 rounded-xl border p-3 text-xs sm:text-sm '+(fields.includes(x.key)?'border-blue-300 bg-blue-50 text-blue-900':'border-slate-200 text-slate-600')}><input type="checkbox" checked={fields.includes(x.key)} onChange={()=>switchField(x.key)} className="mt-0.5 h-4 w-4 accent-blue-700"/>{t(x.label)}</label>)}</div>
