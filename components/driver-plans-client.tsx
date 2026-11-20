@@ -3,7 +3,7 @@ import {useEffect,useState} from 'react';
 import Link from 'next/link';
 import {supabase} from '@/lib/supabase';
 type Plan={slug:string;monthly_cents:number;annual_cents:number|null;trial_days:number};
-type Data={billing_enabled:boolean;restrictions_enabled?:boolean;all_features_unlocked?:boolean;complimentary_plan?:'plus'|'pro'|null;can_manage_subscription?:boolean;pilot_access?:boolean;pro_access?:boolean;effective_plan?:'free'|'plus'|'pro';audience:string;plans:Plan[];subscription:{status:string}|null};
+type Data={policy?:{history_days:number|null;trial_days:number;duration_days:number|null}|null;billing_enabled:boolean;restrictions_enabled?:boolean;all_features_unlocked?:boolean;complimentary_plan?:'plus'|'pro'|null;can_manage_subscription?:boolean;pilot_access?:boolean;pro_access?:boolean;effective_plan?:'free'|'plus'|'pro';audience:string;plans:Plan[];subscription:{status:string}|null};
 export default function DriverPlansClient(){
  const [info,setInfo]=useState<Data|null>(null),[busy,setBusy]=useState(false),[error,setError]=useState(''),[needsLogin,setNeedsLogin]=useState(false);
  const request=async(action?:'checkout'|'portal',plan?:string,interval?:'month'|'year',skipTrial=false)=>{
@@ -23,7 +23,7 @@ export default function DriverPlansClient(){
  const chosen=(tier:'plus'|'pro')=>info?.plans.find(p=>p.slug===(info.audience==='founder'?(tier==='plus'?'plus_existing':'pro_founder'):info.audience==='existing'?tier+'_existing':tier));
  return <main className="mx-auto max-w-5xl space-y-7 px-4 py-12">
   <h1 className="text-3xl font-bold">Planes Tacoplan</h1>
-  <p>Plus y Pro incluyen siete días de prueba gratuita si todavía no la has utilizado. Consulta el precio y la fecha de renovación antes de confirmar.</p>
+  <p>La duración de la prueba gratuita depende del plan y aparece antes de contratar. Consulta el precio y la fecha de renovación antes de confirmar.</p>
   {error&&<div role="alert" className="rounded border border-red-500 p-3 text-red-700"><p>{error}</p>{needsLogin&&<Link href="/login?next=%2Fplanes" className="mt-3 inline-block rounded bg-blue-700 px-4 py-2 font-semibold text-white">Iniciar sesión para ver planes</Link>}</div>}
   {info&&<div role="status" className="space-y-2 rounded-xl border border-blue-100 bg-blue-50 p-4 text-sm text-blue-900">
    <p className="font-semibold">{info.all_features_unlocked?'Tacoplan gratis · todas las funciones disponibles':('Plan actual: '+(info.effective_plan==='pro'?'Pro':info.effective_plan==='plus'?'Plus':'Gratis'))}</p>
@@ -37,8 +37,8 @@ export default function DriverPlansClient(){
    return <section key={tier} className="space-y-4 rounded-xl border p-5">
     <h2 className="text-xl font-bold">{tier==='free'?'Gratis':tier==='plus'?'Plus':'Pro'}</h2>
     <p className="text-2xl font-semibold">{p?price(p.monthly_cents)+'/mes':'0 €'}</p>
-    <p>{tier==='free'?'Jornadas y descansos; historial 30 días':tier==='plus'?'AutoStart, dietas y pluses; historial 12 meses':'Acceso completo con estimación de nómina e informes PDF'}</p>
-    {p&&<button className="w-full rounded bg-blue-700 p-3 text-white disabled:opacity-40" disabled={busy||!info?.billing_enabled} onClick={()=>void request('checkout',tier,'month')}>Elegir mensual · con prueba gratuita</button>}
+    <p>{tier==='free'?'Jornadas y descansos; historial según las condiciones del plan Gratis':tier==='plus'?'AutoStart, dietas y pluses; historial 12 meses':'Acceso completo con estimación de nómina e informes PDF'}</p>
+    {p&&<button className="w-full rounded bg-blue-700 p-3 text-white disabled:opacity-40" disabled={busy||!info?.billing_enabled} onClick={()=>void request('checkout',tier,'month')}>Elegir mensual · {p.trial_days>0?p.trial_days+' días de prueba':'sin prueba'}</button>}
     {p&&<button className="w-full rounded border border-blue-700 p-3 font-semibold text-blue-700 disabled:opacity-40" disabled={busy||!info?.billing_enabled} onClick={()=>void request('checkout',tier,'month',true)}>Contratar y pagar ahora (sin prueba gratuita)</button>}
     {p?.annual_cents!=null&&<button className="w-full rounded border p-3 disabled:opacity-40" disabled={busy||!info?.billing_enabled} onClick={()=>void request('checkout',tier,'year')}>Anual {price(p.annual_cents)}</button>}
    </section>;
