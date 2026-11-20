@@ -44,10 +44,12 @@ returns public.tp_plan_policies
 language plpgsql security invoker set search_path = public
 as $$
 declare current_policy public.tp_plan_policies;
+ old_published jsonb;
 begin
   select * into current_policy from public.tp_plan_policies where slug=p_slug for update;
   if not found then raise exception 'Plan no encontrado'; end if;
   if current_policy.version <> p_version then raise exception 'El plan ha cambiado: recarga antes de publicar'; end if;
+  old_published := current_policy.published_config;
   if p_slug in ('plus','pro') then
     update public.tp_subscription_price_catalog
     set trial_days=(current_policy.draft_config->>'trial_days')::integer,updated_at=now()
@@ -57,7 +59,7 @@ begin
   set published_config=draft_config,published_at=now(),updated_at=now(),version=version+1
   where slug=p_slug returning * into current_policy;
   insert into public.tp_plan_policy_audit(plan_slug,action,before_config,after_config)
-  values(p_slug,'publish',null,current_policy.published_config);
+  values(p_slug,'publish',old_published,current_policy.published_config);
   return current_policy;
 end;
 $$;
