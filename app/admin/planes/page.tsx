@@ -1,5 +1,6 @@
 'use client';
 import Link from 'next/link';
+import AdminPlanPolicyEditor from '@/components/admin-plan-policy-editor';
 import { useEffect, useState } from 'react';
 
 type Plan={slug:string;plan:string;audience:string;monthly_cents:number;annual_cents:number|null;trial_days:number};
@@ -54,10 +55,11 @@ export default function AdminPlansPage(){
  return <main className="min-h-screen bg-slate-50 px-4 py-10 text-slate-900">
   <div className="mx-auto max-w-6xl space-y-6">
    <header><div className="flex flex-wrap items-center justify-between gap-3"><h1 className="text-3xl font-extrabold">Planes y suscripciones · Administración</h1><Link href="/admin/suscriptores" className="rounded-lg bg-blue-700 px-4 py-2 font-bold text-white">Gestionar suscriptores y acceso gratis</Link></div>
-    <p className="mt-2 text-slate-600">Edita los precios y revisa usuarios. Activa o desactiva las restricciones desde Suscriptores.</p></header>
+    <p className="mt-2 text-slate-600">Gestiona reglas, pruebas y límites por plan. Guarda un borrador y publica solo cuando estés listo.</p></header>
    {loading?<p>Cargando catálogo…</p>:null}
    {error?<p role="alert" className="rounded-lg border border-red-300 bg-red-50 p-3 text-red-800">{error}. Accede primero con tu sesión de administrador.</p>:null}
    {notice?<p role="status" className="rounded-lg border border-green-200 bg-green-50 p-3 text-green-800">{notice}</p>:null}
+   <AdminPlanPolicyEditor/>
    {payload?<><section className="grid gap-3 md:grid-cols-4">
     {[['Registrados',payload.summary.registered],['Con jornadas en 30 días',payload.summary.recording30],['Fundadores confirmados',payload.summary.eligibleVerified],['Por revisar',payload.summary.eligiblePending]].map(([name,n])=><div key={name} className="rounded-xl bg-white p-4 shadow-sm"><p className="text-sm text-slate-600">{name}</p><p className="text-2xl font-bold">{n}</p></div>)}
    </section>
@@ -67,7 +69,7 @@ export default function AdminPlansPage(){
    </section>
    <section className="rounded-xl bg-white p-5 shadow-sm">
     <h2 className="text-xl font-bold">Precios editables</h2>
-    <p className="mb-4 text-sm text-slate-500">Importes en euros. El anual se cobra una vez al año, no cada mes. Siete días gratis para Plus y Pro.</p>
+    <p className="mb-4 text-sm text-slate-500">Importes en euros. El anual se cobra una vez al año, no cada mes. Los días de prueba se gestionan en el editor de reglas superior y se aplican a nuevas contrataciones.</p>
     <div className="overflow-x-auto"><table className="w-full min-w-[690px] text-left text-sm"><thead><tr className="border-b text-slate-500"><th className="p-2">Modalidad</th><th className="p-2">Mensual</th><th className="p-2">Anual</th><th className="p-2">Prueba</th><th className="p-2">Acción</th></tr></thead>
     <tbody>{payload.plans.map(plan=><tr key={plan.slug} className="border-b last:border-0">
      <td className="p-2 font-semibold">{labels[plan.slug]||plan.slug}</td>
