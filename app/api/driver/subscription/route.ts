@@ -1,5 +1,6 @@
 import { NextRequest,NextResponse } from 'next/server';
 import { adminDatabase,sameOrigin } from '@/lib/admin-users';
+import {validatePlanConfig,type PlanSlug} from '@/lib/plan-policy';
 export const dynamic='force-dynamic';
 const reply=(data:unknown,status=200)=>NextResponse.json(data,{status,headers:{'Cache-Control':'private,no-store'}});
 async function stripe(path:string,params:URLSearchParams){
@@ -23,13 +24,14 @@ async function identify(req:NextRequest){
 }
 export async function GET(req:NextRequest){
  const ctx=await identify(req);if(!ctx)return reply({error:'Inicia sesión'},401);
- const [runtime,catalog,assignment,subscription,pilot,grant]=await Promise.all([
+ const [runtime,catalog,assignment,subscription,pilot,grant,policies]=await Promise.all([
   ctx.db.from('tp_subscription_runtime').select('billing_enabled,restrictions_enabled').eq('id',1).single(),
   ctx.db.from('tp_subscription_price_catalog').select('slug,plan,audience,monthly_cents,annual_cents,trial_days'),
   ctx.db.from('tp_driver_price_entitlements').select('audience').eq('user_id',ctx.user.id).maybeSingle(),
   ctx.db.from('tp_driver_subscriptions').select('price_slug,status,trial_ends_at,current_period_end,trial_used').eq('user_id',ctx.user.id).maybeSingle(),
   ctx.db.from('tp_driver_pilot_access').select('enabled,pro_access,checkout_enabled').eq('user_id',ctx.user.id).maybeSingle(),
-  ctx.db.from('tp_subscription_grants').select('plan,enabled').eq('user_id',ctx.user.id).maybeSingle()
+  ctx.db.from('tp_subscription_grants').select('plan,enabled').eq('user_id',ctx.user.id).maybeSingle(),
+  ctx.db.from('tp_plan_policies').select('slug,published_config')
  ]);
  if(runtime.error||catalog.error||assignment.error||subscription.error||pilot.error||grant.error)return reply({error:'Catálogo no disponible'},503);
  const isPilot=pilot.data?.enabled===true;
@@ -40,12 +42,27 @@ export async function GET(req:NextRequest){
  const gifted=grant.data?.enabled===true?grant.data.plan:null;
  const effectivePlan=gifted==='pro'||isPilot&&pilot.data?.pro_access===true?'pro':gifted==='plus'&&paidTier!=='pro'?'plus':paidTier;
  const restrictionsEnabled=runtime.data?.restrictions_enabled===true;
+ const published=policies.error?[]:(policies.data||[]);
+ const tier=effectivePlan as PlanSlug;
+ const policy=published.find(p=>p.slug===tier);
+ const policyConfig=validatePlanConfig(tier,policy?.published_config);
+ const freePolicy=published.find(p=>p.slug==='free');
+ const freeConfig=validatePlanConfig('free',freePolicy?.published_config);
+ // A finite Free plan is calculated from the authenticated account creation
+ // date. Never delete its historical activity when time expires.
+ const freeExpiry=restrictionsEnabled&&tier==='free'&&freeConfig?.duration_days!==null&&freeConfig?.duration_days!==undefined
+   ? new Date(Date.parse(ctx.user.created_at)+freeConfig.duration_days*86400000).toISOString():null;
+ const freeExpired=freeExpiry!==null&&Date.parse(freeExpiry)<=Date.now();
+ const featureAccess=policyConfig?.features||null;
  const canCheckout=runtime.data?.billing_enabled===true;
  return reply({billing_enabled:canCheckout,restrictions_enabled:restrictionsEnabled,all_features_unlocked:!restrictionsEnabled,
   complimentary_plan:gifted,can_manage_subscription:!!subscription.data?.status && !['inactive','canceled','incomplete_expired'].includes(subscription.data.status),
   pilot_access:isPilot,effective_plan:effectivePlan,pro_access:!restrictionsEnabled||effectivePlan==='pro',
   plus_access:!restrictionsEnabled||['plus','pro'].includes(effectivePlan),
-  audience:assignment.data?.audience||'standard',plans:catalog.data,subscription:subscription.data});
+  audience:assignment.data?.audience||'standard',plans:catalog.data,subscription:subscription.data,
+  policy:policyConfig,features:restrictionsEnabled?featureAccess:null,
+  free_plan_expires_at:freeExpiry,free_plan_expired:freeExpired,
+  policy_version:1});
 }
 export async function POST(req:NextRequest){
  if(!sameOrigin(req))return reply({error:'Origen no autorizado'},403);
