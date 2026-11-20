@@ -14,13 +14,6 @@ async function stripe(path:string,params:URLSearchParams){
  }
  return j as {url?:string;id:string};
 }
-async function isActiveCompanyEmployee(db:ReturnType<typeof adminDatabase>,userId:string){
- if(!db)return false;
- const {data,error}=await db.from('tp_company_members').select('id')
-  .eq('user_id',userId).eq('active',true).in('role',['driver','traffic','hr']).limit(1);
- if(error)throw Error('No se pudo comprobar la vinculación empresarial');
- return (data?.length||0)>0;
-}
 async function identify(req:NextRequest){
  const token=req.headers.get('authorization')?.match(/^Bearer (.+)$/i)?.[1];
  const db=adminDatabase();
@@ -30,16 +23,15 @@ async function identify(req:NextRequest){
 }
 export async function GET(req:NextRequest){
  const ctx=await identify(req);if(!ctx)return reply({error:'Inicia sesión'},401);
- const [runtime,catalog,assignment,subscription,pilot,grant,employeeFree]=await Promise.all([
+ const [runtime,catalog,assignment,subscription,pilot,grant]=await Promise.all([
   ctx.db.from('tp_subscription_runtime').select('billing_enabled,restrictions_enabled').eq('id',1).single(),
   ctx.db.from('tp_subscription_price_catalog').select('slug,plan,audience,monthly_cents,annual_cents,trial_days'),
   ctx.db.from('tp_driver_price_entitlements').select('audience').eq('user_id',ctx.user.id).maybeSingle(),
   ctx.db.from('tp_driver_subscriptions').select('price_slug,status,trial_ends_at,current_period_end,trial_used').eq('user_id',ctx.user.id).maybeSingle(),
   ctx.db.from('tp_driver_pilot_access').select('enabled,pro_access,checkout_enabled').eq('user_id',ctx.user.id).maybeSingle(),
-  ctx.db.from('tp_subscription_grants').select('plan,enabled').eq('user_id',ctx.user.id).maybeSingle(),
-  isActiveCompanyEmployee(ctx.db,ctx.user.id).catch(()=>null)
+  ctx.db.from('tp_subscription_grants').select('plan,enabled').eq('user_id',ctx.user.id).maybeSingle()
  ]);
- if(runtime.error||catalog.error||assignment.error||subscription.error||pilot.error||grant.error||employeeFree===null)return reply({error:'Catálogo no disponible'},503);
+ if(runtime.error||catalog.error||assignment.error||subscription.error||pilot.error||grant.error)return reply({error:'Catálogo no disponible'},503);
  const isPilot=pilot.data?.enabled===true;
  const status=subscription.data?.status;
  const paidTier=(status==='active'||status==='trialing')
@@ -49,10 +41,10 @@ export async function GET(req:NextRequest){
  const effectivePlan=gifted==='pro'||isPilot&&pilot.data?.pro_access===true?'pro':gifted==='plus'&&paidTier!=='pro'?'plus':paidTier;
  const restrictionsEnabled=runtime.data?.restrictions_enabled===true;
  const canCheckout=runtime.data?.billing_enabled===true;
- return reply({billing_enabled:canCheckout&&!employeeFree,restrictions_enabled:restrictionsEnabled,employee_free:employeeFree,all_features_unlocked:!restrictionsEnabled||employeeFree,
+ return reply({billing_enabled:canCheckout,restrictions_enabled:restrictionsEnabled,all_features_unlocked:!restrictionsEnabled,
   complimentary_plan:gifted,can_manage_subscription:!!subscription.data?.status && !['inactive','canceled','incomplete_expired'].includes(subscription.data.status),
-  pilot_access:isPilot,effective_plan:employeeFree?'free':effectivePlan,pro_access:!restrictionsEnabled||employeeFree||effectivePlan==='pro',
-  plus_access:!restrictionsEnabled||employeeFree||['plus','pro'].includes(effectivePlan),
+  pilot_access:isPilot,effective_plan:effectivePlan,pro_access:!restrictionsEnabled||effectivePlan==='pro',
+  plus_access:!restrictionsEnabled||['plus','pro'].includes(effectivePlan),
   audience:assignment.data?.audience||'standard',plans:catalog.data,subscription:subscription.data});
 }
 export async function POST(req:NextRequest){
@@ -61,14 +53,13 @@ export async function POST(req:NextRequest){
  let body:{action?:string;plan?:string;interval?:string;skip_trial?:boolean};
  try{body=await req.json();}catch{return reply({error:'Solicitud inválida'},400);}
  const db=ctx.db,userId=ctx.user.id;
- const [runtime,assignment,sub,pilot,employeeFree]=await Promise.all([
+ const [runtime,assignment,sub,pilot]=await Promise.all([
   db.from('tp_subscription_runtime').select('billing_enabled').eq('id',1).single(),
   db.from('tp_driver_price_entitlements').select('audience').eq('user_id',userId).maybeSingle(),
   db.from('tp_driver_subscriptions').select('*').eq('user_id',userId).maybeSingle(),
-  db.from('tp_driver_pilot_access').select('enabled,checkout_enabled').eq('user_id',userId).maybeSingle(),
-  isActiveCompanyEmployee(db,userId).catch(()=>null)
+  db.from('tp_driver_pilot_access').select('enabled,checkout_enabled').eq('user_id',userId).maybeSingle()
  ]);
- if(runtime.error||assignment.error||sub.error||pilot.error||employeeFree===null)return reply({error:'No se pudo comprobar la cuenta'},503);
+ if(runtime.error||assignment.error||sub.error||pilot.error)return reply({error:'No se pudo comprobar la cuenta'},503);
  // A paying user must always be able to manage or cancel their existing subscription,
  // even if new checkout is disabled or their pilot eligibility changes.
  if(body.action==='portal'){
@@ -77,7 +68,6 @@ export async function POST(req:NextRequest){
   try{const session=await stripe('billing_portal/sessions',params);return reply({url:session.url});}catch{return reply({error:'Portal no disponible'},503);}
  }
  if(body.action!=='checkout'||!['plus','pro'].includes(body.plan||'')||!['month','year'].includes(body.interval||''))return reply({error:'Plan o periodo inválido'},400);
- if(employeeFree)return reply({error:'Tu cuenta de empleado está incluida gratuitamente por tu empresa. No necesitas contratar un plan personal.'},403);
  if(runtime.data?.billing_enabled!==true)return reply({error:'Contratación en preparación, sin cobros activados'},503);
  if(body.skip_trial!==undefined && typeof body.skip_trial!=='boolean')return reply({error:'Opción de prueba inválida'},400);
  if(['active','trialing','past_due','unpaid','incomplete'].includes(sub.data?.status||''))return reply({error:'Gestiona tu suscripción existente desde el portal'},409);
