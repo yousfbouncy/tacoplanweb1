@@ -54,11 +54,19 @@ export default function AdminPlansPage(){
  };
  return <main className="min-h-screen bg-slate-50 px-4 py-10 text-slate-900">
   <div className="mx-auto max-w-6xl space-y-6">
-   <header><div className="flex flex-wrap items-center justify-between gap-3"><h1 className="text-3xl font-extrabold">Planes y suscripciones · Administración</h1><Link href="/admin/suscriptores" className="rounded-lg bg-blue-700 px-4 py-2 font-bold text-white">Gestionar suscriptores y acceso gratis</Link></div>
-    <p className="mt-2 text-slate-600">Gestiona reglas, pruebas y límites por plan. Guarda un borrador y publica solo cuando estés listo.</p></header>
+   <header><div className="flex flex-wrap items-center justify-between gap-3"><h1 className="text-3xl font-extrabold">Planes y suscripciones · Administración</h1><Link href="/admin/suscriptores" className="rounded-lg bg-blue-700 px-4 py-2 font-bold text-white">Usuarios y pruebas gratuitas</Link></div>
+    <p className="mt-2 text-slate-600">Configura las funciones, los precios y las pruebas. La elegibilidad individual se gestiona en «Usuarios y pruebas gratuitas».</p></header>
    {loading?<p>Cargando catálogo…</p>:null}
    {error?<p role="alert" className="rounded-lg border border-red-300 bg-red-50 p-3 text-red-800">{error}. Accede primero con tu sesión de administrador.</p>:null}
    {notice?<p role="status" className="rounded-lg border border-green-200 bg-green-50 p-3 text-green-800">{notice}</p>:null}
+   <section className="rounded-2xl border border-blue-200 bg-blue-50 p-5">
+    <div className="flex flex-wrap items-center justify-between gap-4">
+     <div><h2 className="text-lg font-bold text-blue-950">Pruebas gratuitas · usuarios habituales</h2>
+      <p className="mt-1 max-w-2xl text-sm text-slate-700">Consulta las jornadas reales de cada conductor y elige si tendrá prueba automática, sin prueba o una excepción. Los usuarios con más de 30 días entre su primera y última jornada no reciben prueba nueva automáticamente.</p>
+     </div>
+     <Link href="/admin/suscriptores" className="rounded-xl bg-blue-700 px-5 py-3 font-bold text-white">Seleccionar usuarios sin prueba</Link>
+    </div>
+   </section>
    <AdminPlanPolicyEditor/>
    {payload?<><section className="grid gap-3 md:grid-cols-4">
     {[['Registrados',payload.summary.registered],['Con jornadas en 30 días',payload.summary.recording30],['Fundadores confirmados',payload.summary.eligibleVerified],['Por revisar',payload.summary.eligiblePending]].map(([name,n])=><div key={name} className="rounded-xl bg-white p-4 shadow-sm"><p className="text-sm text-slate-600">{name}</p><p className="text-2xl font-bold">{n}</p></div>)}
