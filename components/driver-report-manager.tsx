@@ -3,9 +3,10 @@ import { useEffect,useState } from 'react';
 import {useDriverWebLocale,type DriverWebLocale} from '@/lib/driver-web-locale';
 import {Download,Share2,Link2,Copy,ShieldCheck,Trash2,ChevronDown,ChevronUp,Settings2,FileText} from 'lucide-react';
 import {supabase} from '@/lib/supabase';
-import {REPORT_FIELD_OPTIONS,DEFAULT_REPORT_FIELDS,REPORT_DB_COLUMNS,validDate,ReportField,SharedReportData,RawReportJornada,mapReportRow,redactRows} from '@/lib/report-sharing';
+import {REPORT_FIELD_OPTIONS,DEFAULT_REPORT_FIELDS,DEFAULT_KM_REPORT_FIELDS,REPORT_DB_COLUMNS,validDate,ReportField,SharedReportData,RawReportJornada,mapReportRow,redactRows} from '@/lib/report-sharing';
 import {saveReportPdf,buildSelectedReportPdf} from '@/lib/selected-report-pdf';
 import {attachNightReportData} from '@/lib/report-night-work';
+import {attachKmPayment,type KmPaymentProfile} from '@/lib/report-km-payment';
 import {printArabicReport} from '@/lib/arabic-report-print';
 
 type Grant={id:string;date_from:string;date_to:string;fields:ReportField[];created_at:string;expires_at:string;revoked_at:string|null};
@@ -22,6 +23,26 @@ export function DriverReportManager({name}:{name:string}){
   return()=>window.cancelAnimationFrame(frame);
  },[]);
  const [fields,setFields]=useState<ReportField[]>(DEFAULT_REPORT_FIELDS);
+ const [paymentMode,setPaymentMode]=useState<string|null>(null);
+ const [kmProfile,setKmProfile]=useState<KmPaymentProfile|null>(null);
+ const [fieldsManuallyChanged,setFieldsManuallyChanged]=useState(false);
+ useEffect(()=>{
+  let active=true;
+  const load=async()=>{
+   const {data:{user}}=await supabase.auth.getUser();
+   if(!user)return;
+   const {data,error}=await supabase.from('profiles')
+    .select('payment_mode,price_per_km,price_per_km_nacional,price_per_km_internacional,price_per_km_regional')
+    .eq('id',user.id).maybeSingle();
+   if(!active||error||!data)return;
+   const p=data as KmPaymentProfile;
+   setPaymentMode(p.payment_mode||null);
+   setKmProfile(p);
+   if(!fieldsManuallyChanged)setFields(p.payment_mode==='km'?DEFAULT_KM_REPORT_FIELDS:DEFAULT_REPORT_FIELDS);
+  };
+  void load();
+  return()=>{active=false;};
+ },[fieldsManuallyChanged]);
  const [expireDays,setExpireDays]=useState(7);
  const [busy,setBusy]=useState(false),[error,setError]=useState(''),[info,setInfo]=useState('');
  const [grants,setGrants]=useState<Grant[]>([]),[linksOpen,setLinksOpen]=useState(false);
@@ -42,7 +63,8 @@ export function DriverReportManager({name}:{name:string}){
   void check();
   return()=>{mounted=false;};
  },[]);
- const switchField=(f:ReportField)=>setFields(prev=>prev.includes(f)?prev.filter(x=>x!==f):[...prev,f]);
+ const basicFields=paymentMode==='km'?DEFAULT_KM_REPORT_FIELDS:DEFAULT_REPORT_FIELDS;
+ const switchField=(f:ReportField)=>{setFieldsManuallyChanged(true);setFields(prev=>prev.includes(f)?prev.filter(x=>x!==f):[...prev,f]);};
  const token=async()=>{const s=await supabase.auth.getSession();if(!s.data.session?.access_token)throw Error(t('Tu sesión ha caducado. Inicia sesión de nuevo.'));return s.data.session.access_token;};
  const loadGrants=async()=>{
   try{const jwt=await token();const r=await fetch('/api/driver/report-shares',{headers:{Authorization:'Bearer '+jwt},cache:'no-store'});
@@ -66,8 +88,9 @@ export function DriverReportManager({name}:{name:string}){
   const {data:sessionData}=await supabase.auth.getUser();
   if(!sessionData?.user)throw Error(t('Sesión caducada'));
   const night=await attachNightReportData(supabase,sessionData.user.id,rows,fields,from,to);
+  const kmRows=kmProfile?attachKmPayment(night.rows,kmProfile,fields):night.rows;
   return {title:t('Informe de actividad · Tacoplan'),from,to,fields,
-   driverName:fields.includes('driver_name')?name:null,rows:redactRows(night.rows,fields),
+   driverName:fields.includes('driver_name')?name:null,rows:redactRows(kmRows,fields),paymentMode,
    nightPremiumMonthly:night.nightPremiumMonthly,nightPremiumEstimate:night.nightPremiumEstimate,
    generatedAt:new Date().toISOString()};
  };
@@ -124,8 +147,9 @@ export function DriverReportManager({name}:{name:string}){
    {reportRestricted?<p role="status" className="rounded-xl border border-blue-200 p-3 text-sm text-blue-800">{t("Los informes nuevos están reservados para Pro en tu cuenta piloto.")} <a className="underline" href="/planes">{t("Consultar suscripciones")}</a>. {t("Puedes gestionar o revocar los enlaces anteriores.")}</p>:null}
    <div className="mb-3"><label className="block text-sm font-semibold text-slate-800">{t('Idioma del informe')}<select aria-label={t('Idioma del informe')} value={reportLocale} onChange={e=>setReportLocale(e.target.value as DriverWebLocale)} className="mt-2 w-full rounded-xl border border-slate-300 bg-white p-3 text-slate-900"><option value="es">Español</option><option value="en">English</option><option value="fr">Français</option><option value="ar">العربية</option></select></label><p className="mt-1 text-xs text-slate-500">{t('El idioma del informe es independiente del idioma de la aplicación.')}</p></div>
    <div className="grid gap-3 sm:grid-cols-2"><label className="text-sm font-semibold text-slate-800">{t('Desde')}<input type="date" value={from} max={to} onChange={e=>setFrom(e.target.value)} className="mt-2 w-full rounded-xl border border-slate-300 p-3 text-slate-900"/></label><label className="text-sm font-semibold text-slate-800">{t('Hasta')}<input type="date" value={to} min={from} max={today()} onChange={e=>setTo(e.target.value)} className="mt-2 w-full rounded-xl border border-slate-300 p-3 text-slate-900"/></label></div>
-   <div><div className="mb-3 flex flex-wrap items-center justify-between gap-2"><h3 className="text-sm font-bold text-slate-900">{t('Selecciona los datos que aparecerán')}</h3><div className="flex gap-2"><button type="button" className="text-xs font-bold text-blue-700" onClick={()=>setFields(DEFAULT_REPORT_FIELDS)}>{t('Básico')}</button><button type="button" className="text-xs font-bold text-blue-700" onClick={()=>setFields(REPORT_FIELD_OPTIONS.map(x=>x.key))}>{t('Todos')}</button></div></div>
+   <div><div className="mb-3 flex flex-wrap items-center justify-between gap-2"><h3 className="text-sm font-bold text-slate-900">{t('Selecciona los datos que aparecerán')}</h3><div className="flex gap-2"><button type="button" className="text-xs font-bold text-blue-700" onClick={()=>{setFieldsManuallyChanged(true);setFields(basicFields);}}>{t('Básico')}</button><button type="button" className="text-xs font-bold text-blue-700" onClick={()=>{setFieldsManuallyChanged(true);setFields(REPORT_FIELD_OPTIONS.map(x=>x.key));}}>{t('Todos')}</button></div></div>
     <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">{REPORT_FIELD_OPTIONS.map(x=><label key={x.key} className={'flex items-start gap-2 rounded-xl border p-3 text-xs sm:text-sm '+(fields.includes(x.key)?'border-blue-300 bg-blue-50 text-blue-900':'border-slate-200 text-slate-600')}><input type="checkbox" checked={fields.includes(x.key)} onChange={()=>switchField(x.key)} className="mt-0.5 h-4 w-4 accent-blue-700"/>{t(x.label)}</label>)}</div>
+    {paymentMode==='km'?<p className="mt-2 text-xs font-semibold text-blue-700">Modalidad detectada: pago por kilómetro. El informe básico incluye km, tarifa €/km e importe estimado; las dietas solo se muestran si las seleccionas expresamente.</p>:null}
     <p className="mt-2 text-xs text-slate-500">{t('La fecha de cada jornada siempre se muestra para que el historial tenga sentido. Los demás campos solo aparecerán si los marcas.')}</p>
    </div>
    <div className="grid gap-2 sm:grid-cols-2"><button type="button" onClick={()=>void action('download')} disabled={busy||reportRestricted} className="flex items-center justify-center gap-2 rounded-xl border border-blue-300 bg-white px-4 py-3 font-bold text-blue-800 disabled:opacity-50"><Download className="h-4 w-4"/>{reportLocale==='ar'?t('Imprimir o guardar PDF en árabe'):t('Descargar PDF personalizado')}</button><button type="button" onClick={()=>void action('share')} disabled={busy||reportRestricted} className="flex items-center justify-center gap-2 rounded-xl bg-blue-700 px-4 py-3 font-bold text-white disabled:opacity-50"><Share2 className="h-4 w-4"/>{reportLocale==='ar'?t('Abrir informe para compartir'):t('Compartir PDF')}</button></div>
