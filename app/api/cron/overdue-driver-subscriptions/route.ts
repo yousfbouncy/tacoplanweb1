@@ -24,7 +24,7 @@ export async function GET(req:NextRequest){
   .select('user_id,status,stripe_customer_id,stripe_subscription_id,payment_failed_at,first_paid_at')
   .eq('status','past_due').not('payment_failed_at','is',null).range(0,999);
  if(error)return NextResponse.json({error:'No se pueden consultar suscripciones'},{status:503});
- let grace=0,recovered=0,canceled=0,failed=0;
+ let grace=0,recovered=0,canceled=0,expired=0,failed=0;
  for(const sub of data||[]){
   const failedAt=Date.parse(sub.payment_failed_at||'');
   if(!sub.first_paid_at){continue;} // First payment failed: no access, and no renewal grace applies.
@@ -53,19 +53,11 @@ export async function GET(req:NextRequest){
     canceled++;continue;
    }
    if(current.status!=='past_due'){failed++;continue;}
-   // Recheck local state before an irreversible Stripe action.
-   const {data:fresh,error:readError}=await db.from('tp_driver_subscriptions')
-    .select('status,payment_failed_at,stripe_subscription_id')
-    .eq('user_id',sub.user_id).single();
-   if(readError||fresh?.status!=='past_due'||fresh.stripe_subscription_id!==sub.stripe_subscription_id||
-     Date.parse(fresh.payment_failed_at||'')+GRACE_MS>Date.now())continue;
-   await stripe('DELETE',sub.stripe_subscription_id,key);
-   const change=await db.from('tp_driver_subscriptions')
-    .update({status:'canceled',updated_at:new Date().toISOString()})
-    .eq('user_id',sub.user_id).eq('stripe_subscription_id',sub.stripe_subscription_id);
-   if(change.error)throw change.error;
-   canceled++;
+   // After 72 hours the API denies paid features automatically.
+   // Keep Stripe subscription and open invoice intact, so late payment can reactivate Pro.
+   expired++;
+
   }catch(error){failed++;console.error('Driver overdue subscription processing failed',error instanceof Error?error.message:'unknown');}
  }
- return NextResponse.json({ok:failed===0,grace,recovered,canceled,failed},{status:failed?503:200});
+ return NextResponse.json({ok:failed===0,grace,recovered,canceled,expired,failed},{status:failed?503:200});
 }
