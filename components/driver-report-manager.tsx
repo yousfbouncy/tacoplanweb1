@@ -5,6 +5,7 @@ import {Download,Share2,Link2,Copy,ShieldCheck,Trash2,ChevronDown,ChevronUp,Sett
 import {supabase} from '@/lib/supabase';
 import {REPORT_FIELD_OPTIONS,DEFAULT_REPORT_FIELDS,REPORT_DB_COLUMNS,validDate,ReportField,SharedReportData,RawReportJornada,mapReportRow,redactRows} from '@/lib/report-sharing';
 import {saveReportPdf,buildSelectedReportPdf} from '@/lib/selected-report-pdf';
+import {attachNightReportData} from '@/lib/report-night-work';
 import {printArabicReport} from '@/lib/arabic-report-print';
 
 type Grant={id:string;date_from:string;date_to:string;fields:ReportField[];created_at:string;expires_at:string;revoked_at:string|null};
@@ -62,8 +63,12 @@ export function DriverReportManager({name}:{name:string}){
   if(qError)throw Error(t('No se pudieron cargar tus jornadas. ')+qError.message);
   const rows=(data||[]).map(j=>mapReportRow(j as unknown as RawReportJornada));
   if(!rows.length)throw Error(t('No hay jornadas guardadas entre las fechas seleccionadas.'));
+  const {data:sessionData}=await supabase.auth.getUser();
+  if(!sessionData?.user)throw Error(t('Sesión caducada'));
+  const night=await attachNightReportData(supabase,sessionData.user.id,rows,fields,from,to);
   return {title:t('Informe de actividad · Tacoplan'),from,to,fields,
-   driverName:fields.includes('driver_name')?name:null,rows:redactRows(rows,fields),
+   driverName:fields.includes('driver_name')?name:null,rows:redactRows(night.rows,fields),
+   nightPremiumMonthly:night.nightPremiumMonthly,nightPremiumEstimate:night.nightPremiumEstimate,
    generatedAt:new Date().toISOString()};
  };
  const action=async(kind:'download'|'share'|'link')=>{
