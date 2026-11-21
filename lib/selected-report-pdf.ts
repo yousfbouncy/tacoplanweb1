@@ -102,6 +102,8 @@ export function buildSelectedReportPdf(report:SharedReportData,locale:PdfReportL
   summaries.push([tx('Importe pluses'),money(report.rows.reduce((n,j)=>n+(j.dayExtra||0)+j.plusItems.reduce((sum,p)=>sum+(p.amount||0),0),0))]);
  if(fields.includes('km'))
   summaries.push([tx('Kilómetros'),new Intl.NumberFormat('es-ES').format(report.rows.reduce((n,j)=>n+(j.km||0),0))+' km']);
+ if(fields.includes('night_work')) summaries.push([tx('Nocturnidad 22–06'),hours(report.rows.reduce((sum,r)=>sum+(r.nightMinutes||0),0))]);
+ if(fields.includes('night_premium')&&report.nightPremiumMonthly!=null) summaries.push([tx('Plus nocturnidad / mes'),money(report.nightPremiumMonthly)]);
 
  // Seven compact KPI columns reproduce the approved PDF layout.
  const summaryCols=Math.min(7,Math.max(1,summaries.length));
@@ -214,6 +216,7 @@ export function buildSelectedReportPdf(report:SharedReportData,locale:PdfReportL
   if(has('diet_rate'))detailLines.push(tx('Tarifa dieta: ')+(r.dietRate===null?tx('Sin datos'):money(r.dietRate)));
   if(has('diet_amount'))detailLines.push(tx('Importe dieta: ')+(r.dietAmount===null?tx('Sin datos'):money(r.dietAmount)));
   if(has('km'))detailLines.push(tx('Kilómetros: ')+(r.km===null?tx('Sin datos'):r.km.toLocaleString('es-ES')+' km'));
+  if(has('night_work'))detailLines.push(tx('Trabajo nocturno 22–06: ')+(r.nightMinutes==null?tx('Sin datos'):hours(r.nightMinutes)+(r.nightEstimated?' (franja estimada)':'')));
 
   // Only actual recorded pluses and special days are printed. Never infer a holiday.
   const extras:string[]=[];

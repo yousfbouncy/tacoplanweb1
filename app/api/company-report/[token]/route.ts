@@ -2,6 +2,7 @@ import { NextRequest,NextResponse } from 'next/server';
 import { createHash } from 'node:crypto';
 import { adminDatabase } from '@/lib/admin-users';
 import { REPORT_DB_COLUMNS,validFields,mapReportRow,redactRows,ReportField,RawReportJornada } from '@/lib/report-sharing';
+import {attachNightReportData} from '@/lib/report-night-work';
 export const dynamic='force-dynamic';
 const headers={'Cache-Control':'private,no-store,max-age=0','X-Robots-Tag':'noindex,nofollow','Referrer-Policy':'no-referrer'};
 const json=(v:unknown,status=200)=>NextResponse.json(v,{status,headers});
@@ -29,9 +30,14 @@ export async function GET(req:NextRequest,{params}:{params:{token:string}}){
   driverName=profile.data?.display_name||profile.data?.name||'Conductor';
  }
  const rows=(result.data||[]).map(j=>mapReportRow(j as unknown as RawReportJornada));
+ let night;
+ try{night=await attachNightReportData(db,share.user_id,rows,fields as ReportField[],share.date_from,share.date_to);}
+ catch(error){console.error('night report lookup',error);return json({error:'No se pudo cargar la nocturnidad autorizada'},503);}
  return json({
   report:{title:'Informe de actividad · Tacoplan',driverName,from:share.date_from,to:share.date_to,
-  fields:fields as ReportField[],rows:redactRows(rows,fields as ReportField[]),generatedAt:new Date().toISOString()},
+  fields:fields as ReportField[],rows:redactRows(night.rows,fields as ReportField[]),
+  nightPremiumMonthly:night.nightPremiumMonthly,nightPremiumEstimate:night.nightPremiumEstimate,
+  generatedAt:new Date().toISOString()},
   expiresAt:share.expires_at
  });
 }
