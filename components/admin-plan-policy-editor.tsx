@@ -20,7 +20,7 @@ const featureLabels:Record<FeatureKey,{label:string;description:string}>={
  trip:{label:'Registro de jornadas',description:'Iniciar y cerrar jornadas'},
  widget:{label:'Widgets',description:'Contadores y accesos rápidos disponibles en el dispositivo'},
 };
-const clone=(c:PlanConfig):PlanConfig=>({...c,features:{...c.features}});
+const clone=(c:PlanConfig):PlanConfig=>({...c,features:{...c.features},free_feature_days:{...c.free_feature_days}});
 const dur=(n:number|null)=>n===null?'Ilimitado':n+' días';
 export default function AdminPlanPolicyEditor() {
  const [state,setState]=useState<Response|null>(null);
@@ -47,7 +47,7 @@ export default function AdminPlanPolicyEditor() {
   if(action==='publish'&&changed(form,policy.draft_config)){
    setError('Primero guarda el borrador. Publicar nunca incluye cambios sin guardar.');return;
   }
-  if(action==='publish'&&!window.confirm('¿Publicar las restricciones de '+names[selected]+'? Los cambios se aplicarán a los usuarios de este plan. Las pruebas activas y los cobros existentes no se modifican.'))return;
+  if(action==='publish'&&!window.confirm('¿Publicar las restricciones de '+names[selected]+'? Los cambios se aplicarán a los usuarios de este plan. Las pruebas activas y los cobros existentes no se modifican. Los nuevos plazos por función se conservarán al desactivar o reactivar planes.'))return;
   setWorking(true);setError('');setNotice('');
   try{
    const response=await fetch('/api/admin/plan-policies',{
@@ -61,7 +61,7 @@ export default function AdminPlanPolicyEditor() {
    if(!response.ok)throw Error(data.error||'No se pudieron guardar los cambios');
    setState(old=>old?{...old,policies:old.policies.map(p=>p.slug===selected?data.policy:p)}:old);
    setNotice(action==='draft'?'Borrador guardado. La configuración pública no ha cambiado.':
-      'Plan publicado. Nuevas pruebas desde ahora utilizarán esta duración; las existentes se mantienen.');
+      'Plan publicado. Los permisos se actualizarán sin reiniciar pruebas ni plazos de funciones usados.');
   }catch(e){setError(e instanceof Error?e.message:'Error guardando configuración');}
   finally{setWorking(false);}
  };
@@ -110,14 +110,46 @@ export default function AdminPlanPolicyEditor() {
         </select>}
      </label>
     </div>
-    <h3 className="mb-2 font-bold">Funciones permitidas</h3>
+    <h3 className="mb-2 font-bold">Funciones permitidas y límites individuales</h3>
+    {selected==='free'&&<p className="mb-3 text-sm text-slate-600">
+      Cada función puede estar bloqueada, permitida siempre o gratis durante un número de días.
+      El plazo empieza al publicarla para usuarios actuales y al registrarse para usuarios posteriores.
+      Desactivar y reactivar los planes no reinicia el plazo consumido.
+    </p>}
     <div className="grid gap-2 sm:grid-cols-2">
-     {FEATURE_KEYS.map(feature=><label key={feature} className="flex items-center justify-between gap-3 rounded-xl border bg-slate-50 p-3">
-      <span><strong className="block text-sm">{featureLabels[feature].label}</strong>
-       <span className="block text-xs text-slate-500">{featureLabels[feature].description}</span></span>
-      <input type="checkbox" className="h-5 w-5 accent-blue-700"
-       checked={form.features[feature]} onChange={e=>update({features:{...form.features,[feature]:e.target.checked}})}/>
-     </label>)}
+     {FEATURE_KEYS.map(feature=>{
+      const days=form.free_feature_days?.[feature];
+      const mode=days?'limited':form.features[feature]?'unlimited':'blocked';
+      const setMode=(v:string)=>{
+       const limited=v==='limited';
+       const limits={...form.free_feature_days};delete limits[feature];
+       if(limited)limits[feature]=30;
+       update({features:{...form.features,[feature]:v==='unlimited'},free_feature_days:limits});
+      };
+      return <div key={feature} className="flex flex-col gap-3 rounded-xl border bg-slate-50 p-3">
+       <div><strong className="block text-sm">{featureLabels[feature].label}</strong>
+        <span className="block text-xs text-slate-500">{featureLabels[feature].description}</span></div>
+       {selected==='free'?<>
+        <label className="text-xs font-semibold text-slate-600">Acceso en Gratis
+         <select aria-label={'Acceso a '+featureLabels[feature].label} className="mt-1 w-full rounded-lg border bg-white p-2 text-sm"
+          value={mode} onChange={e=>setMode(e.target.value)}>
+          <option value="blocked">No permitido</option>
+          <option value="unlimited">Gratis sin límite</option>
+          <option value="limited">Gratis por tiempo limitado</option>
+         </select>
+        </label>
+        {mode==='limited'&&<label className="text-xs font-semibold text-slate-600">Días permitidos
+         <input aria-label={'Días gratis de '+featureLabels[feature].label}
+          type="number" min={1} max={3650} value={days??30}
+          onChange={e=>update({free_feature_days:{...form.free_feature_days,[feature]:Number(e.target.value)}})}
+          className="mt-1 w-full rounded-lg border bg-white p-2 text-sm"/>
+        </label>}
+       </>:<label className="flex items-center justify-between gap-2 text-sm">
+        Permitida <input type="checkbox" className="h-5 w-5 accent-blue-700"
+         checked={form.features[feature]} onChange={e=>update({features:{...form.features,[feature]:e.target.checked}})}/>
+       </label>}
+      </div>;
+     })}
     </div>
     <div className="mt-5 rounded-xl bg-slate-50 p-4 text-sm">
      <p className="font-semibold">Configuración actualmente publicada: {names[selected]}</p>

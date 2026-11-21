@@ -29,22 +29,9 @@ export async function POST(req:NextRequest){
  }
  try{
   const o=event.data?.object||{};
-  // Never write driver subscriptions for non-pilot accounts during the owner-only rollout.
-  const accountId=o.metadata?.tp_driver_id||(event.type==='checkout.session.completed'?o.client_reference_id:null);
-  if(['checkout.session.completed','customer.subscription.created','customer.subscription.updated','customer.subscription.deleted'].includes(event.type)){
-   if(typeof accountId!=='string'){
-    const ignored=await db.from('tp_driver_billing_events').update({processed_at:new Date().toISOString()}).eq('event_id',event.id);
-    if(ignored.error)throw ignored.error;
-    return response({received:true,ignored:'not_a_pilot_event'});
-   }
-   const {data:pilot,error:pilotError}=await db.from('tp_driver_pilot_access').select('enabled').eq('user_id',accountId).maybeSingle();
-   if(pilotError)throw pilotError;
-   if(pilot?.enabled!==true){
-    const ignored=await db.from('tp_driver_billing_events').update({processed_at:new Date().toISOString()}).eq('event_id',event.id);
-    if(ignored.error)throw ignored.error;
-    return response({received:true,ignored:'not_a_pilot_account'});
-   }
-  }
+  // Stripe signatures are verified before any writes. Checkout is offered to
+  // eligible accounts, not only former pilots; never discard a genuine paid
+  // subscription or trial simply because pilot mode has ended.
   if(event.type==='checkout.session.completed'&&o.mode==='subscription'){
    const uid=o.metadata?.tp_driver_id||o.client_reference_id;
    const slug=o.metadata?.tp_price_slug;
@@ -73,6 +60,17 @@ export async function POST(req:NextRequest){
       updated_at:new Date().toISOString()
      },{onConflict:'user_id'});
      if(update.error)throw update.error;
+     // A permanent, independent history is never cleared by cancellation,
+     // temporary plan deactivation, or later Stripe status transitions.
+     if(status==='trialing'||typeof o.trial_end==='number'){
+      const first=typeof o.trial_start==='number'?new Date(o.trial_start*1000).toISOString():new Date().toISOString();
+      const history=await db.from('tp_driver_trial_history').upsert({
+       user_id:uid,first_trial_at:first,
+       plan:slug.startsWith('pro')?'pro':slug.startsWith('plus')?'plus':'unknown',
+       source:'stripe_webhook'
+      },{onConflict:'user_id',ignoreDuplicates:true});
+      if(history.error)throw history.error;
+     }
     }
    }
   }
