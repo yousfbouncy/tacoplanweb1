@@ -43,8 +43,8 @@ export async function GET(req:NextRequest){
    if((shifts||[]).length<1000)break;
   }
   const cutoff=new Date(Date.now()-29*86400000).toISOString().slice(0,10);
-  for(const [uid,dates] of unique){
-   const sorted=[...dates].sort();activity.set(uid,{first:sorted[0]||null,last:sorted[sorted.length-1]||null,count:dates.size,last30:sorted.filter(d=>d>=cutoff).length});
+  for(const [uid,dates] of Array.from(unique.entries())){
+   const sorted=Array.from(dates).sort();activity.set(uid,{first:sorted[0]||null,last:sorted[sorted.length-1]||null,count:dates.size,last30:sorted.filter(d=>d>=cutoff).length});
   }
   const users=(profiles.data||[]).map(p=>({
    id:p.id,name:p.display_name||p.name||'Conductor',email:emails.get(p.id)||'',
