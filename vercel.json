@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/feature-plan-notifications",
+      "schedule": "0 9 * * *"
+    }
+  ]
+}
