@@ -30,6 +30,8 @@ export function printArabicReport(report:SharedReportData,existingPopup?:Window|
      ...(fields.has('pluses')?[row('الإضافات',item.plusItems.map(p=>p.concept).join('، ')||'—')]:[]),
      ...(fields.has('plus_amount')?[row('مبالغ الإضافات',item.plusItems.map(p=>p.concept+' '+euros(p.amount)).join('، ')+(item.dayExtra?'، '+euros(item.dayExtra):''))]:[]),
      ...(fields.has('km')?[row(tr('Kilómetros: '),item.km===null?'—':item.km+' km')]:[]),
+     ...(fields.has('km_rate')?[row('سعر الكيلومتر',item.kmRate==null?'—':euros(item.kmRate)+'/كم')]:[]),
+     ...(fields.has('km_amount')?[row('مبلغ الكيلومترات',euros(item.kmAmount??null))]:[]),
    ];
    return '<section class="shift"><table>'+items.join('')+'</table></section>';
  }).join('');
@@ -45,6 +47,7 @@ export function printArabicReport(report:SharedReportData,existingPopup?:Window|
    '<header><h1>TACOPLAN · '+escapeHtml(title)+'</h1><p>'+escapeHtml(tr('PERIODO: '))+' '+escapeHtml(report.from)+' — '+escapeHtml(report.to)+'</p>'+
    (fields.has('driver_name')&&report.driverName?'<p>'+escapeHtml(tr('Conductor: '))+escapeHtml(report.driverName)+'</p>':'')+
    '</header><h2>'+escapeHtml(tr('Jornadas'))+': '+report.rows.length+'</h2>'+
+   (fields.has('km_amount')?'<p><strong>مجموع مقابل الكيلومترات: '+escapeHtml(euros(report.rows.reduce((sum,r)=>sum+(r.kmAmount||0),0)))+'</strong></p>':'')+
    cards+'<footer>'+escapeHtml(tr('Solo se incluyen las fechas y datos autorizados por el conductor.'))+'</footer></body></html>';
  popup.document.open();popup.document.write(html);popup.document.close();
  popup.document.getElementById("print-report")?.addEventListener("click",()=>popup.print());

@@ -121,6 +121,13 @@ export function CompanyReport({token}:{token:string}){
      {allowed('day_flags')?<><div className="rounded-xl border border-[#344d70] bg-[#0b1b33] p-3"><p className="text-xs text-slate-400">{t("Domingos marcados")}</p><p className="mt-1 text-xl font-bold">{totals.sunday}</p></div><div className="rounded-xl border border-[#344d70] bg-[#0b1b33] p-3"><p className="text-xs text-slate-400">{t("Festivos marcados")}</p><p className="mt-1 text-xl font-bold">{totals.holiday}</p></div></>:null}
      {(allowed('pluses')||allowed('plus_amount'))?<div className="rounded-xl border border-[#344d70] bg-[#0b1b33] p-3"><p className="text-xs text-slate-400">{t("Jornadas con pluses")}</p><p className="mt-1 text-xl font-bold">{totals.extra}</p>{allowed('plus_amount')?<p className="mt-1 text-sm text-amber-300">{money(totals.amountExtras)}</p>:null}</div>:null}
     </div>
+    {allowed('km_amount')?<div className="mt-4 rounded-xl border border-[#344d70] bg-[#0b1b33] p-3 text-sm">
+      <p className="font-semibold text-slate-200">Remuneración por kilometraje (estimación)</p>
+      <p className="mt-1 text-lg font-bold text-emerald-300">
+        {money(rows.reduce((total,row)=>total+(row.kmAmount||0),0))}
+      </p>
+      {rows.some(row=>row.kmAmount==null)?<p className="mt-1 text-xs text-amber-200">Algunas jornadas no tienen km o tarifa configurada y no están incluidas en el importe.</p>:null}
+     </div>:null}
     {(allowed('night_work')||allowed('night_premium'))?<div className="mt-4 rounded-xl border border-[#344d70] bg-[#0b1b33] p-3 text-sm">
       {allowed('night_work')?<p>🌙 Horas nocturnas: {hours(rows.reduce((acc,row)=>acc+(row.nightMinutes||0),0))}{rows.some(row=>row.nightEstimated)?' · parte estimada':''}</p>:null}
       {allowed('night_premium')?<p>Plus nocturnidad (referencia mensual, sujeto a convenio): {report.nightPremiumMonthly==null?'Sin configurar':money(report.nightPremiumMonthly)}</p>:null}

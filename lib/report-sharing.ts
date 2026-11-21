@@ -16,20 +16,24 @@ export const REPORT_FIELD_OPTIONS=[
  {key:'pluses',label:'Conceptos de pluses'},
  {key:'plus_amount',label:'Importes de pluses'},
  {key:'km',label:'Kilómetros'},
+ {key:'km_rate',label:'Tarifa por kilómetro (€/km)'},
+ {key:'km_amount',label:'Importe por kilometraje (€)'},
  {key:'rest',label:'Descanso anterior'}
 ] as const;
 export type ReportField=typeof REPORT_FIELD_OPTIONS[number]['key'];
 export const ALL_REPORT_FIELDS=REPORT_FIELD_OPTIONS.map(v=>v.key);
 export const DEFAULT_REPORT_FIELDS:ReportField[]=['start_end','locations','route_type','diet_type','diet_pct','driving','availability','day_flags','pluses'];
+export const DEFAULT_KM_REPORT_FIELDS:ReportField[]=['start_end','locations','route_type','driving','availability','day_flags','pluses','km','km_rate','km_amount'];
 export type SharedReportRow={
  shiftId?:string;nightMinutes?:number|null;nightEstimated?:boolean;
+ kmRate?:number|null;kmAmount?:number|null;paymentAmountHidden?:boolean;
  date:string;start:string|null;end:string|null;routeType:string|null;
  startTime:string|null;endTime:string|null;endDate:string|null;
  dayFlag:string|null;dayExtra:number|null;plusItems:{concept:string;amount:number|null}[];
  driving:number|null;availability:number|null;working:number|null;dietType:string|null;dietPct:number|null;
  dietRate:number|null;dietAmount:number|null;km:number|null;rest:number|null;
 };
-export type SharedReportData={title:string;driverName:string|null;from:string;to:string;fields:ReportField[];rows:SharedReportRow[];generatedAt:string;nightPremiumMonthly?:number|null;nightPremiumEstimate?:number|null;};
+export type SharedReportData={title:string;driverName:string|null;from:string;to:string;fields:ReportField[];rows:SharedReportRow[];generatedAt:string;nightPremiumMonthly?:number|null;nightPremiumEstimate?:number|null;paymentMode?:string|null;};
 export const validDate=(v:unknown):v is string=>typeof v==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(v)&&!Number.isNaN(Date.parse(v+'T00:00:00Z'))&&new Date(v+'T00:00:00Z').toISOString().slice(0,10)===v;
 export const validFields=(v:unknown):v is ReportField[]=>Array.isArray(v)&&v.length>0&&v.length<=ALL_REPORT_FIELDS.length&&new Set(v).size===v.length&&v.every(x=>ALL_REPORT_FIELDS.includes(x));
 export const money=(v:number)=>new Intl.NumberFormat('es-ES',{style:'currency',currency:'EUR'}).format(v);
@@ -62,6 +66,7 @@ export function mapReportRow(j:RawReportJornada):SharedReportRow{
  return {
   shiftId:j.id,
   nightMinutes:null,nightEstimated:false,
+  kmRate:null,kmAmount:null,paymentAmountHidden:j.report_hide_amounts===true,
   date:j.fecha_inicio||j.created_at.slice(0,10),
   start:j.lugar_inicio,end:j.lugar_fin,routeType:j.tipo_ruta,
   startTime:time(j.hora_inicio),endTime:time(j.hora_fin),endDate:j.fecha_fin,
@@ -91,7 +96,8 @@ export function redactRows(rows:SharedReportRow[],fields:ReportField[]):SharedRe
   driving:show('driving')?r.driving:null,availability:show('availability')?r.availability:null,working:show('working')?r.working:null,
   dietType:show('diet_type')?r.dietType:null,dietPct:show('diet_pct')?r.dietPct:null,
   dietRate:show('diet_rate')?r.dietRate:null,dietAmount:show('diet_amount')?r.dietAmount:null,
-  km:show('km')?r.km:null,rest:show('rest')?r.rest:null
+  km:show('km')?r.km:null,kmRate:show('km_rate')?r.kmRate??null:null,
+  kmAmount:show('km_amount')?r.kmAmount??null:null,rest:show('rest')?r.rest:null
  }));
 }
 export function labelValue(r:SharedReportRow,key:ReportField):string{
@@ -112,6 +118,8 @@ export function labelValue(r:SharedReportRow,key:ReportField):string{
  case 'pluses':return r.plusItems.map(x=>x.concept).join(', ')||'—';
  case 'plus_amount':{const a=[r.dayExtra,...r.plusItems.map(x=>x.amount)].filter((x):x is number=>x!==null);return a.length?money(a.reduce((v,n)=>v+n,0)):'—';}
  case 'km':return r.km==null?'—':r.km.toLocaleString('es-ES')+' km';
+ case 'km_rate':return r.kmRate==null?'Sin tarifa configurada':money(r.kmRate)+'/km';
+ case 'km_amount':return r.kmAmount==null?'Sin tarifa o km':money(r.kmAmount);
  case 'rest':return r.rest==null?'—':hours(r.rest);
  default:return '—';
  }
