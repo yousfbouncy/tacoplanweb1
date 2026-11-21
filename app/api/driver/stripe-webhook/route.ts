@@ -74,6 +74,33 @@ export async function POST(req:NextRequest){
     }
    }
   }
+  // Confirmed invoice payment can arrive before or after the subscription.updated event.
+  // Match both the Stripe customer and the subscription to prevent applying another user's payment.
+  if(['invoice.paid','invoice.payment_succeeded'].includes(event.type)&&o.paid===true&&o.status==='paid'){
+   const subscriptionId=o.parent?.subscription_details?.subscription||o.subscription;
+   if(typeof subscriptionId==='string'&&typeof o.customer==='string'){
+    const {data:existing,error}=await db.from('tp_driver_subscriptions')
+     .select('user_id,status').eq('stripe_subscription_id',subscriptionId)
+     .eq('stripe_customer_id',o.customer).maybeSingle();
+    if(error)throw error;
+    if(existing&&!['canceled','unpaid','incomplete_expired'].includes(existing.status)){
+     // Only settle if Stripe itself confirms this subscription is active.
+     const key=process.env.STRIPE_SECRET_KEY;
+     if(!key)throw Error('Stripe API not configured for payment reconciliation');
+     const fresh=await fetch('https://api.stripe.com/v1/subscriptions/'+encodeURIComponent(subscriptionId),{
+      headers:{Authorization:'Bearer '+key},cache:'no-store'});
+     if(!fresh.ok)throw Error('Stripe subscription verification failed');
+     const remote=await fresh.json();
+     if(remote.id===subscriptionId&&remote.customer===o.customer&&remote.status==='active'){
+      const update=await db.from('tp_driver_subscriptions').update({
+       status:'active',updated_at:new Date().toISOString(),
+       current_period_end:typeof remote.current_period_end==='number'?new Date(remote.current_period_end*1000).toISOString():null
+      }).eq('user_id',existing.user_id).eq('stripe_subscription_id',subscriptionId);
+      if(update.error)throw update.error;
+     }
+    }
+   }
+  }
   const done=await db.from('tp_driver_billing_events').update({processed_at:new Date().toISOString()}).eq('event_id',event.id);
   if(done.error)throw done.error;
   return response({received:true});
