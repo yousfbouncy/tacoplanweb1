@@ -61,7 +61,7 @@ export async function POST(req:NextRequest){
       user_id:uid,price_slug:slug,stripe_customer_id:o.customer,stripe_subscription_id:o.id,status,
       trial_used:existing?.trial_used||status==='trialing'||typeof o.trial_end==='number',
       trial_ends_at:typeof o.trial_end==='number'?new Date(o.trial_end*1000).toISOString():null,
-      current_period_end:typeof o.current_period_end==='number'?new Date(o.current_period_end*1000).toISOString():null,
+      current_period_end:typeof (o.current_period_end??o.items?.data?.[0]?.current_period_end)==='number'?new Date((o.current_period_end??o.items?.data?.[0]?.current_period_end)*1000).toISOString():null,
       ...(verified?{first_paid_at:existing?.first_paid_at||verified.paid_at,last_paid_invoice_id:verified.id}:{}),
       updated_at:new Date().toISOString()
      },{onConflict:'user_id'});
@@ -82,7 +82,7 @@ export async function POST(req:NextRequest){
   }
   // Independently fetch the paid invoice on every positive payment webhook;
   // then confirm the live subscription, rather than trusting event ordering.
-  if(['invoice.paid','invoice.payment_succeeded'].includes(event.type)&&o.paid===true&&o.status==='paid'){
+  if(['invoice.paid','invoice.payment_succeeded'].includes(event.type)&&o.status==='paid'){
    const subscriptionId=o.parent?.subscription_details?.subscription||o.subscription;
    if(typeof subscriptionId==='string'&&typeof o.customer==='string'&&typeof o.id==='string'){
     const {data:existing,error}=await db.from('tp_driver_subscriptions')
@@ -94,7 +94,7 @@ export async function POST(req:NextRequest){
      if(evidence){
       const remote=await getDriverStripeSubscription(subscriptionId);
       const active=remote.id===subscriptionId&&remote.customer===o.customer&&
-       remote.metadata?.tp_driver_id===existing.user_id&&remote.status==='active';
+       remote.metadata?.tp_driver_id===existing.user_id&&remote.status==='active'&&remote.latest_invoice===evidence.id;
       const patch={
        first_paid_at:existing.first_paid_at||evidence.paid_at,
        last_paid_invoice_id:evidence.id,updated_at:new Date().toISOString(),
