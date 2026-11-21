@@ -3,6 +3,10 @@
     {
       "path": "/api/cron/feature-plan-notifications",
       "schedule": "0 9 * * *"
+    },
+    {
+      "path": "/api/cron/overdue-driver-subscriptions",
+      "schedule": "0 * * * *"
     }
   ]
 }
