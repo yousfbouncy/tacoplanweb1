@@ -40,6 +40,29 @@ async function stripe(path:string,params:URLSearchParams){
  }
  return j as {url?:string;id:string};
 }
+type TrialActivity={first_jornada_date:string|null;last_jornada_date:string|null;distinct_jornada_days:number;days_last30:number;activity_span_days:number|null};
+function assessTrial(activity:TrialActivity|null,mode:string|undefined){
+ const activeDays=Number(activity?.distinct_jornada_days||0);
+ const span=Number(activity?.activity_span_days||0);
+ // At least 30 elapsed days between first and last registered workdays. No calendar-day attendance requirement.
+ const experienced=activeDays>=2&&span>=30;
+ const disabled=mode==='disabled'||mode!=='allowed'&&experienced;
+ const start=activity?.first_jornada_date||null;
+ const daysUsing=start?Math.max(0,Math.floor((Date.now()-Date.parse(start+'T00:00:00Z'))/86400000)):0;
+ return {disabled,experienced,first_jornada_date:start,last_jornada_date:activity?.last_jornada_date||null,
+  distinct_jornada_days:activeDays,days_last30:Number(activity?.days_last30||0),days_using:daysUsing,mode:mode||'automatic',
+  reason:mode==='disabled'?'Prueba gratuita desactivada por administración':
+   experienced&&mode!=='allowed'?'Tu periodo de prueba gratuita ha terminado: llevas más de 30 días registrando jornadas en Tacoplan.':
+   'La prueba puede estar disponible si no la has utilizado antes.'};
+}
+async function loadTrialAssessment(db:NonNullable<ReturnType<typeof adminDatabase>>,userId:string){
+ const [activity,overrides]=await Promise.all([
+  db.rpc('tp_driver_trial_activity',{p_user_id:userId}),
+  db.from('tp_driver_trial_overrides').select('trial_mode').eq('user_id',userId).maybeSingle()
+ ]);
+ if(activity.error||overrides.error)throw Error('No se pudo verificar la antigüedad de las jornadas');
+ return assessTrial((activity.data?.[0]||null) as TrialActivity|null,overrides.data?.trial_mode);
+}
 async function identify(req:NextRequest){
  const token=req.headers.get('authorization')?.match(/^Bearer (.+)$/i)?.[1];
  const db=adminDatabase();
@@ -61,6 +84,8 @@ export async function GET(req:NextRequest){
   ctx.db.from('tp_driver_trial_history').select('first_trial_at,plan').eq('user_id',ctx.user.id).maybeSingle()
  ]);
  if(runtime.error||catalog.error||assignment.error||subscription.error||pilot.error||grant.error||policies.error||launches.error||trialHistory.error)return reply({error:'Catálogo no disponible'},503);
+ let trialCheck:ReturnType<typeof assessTrial>;
+ try{trialCheck=await loadTrialAssessment(ctx.db,ctx.user.id);}catch{return reply({error:'No se pudo verificar la elegibilidad de la prueba'},503);}
  const settledStatus=await reconcileOverdueSubscription(ctx.db,ctx.user.id,subscription.data);
  const isPilot=pilot.data?.enabled===true;
  const status=settledStatus||subscription.data?.status;
@@ -88,14 +113,14 @@ export async function GET(req:NextRequest){
  const featureAccess=tier==='free'?limitedFree?.features||null:policyConfig?.features||null;
  const featureStatus=tier==='free'?limitedFree?.feature_status||null:null;
  const trialAlreadyUsed=!!trialHistory.data||subscription.data?.trial_used===true||subscription.data?.status==='trialing'||!!subscription.data?.trial_ends_at;
- const availableTrial=trialEligibility(subscription.data,!!trialHistory.data,Math.max(0,...(catalog.data||[]).map(x=>x.trial_days||0)));
+ const availableTrial=!trialCheck.disabled&&trialEligibility(subscription.data,!!trialHistory.data,Math.max(0,...(catalog.data||[]).map(x=>x.trial_days||0)));
  const canCheckout=runtime.data?.billing_enabled===true;
  return reply({billing_enabled:canCheckout,restrictions_enabled:restrictionsEnabled,all_features_unlocked:!restrictionsEnabled,
   complimentary_plan:gifted,can_manage_subscription:!!subscription.data?.status && !['inactive','canceled','incomplete_expired'].includes(subscription.data.status),
   pilot_access:isPilot,effective_plan:effectivePlan,pro_access:!restrictionsEnabled||effectivePlan==='pro',
   plus_access:!restrictionsEnabled||['plus','pro'].includes(effectivePlan),
   audience:assignment.data?.audience||'standard',plans:catalog.data,subscription:subscription.data?{...subscription.data,status}:null, payment_grace_until:gracePeriodActive?new Date(pastDueSince+72*3600000).toISOString():null,
-  trial_used:trialAlreadyUsed,trial_available:availableTrial,trial_used_at:trialHistory.data?.first_trial_at||null,
+  trial_used:trialAlreadyUsed,trial_available:availableTrial,trial_activity:trialCheck,trial_used_at:trialHistory.data?.first_trial_at||null,
   feature_status:restrictionsEnabled?featureStatus:null,
   policy:policyConfig,features:restrictionsEnabled?featureAccess:null,
   free_plan_expires_at:freeExpiry,free_plan_expired:freeExpired,
@@ -126,6 +151,8 @@ export async function POST(req:NextRequest){
  if(runtime.data?.billing_enabled!==true)return reply({error:'Contratación en preparación, sin cobros activados'},503);
  if(body.skip_trial!==undefined && typeof body.skip_trial!=='boolean')return reply({error:'Opción de prueba inválida'},400);
  if(['active','trialing','past_due','unpaid','incomplete'].includes(sub.data?.status||''))return reply({error:'Gestiona tu suscripción existente desde el portal'},409);
+ let trialCheck:ReturnType<typeof assessTrial>;
+ try{trialCheck=await loadTrialAssessment(db,userId);}catch{return reply({error:'No se pudo verificar la elegibilidad de la prueba'},503);}
  const audience=assignment.data?.audience||'standard';
  const slug=audience==='founder'?(body.plan==='plus'?'plus_existing':'pro_founder'):audience==='existing'?body.plan+'_existing':body.plan!;
  const {data:price,error}=await db.from('tp_subscription_price_catalog').select('*').eq('slug',slug).single();
@@ -151,7 +178,7 @@ export async function POST(req:NextRequest){
  form.set('metadata[tp_driver_id]',userId);form.set('metadata[tp_price_slug]',slug);
  form.set('subscription_data[metadata][tp_driver_id]',userId);
  form.set('subscription_data[metadata][tp_price_slug]',slug);
- const trialAvailable=trialEligibility(sub.data,!!trialHistory.data,price.trial_days);
+ const trialAvailable=!trialCheck.disabled&&trialEligibility(sub.data,!!trialHistory.data,price.trial_days);
  if(!body.skip_trial && trialAvailable)form.set('subscription_data[trial_period_days]',String(price.trial_days));
  form.set('success_url',req.nextUrl.origin+'/planes?subscription=success');
  form.set('cancel_url',req.nextUrl.origin+'/planes?subscription=cancel');
