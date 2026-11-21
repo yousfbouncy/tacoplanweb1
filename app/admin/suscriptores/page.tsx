@@ -18,7 +18,7 @@ export default function SubscriberAdmin(){
  useEffect(()=>{void fetchData();},[]);
  const visible=useMemo(()=>data?.users.filter(u=>{
   const match=(u.name+' '+u.email).toLowerCase().includes(query.trim().toLowerCase());
-  return match&&(show==='all'||show==='paid'&&['trialing','active'].includes(u.subscription?.status||'')||show==='gift'&&u.grant?.enabled===true||show==='free'&&!u.grant?.enabled&&!['trialing','active'].includes(u.subscription?.status||'')||show==='expired'&&u.trial_expired_by_usage||show==='blocked'&&u.trial_override==='disabled);
+  return match&&(show==='all'||show==='paid'&&['trialing','active'].includes(u.subscription?.status||'')||show==='gift'&&u.grant?.enabled===true||show==='free'&&!u.grant?.enabled&&!['trialing','active'].includes(u.subscription?.status||'')||show==='expired'&&u.trial_expired_by_usage||show==='blocked'&&u.trial_override==='disabled');
  })||[],[data,query,show]);
  const toggle=async(enabled:boolean)=>{
   if(enabled&&!window.confirm('¿Activar restricciones de Plus y Pro para los usuarios sin suscripción o acceso gratuito? Los datos y jornadas se conservarán.'))return;
