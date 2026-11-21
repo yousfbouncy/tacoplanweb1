@@ -26,7 +26,7 @@ export const DEFAULT_REPORT_FIELDS:ReportField[]=['start_end','locations','route
 export const DEFAULT_KM_REPORT_FIELDS:ReportField[]=['start_end','locations','route_type','driving','availability','day_flags','pluses','km','km_rate','km_amount'];
 export type SharedReportRow={
  shiftId?:string;nightMinutes?:number|null;nightEstimated?:boolean;
- kmRate?:number|null;kmAmount?:number|null;
+ kmRate?:number|null;kmAmount?:number|null;paymentAmountHidden?:boolean;
  date:string;start:string|null;end:string|null;routeType:string|null;
  startTime:string|null;endTime:string|null;endDate:string|null;
  dayFlag:string|null;dayExtra:number|null;plusItems:{concept:string;amount:number|null}[];
@@ -66,7 +66,7 @@ export function mapReportRow(j:RawReportJornada):SharedReportRow{
  return {
   shiftId:j.id,
   nightMinutes:null,nightEstimated:false,
-  kmRate:null,kmAmount:null,
+  kmRate:null,kmAmount:null,paymentAmountHidden:j.report_hide_amounts===true,
   date:j.fecha_inicio||j.created_at.slice(0,10),
   start:j.lugar_inicio,end:j.lugar_fin,routeType:j.tipo_ruta,
   startTime:time(j.hora_inicio),endTime:time(j.hora_fin),endDate:j.fecha_fin,
