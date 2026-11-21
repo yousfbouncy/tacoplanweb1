@@ -76,7 +76,7 @@ export async function GET(req:NextRequest){
   });
   if(claim.error){if(claim.error.code==='23505'){skipped++;continue;}return json({error:'Could not secure notification log',internal,accepted,failed},503);}
   const inbox=await db.from('user_notifications').insert({
-   user_id:n.userId,type:'plan',title:n.title,body:n.body,
+   user_id:n.userId,type:'system',title:n.title,body:n.body,
    button_text:'Ver planes',button_url:'https://tacoplan.es/planes',
    data:{source:'feature_limit',feature:n.feature,event:n.key}
   });
