@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import { adminDatabase } from '@/lib/admin-users';
 import { REPORT_DB_COLUMNS,validFields,mapReportRow,redactRows,ReportField,RawReportJornada } from '@/lib/report-sharing';
 import {attachNightReportData} from '@/lib/report-night-work';
+import {attachKmPayment,type KmPaymentProfile} from '@/lib/report-km-payment';
 export const dynamic='force-dynamic';
 const headers={'Cache-Control':'private,no-store,max-age=0','X-Robots-Tag':'noindex,nofollow','Referrer-Policy':'no-referrer'};
 const json=(v:unknown,status=200)=>NextResponse.json(v,{status,headers});
@@ -33,9 +34,21 @@ export async function GET(req:NextRequest,{params}:{params:{token:string}}){
  let night;
  try{night=await attachNightReportData(db,share.user_id,rows,fields as ReportField[],share.date_from,share.date_to);}
  catch(error){console.error('night report lookup',error);return json({error:'No se pudo cargar la nocturnidad autorizada'},503);}
+ let resultRows=night.rows;
+ let paymentMode:string|null=null;
+ if(fields.includes('km_amount')||fields.includes('km_rate')){
+  const payment=await db.from('profiles')
+   .select('payment_mode,price_per_km,price_per_km_nacional,price_per_km_internacional,price_per_km_regional')
+   .eq('id',share.user_id).maybeSingle();
+  if(payment.error)return json({error:'No se pudo consultar la tarifa de kilometraje autorizada'},503);
+  if(payment.data){
+   paymentMode=payment.data.payment_mode;
+   resultRows=attachKmPayment(resultRows,payment.data as KmPaymentProfile,fields);
+  }
+ }
  return json({
   report:{title:'Informe de actividad · Tacoplan',driverName,from:share.date_from,to:share.date_to,
-  fields:fields as ReportField[],rows:redactRows(night.rows,fields as ReportField[]),
+  fields:fields as ReportField[],rows:redactRows(resultRows,fields as ReportField[]),paymentMode,
   nightPremiumMonthly:night.nightPremiumMonthly,nightPremiumEstimate:night.nightPremiumEstimate,
   generatedAt:new Date().toISOString()},
   expiresAt:share.expires_at
