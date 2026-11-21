@@ -29,7 +29,7 @@ export async function GET(req:NextRequest){
   ctx.db.from('tp_subscription_runtime').select('billing_enabled,restrictions_enabled').eq('id',1).single(),
   ctx.db.from('tp_subscription_price_catalog').select('slug,plan,audience,monthly_cents,annual_cents,trial_days'),
   ctx.db.from('tp_driver_price_entitlements').select('audience').eq('user_id',ctx.user.id).maybeSingle(),
-  ctx.db.from('tp_driver_subscriptions').select('price_slug,status,trial_ends_at,current_period_end,trial_used').eq('user_id',ctx.user.id).maybeSingle(),
+  ctx.db.from('tp_driver_subscriptions').select('price_slug,status,trial_ends_at,current_period_end,trial_used,payment_failed_at').eq('user_id',ctx.user.id).maybeSingle(),
   ctx.db.from('tp_driver_pilot_access').select('enabled,pro_access,checkout_enabled').eq('user_id',ctx.user.id).maybeSingle(),
   ctx.db.from('tp_subscription_grants').select('plan,enabled').eq('user_id',ctx.user.id).maybeSingle(),
   ctx.db.from('tp_plan_policies').select('slug,published_config'),
@@ -39,7 +39,9 @@ export async function GET(req:NextRequest){
  if(runtime.error||catalog.error||assignment.error||subscription.error||pilot.error||grant.error||policies.error||launches.error||trialHistory.error)return reply({error:'Catálogo no disponible'},503);
  const isPilot=pilot.data?.enabled===true;
  const status=subscription.data?.status;
- const paidTier=(status==='active'||status==='trialing')
+ const pastDueSince=Date.parse(subscription.data?.payment_failed_at||'');
+ const gracePeriodActive=status==='past_due'&&Number.isFinite(pastDueSince)&&Date.now()<pastDueSince+72*3600000;
+ const paidTier=(status==='active'||status==='trialing'||gracePeriodActive)
    ? subscription.data?.price_slug?.startsWith('pro')?'pro':subscription.data?.price_slug?.startsWith('plus')?'plus':'free'
    : 'free';
  const gifted=grant.data?.enabled===true?grant.data.plan:null;
@@ -67,7 +69,7 @@ export async function GET(req:NextRequest){
   complimentary_plan:gifted,can_manage_subscription:!!subscription.data?.status && !['inactive','canceled','incomplete_expired'].includes(subscription.data.status),
   pilot_access:isPilot,effective_plan:effectivePlan,pro_access:!restrictionsEnabled||effectivePlan==='pro',
   plus_access:!restrictionsEnabled||['plus','pro'].includes(effectivePlan),
-  audience:assignment.data?.audience||'standard',plans:catalog.data,subscription:subscription.data,
+  audience:assignment.data?.audience||'standard',plans:catalog.data,subscription:subscription.data, payment_grace_until:gracePeriodActive?new Date(pastDueSince+72*3600000).toISOString():null,
   trial_used:trialAlreadyUsed,trial_available:availableTrial,trial_used_at:trialHistory.data?.first_trial_at||null,
   feature_status:restrictionsEnabled?featureStatus:null,
   policy:policyConfig,features:restrictionsEnabled?featureAccess:null,
