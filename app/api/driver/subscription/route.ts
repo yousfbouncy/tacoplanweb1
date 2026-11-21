@@ -2,30 +2,27 @@ import { NextRequest,NextResponse } from 'next/server';
 import { adminDatabase,sameOrigin } from '@/lib/admin-users';
 import {validatePlanConfig,type PlanSlug} from '@/lib/plan-policy';
 import {calculateTimedFreeFeatures,trialEligibility,type LaunchMap} from '@/lib/feature-entitlements';
+import {getDriverStripeSubscription,verifiedLatestPayment} from '@/lib/driver-payment-verification';
 export const dynamic='force-dynamic';
 const reply=(data:unknown,status=200)=>NextResponse.json(data,{status,headers:{'Cache-Control':'private,no-store'}});
 async function reconcileOverdueSubscription(db:ReturnType<typeof adminDatabase>,userId:string,record:{
- status?:string|null;stripe_subscription_id?:string|null;stripe_customer_id?:string|null;
+ status?:string|null;stripe_subscription_id?:string|null;stripe_customer_id?:string|null;first_paid_at?:string|null;
 } | null){
- if(!db||record?.status!=='past_due'||!record.stripe_subscription_id||!record.stripe_customer_id||!process.env.STRIPE_SECRET_KEY)return null;
- const headers={Authorization:'Bearer '+process.env.STRIPE_SECRET_KEY};
+ if(!db||!['past_due','active'].includes(record?.status||'')||!record?.stripe_subscription_id||
+    !record.stripe_customer_id||!process.env.STRIPE_SECRET_KEY)return null;
  try{
-  const res=await fetch('https://api.stripe.com/v1/subscriptions/'+encodeURIComponent(record.stripe_subscription_id),{headers,cache:'no-store'});
-  if(!res.ok)return null;
-  const sub=await res.json();
-  if(sub.id!==record.stripe_subscription_id||sub.customer!==record.stripe_customer_id||sub.metadata?.tp_driver_id!==userId)return null;
-  let paid=sub.status==='active';
-  if(!paid && sub.status==='past_due' && typeof sub.latest_invoice==='string'){
-   const invRes=await fetch('https://api.stripe.com/v1/invoices/'+encodeURIComponent(sub.latest_invoice),{headers,cache:'no-store'});
-   if(invRes.ok){const inv=await invRes.json();paid=inv.status==='paid'&&inv.paid===true;}
-  }
-  if(!paid)return null;
+  const remote=await getDriverStripeSubscription(record.stripe_subscription_id);
+  if(remote.id!==record.stripe_subscription_id||remote.customer!==record.stripe_customer_id||
+    remote.metadata?.tp_driver_id!==userId||remote.status!=='active')return null;
+  const evidence=await verifiedLatestPayment(remote);
+  if(!evidence)return null; // No real, positive-value paid invoice => no paid activation.
   const updated=await db.from('tp_driver_subscriptions').update({
-   status:'active',updated_at:new Date().toISOString(),
-   current_period_end:typeof sub.current_period_end==='number'?new Date(sub.current_period_end*1000).toISOString():null
-  }).eq('user_id',userId).eq('stripe_subscription_id',sub.id).eq('status','past_due');
+   status:'active',first_paid_at:record.first_paid_at||evidence.paid_at,
+   last_paid_invoice_id:evidence.id,updated_at:new Date().toISOString(),
+   current_period_end:typeof remote.current_period_end==='number'?new Date(remote.current_period_end*1000).toISOString():null
+  }).eq('user_id',userId).eq('stripe_subscription_id',remote.id);
   if(updated.error){console.error('Payment reconciliation DB failed',updated.error.message);return null;}
-  return 'active';
+  return evidence;
  }catch(err){console.error('Payment reconciliation failed',err instanceof Error?err.message:'unknown');return null;}
 }
 async function stripe(path:string,params:URLSearchParams){
@@ -86,12 +83,13 @@ export async function GET(req:NextRequest){
  if(runtime.error||catalog.error||assignment.error||subscription.error||pilot.error||grant.error||policies.error||launches.error||trialHistory.error)return reply({error:'Catálogo no disponible'},503);
  let trialCheck:ReturnType<typeof assessTrial>;
  try{trialCheck=await loadTrialAssessment(ctx.db,ctx.user.id);}catch{return reply({error:'No se pudo verificar la elegibilidad de la prueba'},503);}
- const settledStatus=await reconcileOverdueSubscription(ctx.db,ctx.user.id,subscription.data);
+ const verifiedPayment=await reconcileOverdueSubscription(ctx.db,ctx.user.id,subscription.data);
  const isPilot=pilot.data?.enabled===true;
- const status=settledStatus||subscription.data?.status;
+ const status=verifiedPayment?'active':subscription.data?.status;
+ const previouslyPaid=Boolean(verifiedPayment||subscription.data?.first_paid_at);
  const pastDueSince=Date.parse(subscription.data?.payment_failed_at||'');
- const gracePeriodActive=status==='past_due'&&Number.isFinite(pastDueSince)&&Date.now()<pastDueSince+72*3600000;
- const paidTier=(status==='active'||status==='trialing'||gracePeriodActive)
+ const gracePeriodActive=status==='past_due'&&previouslyPaid&&Number.isFinite(pastDueSince)&&Date.now()<pastDueSince+72*3600000;
+ const paidTier=(status==='active'&&previouslyPaid||status==='trialing'||gracePeriodActive)
    ? subscription.data?.price_slug?.startsWith('pro')?'pro':subscription.data?.price_slug?.startsWith('plus')?'plus':'free'
    : 'free';
  const gifted=grant.data?.enabled===true?grant.data.plan:null;
@@ -119,7 +117,7 @@ export async function GET(req:NextRequest){
   complimentary_plan:gifted,can_manage_subscription:!!subscription.data?.status && !['inactive','canceled','incomplete_expired'].includes(subscription.data.status),
   pilot_access:isPilot,effective_plan:effectivePlan,pro_access:!restrictionsEnabled||effectivePlan==='pro',
   plus_access:!restrictionsEnabled||['plus','pro'].includes(effectivePlan),
-  audience:assignment.data?.audience||'standard',plans:catalog.data,subscription:subscription.data?{...subscription.data,status}:null, payment_grace_until:gracePeriodActive?new Date(pastDueSince+72*3600000).toISOString():null,
+  audience:assignment.data?.audience||'standard',plans:catalog.data,subscription:subscription.data?{...subscription.data,status,first_paid_at:subscription.data.first_paid_at||verifiedPayment?.paid_at||null}:null, payment_grace_until:gracePeriodActive?new Date(pastDueSince+72*3600000).toISOString():null,
   trial_used:trialAlreadyUsed,trial_available:availableTrial,trial_activity:trialCheck,trial_used_at:trialHistory.data?.first_trial_at||null,
   feature_status:restrictionsEnabled?featureStatus:null,
   policy:policyConfig,features:restrictionsEnabled?featureAccess:null,
