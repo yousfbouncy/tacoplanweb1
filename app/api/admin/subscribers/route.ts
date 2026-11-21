@@ -37,7 +37,7 @@ export async function GET(req:NextRequest){
   for(let offset=0;offset<10000;offset+=1000){
    const {data:shifts,error:shiftError}=await db.from('jornadas').select('user_id,fecha_inicio').order('created_at',{ascending:false}).range(offset,offset+999);
    if(shiftError)throw shiftError;
-   for(const s of shifts||[])if(/^20\\d\\d-\\d\\d-\\d\\d$/.test(s.fecha_inicio||'')){
+   for(const s of shifts||[])if(/^20[0-9]{2}-[0-9]{2}-[0-9]{2}$/.test(s.fecha_inicio||'')){
     const set=unique.get(s.user_id)||new Set<string>();set.add(s.fecha_inicio);unique.set(s.user_id,set);
    }
    if((shifts||[]).length<1000)break;
