@@ -1,6 +1,7 @@
 import { NextRequest,NextResponse } from 'next/server';
 import { adminDatabase,sameOrigin } from '@/lib/admin-users';
 import {validatePlanConfig,type PlanSlug} from '@/lib/plan-policy';
+import {calculateTimedFreeFeatures,trialEligibility,type LaunchMap} from '@/lib/feature-entitlements';
 export const dynamic='force-dynamic';
 const reply=(data:unknown,status=200)=>NextResponse.json(data,{status,headers:{'Cache-Control':'private,no-store'}});
 async function stripe(path:string,params:URLSearchParams){
@@ -24,16 +25,18 @@ async function identify(req:NextRequest){
 }
 export async function GET(req:NextRequest){
  const ctx=await identify(req);if(!ctx)return reply({error:'Inicia sesión'},401);
- const [runtime,catalog,assignment,subscription,pilot,grant,policies]=await Promise.all([
+ const [runtime,catalog,assignment,subscription,pilot,grant,policies,launches,trialHistory]=await Promise.all([
   ctx.db.from('tp_subscription_runtime').select('billing_enabled,restrictions_enabled').eq('id',1).single(),
   ctx.db.from('tp_subscription_price_catalog').select('slug,plan,audience,monthly_cents,annual_cents,trial_days'),
   ctx.db.from('tp_driver_price_entitlements').select('audience').eq('user_id',ctx.user.id).maybeSingle(),
   ctx.db.from('tp_driver_subscriptions').select('price_slug,status,trial_ends_at,current_period_end,trial_used').eq('user_id',ctx.user.id).maybeSingle(),
   ctx.db.from('tp_driver_pilot_access').select('enabled,pro_access,checkout_enabled').eq('user_id',ctx.user.id).maybeSingle(),
   ctx.db.from('tp_subscription_grants').select('plan,enabled').eq('user_id',ctx.user.id).maybeSingle(),
-  ctx.db.from('tp_plan_policies').select('slug,published_config')
+  ctx.db.from('tp_plan_policies').select('slug,published_config'),
+  ctx.db.from('tp_free_feature_launches').select('feature_key,first_started_at'),
+  ctx.db.from('tp_driver_trial_history').select('first_trial_at,plan').eq('user_id',ctx.user.id).maybeSingle()
  ]);
- if(runtime.error||catalog.error||assignment.error||subscription.error||pilot.error||grant.error)return reply({error:'Catálogo no disponible'},503);
+ if(runtime.error||catalog.error||assignment.error||subscription.error||pilot.error||grant.error||policies.error||launches.error||trialHistory.error)return reply({error:'Catálogo no disponible'},503);
  const isPilot=pilot.data?.enabled===true;
  const status=subscription.data?.status;
  const paidTier=(status==='active'||status==='trialing')
@@ -53,13 +56,20 @@ export async function GET(req:NextRequest){
  const freeExpiry=restrictionsEnabled&&tier==='free'&&freeConfig?.duration_days!==null&&freeConfig?.duration_days!==undefined
    ? new Date(Date.parse(ctx.user.created_at)+freeConfig.duration_days*86400000).toISOString():null;
  const freeExpired=freeExpiry!==null&&Date.parse(freeExpiry)<=Date.now();
- const featureAccess=policyConfig?.features||null;
+ const immutableLaunches:LaunchMap=Object.fromEntries((launches.data||[]).map(row=>[row.feature_key,row.first_started_at]));
+ const limitedFree=freeConfig?calculateTimedFreeFeatures(freeConfig,immutableLaunches,ctx.user.created_at):null;
+ const featureAccess=tier==='free'?limitedFree?.features||null:policyConfig?.features||null;
+ const featureStatus=tier==='free'?limitedFree?.feature_status||null:null;
+ const trialAlreadyUsed=!!trialHistory.data||subscription.data?.trial_used===true||subscription.data?.status==='trialing'||!!subscription.data?.trial_ends_at;
+ const availableTrial=trialEligibility(subscription.data,!!trialHistory.data,Math.max(0,...(catalog.data||[]).map(x=>x.trial_days||0)));
  const canCheckout=runtime.data?.billing_enabled===true;
  return reply({billing_enabled:canCheckout,restrictions_enabled:restrictionsEnabled,all_features_unlocked:!restrictionsEnabled,
   complimentary_plan:gifted,can_manage_subscription:!!subscription.data?.status && !['inactive','canceled','incomplete_expired'].includes(subscription.data.status),
   pilot_access:isPilot,effective_plan:effectivePlan,pro_access:!restrictionsEnabled||effectivePlan==='pro',
   plus_access:!restrictionsEnabled||['plus','pro'].includes(effectivePlan),
   audience:assignment.data?.audience||'standard',plans:catalog.data,subscription:subscription.data,
+  trial_used:trialAlreadyUsed,trial_available:availableTrial,trial_used_at:trialHistory.data?.first_trial_at||null,
+  feature_status:restrictionsEnabled?featureStatus:null,
   policy:policyConfig,features:restrictionsEnabled?featureAccess:null,
   free_plan_expires_at:freeExpiry,free_plan_expired:freeExpired,
   policy_version:1});
@@ -70,13 +80,14 @@ export async function POST(req:NextRequest){
  let body:{action?:string;plan?:string;interval?:string;skip_trial?:boolean};
  try{body=await req.json();}catch{return reply({error:'Solicitud inválida'},400);}
  const db=ctx.db,userId=ctx.user.id;
- const [runtime,assignment,sub,pilot]=await Promise.all([
+ const [runtime,assignment,sub,pilot,trialHistory]=await Promise.all([
   db.from('tp_subscription_runtime').select('billing_enabled').eq('id',1).single(),
   db.from('tp_driver_price_entitlements').select('audience').eq('user_id',userId).maybeSingle(),
   db.from('tp_driver_subscriptions').select('*').eq('user_id',userId).maybeSingle(),
-  db.from('tp_driver_pilot_access').select('enabled,checkout_enabled').eq('user_id',userId).maybeSingle()
+  db.from('tp_driver_pilot_access').select('enabled,checkout_enabled').eq('user_id',userId).maybeSingle(),
+  db.from('tp_driver_trial_history').select('first_trial_at').eq('user_id',userId).maybeSingle()
  ]);
- if(runtime.error||assignment.error||sub.error||pilot.error)return reply({error:'No se pudo comprobar la cuenta'},503);
+ if(runtime.error||assignment.error||sub.error||pilot.error||trialHistory.error)return reply({error:'No se pudo comprobar la cuenta'},503);
  // A paying user must always be able to manage or cancel their existing subscription,
  // even if new checkout is disabled or their pilot eligibility changes.
  if(body.action==='portal'){
@@ -113,7 +124,8 @@ export async function POST(req:NextRequest){
  form.set('metadata[tp_driver_id]',userId);form.set('metadata[tp_price_slug]',slug);
  form.set('subscription_data[metadata][tp_driver_id]',userId);
  form.set('subscription_data[metadata][tp_price_slug]',slug);
- if(!body.skip_trial && !sub.data?.trial_used&&price.trial_days>0)form.set('subscription_data[trial_period_days]',String(price.trial_days));
+ const trialAvailable=trialEligibility(sub.data,!!trialHistory.data,price.trial_days);
+ if(!body.skip_trial && trialAvailable)form.set('subscription_data[trial_period_days]',String(price.trial_days));
  form.set('success_url',req.nextUrl.origin+'/planes?subscription=success');
  form.set('cancel_url',req.nextUrl.origin+'/planes?subscription=cancel');
  if(sub.data?.stripe_customer_id)form.set('customer',sub.data.stripe_customer_id);
