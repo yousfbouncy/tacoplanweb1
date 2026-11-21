@@ -1,6 +1,7 @@
 import {NextRequest,NextResponse} from 'next/server';
 import {createHmac,timingSafeEqual} from 'node:crypto';
 import {adminDatabase} from '@/lib/admin-users';
+import {getDriverStripeSubscription,verifiedLatestPayment,verifyPaidInvoice} from '@/lib/driver-payment-verification';
 export const dynamic='force-dynamic';
 const response=(v:unknown,status=200)=>NextResponse.json(v,{status});
 function signatureValid(raw:string,header:string,secret:string){
@@ -47,16 +48,21 @@ export async function POST(req:NextRequest){
   if(['customer.subscription.created','customer.subscription.updated','customer.subscription.deleted'].includes(event.type)){
    const uid=o.metadata?.tp_driver_id,slug=o.metadata?.tp_price_slug;
    if(typeof uid==='string'&&typeof slug==='string'&&typeof o.id==='string'&&typeof o.customer==='string'){
-    const {data:existing,error}=await db.from('tp_driver_subscriptions').select('stripe_customer_id,stripe_subscription_id,trial_used').eq('user_id',uid).maybeSingle();
+    const {data:existing,error}=await db.from('tp_driver_subscriptions').select('stripe_customer_id,stripe_subscription_id,trial_used,first_paid_at').eq('user_id',uid).maybeSingle();
     if(error)throw error;
     if(!existing||((!existing.stripe_customer_id||existing.stripe_customer_id===o.customer)&&(!existing.stripe_subscription_id||existing.stripe_subscription_id===o.id))){
      const statuses=['active','trialing','past_due','unpaid','canceled','incomplete','incomplete_expired','paused'];
-     const status=event.type==='customer.subscription.deleted'?'canceled':statuses.includes(o.status)?o.status:'incomplete';
+     const rawStatus=event.type==='customer.subscription.deleted'?'canceled':statuses.includes(o.status)?o.status:'incomplete';
+     // No paid access from customer.subscription.updated alone: fetch the actual invoice.
+     const verified=rawStatus==='active'?await verifiedLatestPayment(o):null;
+     // Prior paid subscribers may be given 72h on renewal; an unpaid first invoice never does.
+     const status=rawStatus==='active'&&!verified?(existing?.first_paid_at?'past_due':'incomplete'):rawStatus;
      const update=await db.from('tp_driver_subscriptions').upsert({
       user_id:uid,price_slug:slug,stripe_customer_id:o.customer,stripe_subscription_id:o.id,status,
       trial_used:existing?.trial_used||status==='trialing'||typeof o.trial_end==='number',
       trial_ends_at:typeof o.trial_end==='number'?new Date(o.trial_end*1000).toISOString():null,
       current_period_end:typeof o.current_period_end==='number'?new Date(o.current_period_end*1000).toISOString():null,
+      ...(verified?{first_paid_at:existing?.first_paid_at||verified.paid_at,last_paid_invoice_id:verified.id}:{}),
       updated_at:new Date().toISOString()
      },{onConflict:'user_id'});
      if(update.error)throw update.error;
@@ -74,28 +80,28 @@ export async function POST(req:NextRequest){
     }
    }
   }
-  // Confirmed invoice payment can arrive before or after the subscription.updated event.
-  // Match both the Stripe customer and the subscription to prevent applying another user's payment.
+  // Independently fetch the paid invoice on every positive payment webhook;
+  // then confirm the live subscription, rather than trusting event ordering.
   if(['invoice.paid','invoice.payment_succeeded'].includes(event.type)&&o.paid===true&&o.status==='paid'){
    const subscriptionId=o.parent?.subscription_details?.subscription||o.subscription;
-   if(typeof subscriptionId==='string'&&typeof o.customer==='string'){
+   if(typeof subscriptionId==='string'&&typeof o.customer==='string'&&typeof o.id==='string'){
     const {data:existing,error}=await db.from('tp_driver_subscriptions')
-     .select('user_id,status').eq('stripe_subscription_id',subscriptionId)
+     .select('user_id,first_paid_at').eq('stripe_subscription_id',subscriptionId)
      .eq('stripe_customer_id',o.customer).maybeSingle();
     if(error)throw error;
-    if(existing&&!['canceled','unpaid','incomplete_expired'].includes(existing.status)){
-     // Only settle if Stripe itself confirms this subscription is active.
-     const key=process.env.STRIPE_SECRET_KEY;
-     if(!key)throw Error('Stripe API not configured for payment reconciliation');
-     const fresh=await fetch('https://api.stripe.com/v1/subscriptions/'+encodeURIComponent(subscriptionId),{
-      headers:{Authorization:'Bearer '+key},cache:'no-store'});
-     if(!fresh.ok)throw Error('Stripe subscription verification failed');
-     const remote=await fresh.json();
-     if(remote.id===subscriptionId&&remote.customer===o.customer&&remote.status==='active'){
-      const update=await db.from('tp_driver_subscriptions').update({
-       status:'active',updated_at:new Date().toISOString(),
-       current_period_end:typeof remote.current_period_end==='number'?new Date(remote.current_period_end*1000).toISOString():null
-      }).eq('user_id',existing.user_id).eq('stripe_subscription_id',subscriptionId);
+    if(existing){
+     const evidence=await verifyPaidInvoice(o.id,subscriptionId,o.customer);
+     if(evidence){
+      const remote=await getDriverStripeSubscription(subscriptionId);
+      const active=remote.id===subscriptionId&&remote.customer===o.customer&&
+       remote.metadata?.tp_driver_id===existing.user_id&&remote.status==='active';
+      const patch={
+       first_paid_at:existing.first_paid_at||evidence.paid_at,
+       last_paid_invoice_id:evidence.id,updated_at:new Date().toISOString(),
+       ...(active?{status:'active',current_period_end:typeof remote.current_period_end==='number'?new Date(remote.current_period_end*1000).toISOString():null}:{})
+      };
+      const update=await db.from('tp_driver_subscriptions').update(patch)
+       .eq('user_id',existing.user_id).eq('stripe_subscription_id',subscriptionId);
       if(update.error)throw update.error;
      }
     }
