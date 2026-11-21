@@ -1,5 +1,6 @@
 import {NextRequest,NextResponse} from 'next/server';
 import {adminDatabase} from '@/lib/admin-users';
+import {getDriverStripeSubscription,verifiedLatestPayment} from '@/lib/driver-payment-verification';
 export const dynamic='force-dynamic';
 export const maxDuration=60;
 const HOUR=3600000;
@@ -20,12 +21,13 @@ export async function GET(req:NextRequest){
  if(!db||!key)return NextResponse.json({error:'Configuración de facturación no disponible'},{status:503});
  const now=Date.now();
  const {data,error}=await db.from('tp_driver_subscriptions')
-  .select('user_id,status,stripe_customer_id,stripe_subscription_id,payment_failed_at')
+  .select('user_id,status,stripe_customer_id,stripe_subscription_id,payment_failed_at,first_paid_at')
   .eq('status','past_due').not('payment_failed_at','is',null).range(0,999);
  if(error)return NextResponse.json({error:'No se pueden consultar suscripciones'},{status:503});
  let grace=0,recovered=0,canceled=0,failed=0;
  for(const sub of data||[]){
   const failedAt=Date.parse(sub.payment_failed_at||'');
+  if(!sub.first_paid_at){continue;} // First payment failed: no access, and no renewal grace applies.
   if(!Number.isFinite(failedAt)||!sub.stripe_subscription_id){failed++;continue;}
   if(now<failedAt+GRACE_MS){grace++;continue;}
   try{
@@ -33,9 +35,11 @@ export async function GET(req:NextRequest){
    if(current.metadata?.tp_driver_id!==sub.user_id||current.customer!==sub.stripe_customer_id){
     failed++;console.error('Driver subscription ownership mismatch');continue;
    }
-   if(current.status==='active'||current.status==='trialing'){
+   if(current.status==='active'){
+    const evidence=await verifiedLatestPayment(current);
+    if(!evidence){failed++;continue;}
     const change=await db.from('tp_driver_subscriptions').update({
-     status:current.status,trial_ends_at:current.trial_end?new Date(current.trial_end*1000).toISOString():null,
+     status:'active',last_paid_invoice_id:evidence.id,trial_ends_at:current.trial_end?new Date(current.trial_end*1000).toISOString():null,
      current_period_end:current.current_period_end?new Date(current.current_period_end*1000).toISOString():null,
      updated_at:new Date().toISOString()
     }).eq('user_id',sub.user_id).eq('status','past_due').eq('stripe_subscription_id',sub.stripe_subscription_id);
