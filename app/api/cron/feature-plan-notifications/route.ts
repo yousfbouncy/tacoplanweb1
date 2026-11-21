@@ -2,11 +2,11 @@ import {NextRequest,NextResponse} from 'next/server';
 import {adminDatabase} from '@/lib/admin-users';
 import {validatePlanConfig,type FeatureKey} from '@/lib/plan-policy';
 import {calculateTimedFreeFeatures,trialEligibility,type LaunchMap} from '@/lib/feature-entitlements';
-import {dueMoment,featureNotice} from '@/lib/feature-plan-notifications';
+import {dueMoment,featureNotice,FEATURE_LABELS} from '@/lib/feature-plan-notifications';
 export const dynamic='force-dynamic';
 export const maxDuration=60;
 const json=(x:unknown,status=200)=>NextResponse.json(x,{status,headers:{'Cache-Control':'no-store'}});
-type Candidate={userId:string;feature:FeatureKey;key:string;title:string;body:string;tokens:string[];daysLeft:number};
+type Candidate={userId:string;feature:FeatureKey;key:string;title:string;body:string;tokens:string[];daysLeft:number;batch?:Candidate[]};
 const isToken=(x:unknown):x is string=>typeof x==='string'&&/^(ExponentPushToken|ExpoPushToken)\[[^\]]+\]$/.test(x);
 export async function GET(req:NextRequest){
  const secret=process.env.CRON_SECRET;
@@ -67,14 +67,31 @@ export async function GET(req:NextRequest){
   }
   // One message per driver per day avoids flooding drivers when several free
   // limits are published simultaneously.
-  if(userNotices.length)notices.push(userNotices.sort((a,b)=>a.daysLeft-b.daysLeft)[0]);
+  if(userNotices.length){
+   userNotices.sort((a,b)=>a.daysLeft-b.daysLeft);
+   const primary=userNotices[0];
+   if(userNotices.length===1)notices.push(primary);
+   else {
+    const details=userNotices.map(x=>FEATURE_LABELS[x.feature]+': '+(x.daysLeft===0?'plazo terminado':x.daysLeft+' días restantes')).join(' · ');
+    notices.push({...primary,batch:userNotices,title:'Tus funciones gratuitas en Tacoplan',
+     body:details+'. '+(trialAvailable?'Tienes una prueba gratuita de Plus o Pro disponible.':'Consulta los planes Plus y Pro para seguir usando las funciones.')});
+   }
+  }
  }
  let internal=0,accepted=0,failed=0,skipped=0;
  for(const n of notices){
-  const claim=await db.from('tp_feature_notification_events').insert({
-    user_id:n.userId,feature_key:n.feature,event_key:n.key,push_status:'pending'
-  });
-  if(claim.error){if(claim.error.code==='23505'){skipped++;continue;}return json({error:'Could not secure notification log',internal,accepted,failed},503);}
+  const claimed:Candidate[]=[];
+  for(const pending of n.batch||[n]){
+   const claim=await db.from('tp_feature_notification_events').insert({
+     user_id:pending.userId,feature_key:pending.feature,event_key:pending.key,push_status:'pending'
+   });
+   if(claim.error){
+    if(claim.error.code==='23505'){skipped++;continue;}
+    return json({error:'Could not secure notification log',internal,accepted,failed},503);
+   }
+   claimed.push(pending);
+  }
+  if(claimed.length===0)continue;
   const inbox=await db.from('user_notifications').insert({
    user_id:n.userId,type:'system',title:n.title,body:n.body,
    button_text:'Ver planes',button_url:'https://tacoplan.es/planes',
@@ -96,8 +113,10 @@ export async function GET(req:NextRequest){
     accepted+=count;failed+=n.tokens.length-count;pushState=count>0?'accepted':'failed';
    }catch(error){console.error('Plan push error',error);failed+=n.tokens.length;pushState='failed';}
   }
-  await db.from('tp_feature_notification_events').update({push_status:pushState})
-   .eq('user_id',n.userId).eq('feature_key',n.feature).eq('event_key',n.key);
+  for(const c of claimed){
+   await db.from('tp_feature_notification_events').update({push_status:pushState})
+    .eq('user_id',c.userId).eq('feature_key',c.feature).eq('event_key',c.key);
+  }
  }
  return json({ok:true,processed:notices.length,internal,accepted,failed,skipped});
 }
