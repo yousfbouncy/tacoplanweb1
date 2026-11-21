@@ -4,6 +4,30 @@ import {validatePlanConfig,type PlanSlug} from '@/lib/plan-policy';
 import {calculateTimedFreeFeatures,trialEligibility,type LaunchMap} from '@/lib/feature-entitlements';
 export const dynamic='force-dynamic';
 const reply=(data:unknown,status=200)=>NextResponse.json(data,{status,headers:{'Cache-Control':'private,no-store'}});
+async function reconcileOverdueSubscription(db:ReturnType<typeof adminDatabase>,userId:string,record:{
+ status?:string|null;stripe_subscription_id?:string|null;stripe_customer_id?:string|null;
+} | null){
+ if(!db||record?.status!=='past_due'||!record.stripe_subscription_id||!record.stripe_customer_id||!process.env.STRIPE_SECRET_KEY)return null;
+ const headers={Authorization:'Bearer '+process.env.STRIPE_SECRET_KEY};
+ try{
+  const res=await fetch('https://api.stripe.com/v1/subscriptions/'+encodeURIComponent(record.stripe_subscription_id),{headers,cache:'no-store'});
+  if(!res.ok)return null;
+  const sub=await res.json();
+  if(sub.id!==record.stripe_subscription_id||sub.customer!==record.stripe_customer_id||sub.metadata?.tp_driver_id!==userId)return null;
+  let paid=sub.status==='active';
+  if(!paid && sub.status==='past_due' && typeof sub.latest_invoice==='string'){
+   const invRes=await fetch('https://api.stripe.com/v1/invoices/'+encodeURIComponent(sub.latest_invoice),{headers,cache:'no-store'});
+   if(invRes.ok){const inv=await invRes.json();paid=inv.status==='paid'&&inv.paid===true;}
+  }
+  if(!paid)return null;
+  const updated=await db.from('tp_driver_subscriptions').update({
+   status:'active',updated_at:new Date().toISOString(),
+   current_period_end:typeof sub.current_period_end==='number'?new Date(sub.current_period_end*1000).toISOString():null
+  }).eq('user_id',userId).eq('stripe_subscription_id',sub.id).eq('status','past_due');
+  if(updated.error){console.error('Payment reconciliation DB failed',updated.error.message);return null;}
+  return 'active';
+ }catch(err){console.error('Payment reconciliation failed',err instanceof Error?err.message:'unknown');return null;}
+}
 async function stripe(path:string,params:URLSearchParams){
  const key=process.env.STRIPE_SECRET_KEY;
  if(!key)throw Error('Stripe no está configurado');
@@ -29,7 +53,7 @@ export async function GET(req:NextRequest){
   ctx.db.from('tp_subscription_runtime').select('billing_enabled,restrictions_enabled').eq('id',1).single(),
   ctx.db.from('tp_subscription_price_catalog').select('slug,plan,audience,monthly_cents,annual_cents,trial_days'),
   ctx.db.from('tp_driver_price_entitlements').select('audience').eq('user_id',ctx.user.id).maybeSingle(),
-  ctx.db.from('tp_driver_subscriptions').select('price_slug,status,trial_ends_at,current_period_end,trial_used,payment_failed_at').eq('user_id',ctx.user.id).maybeSingle(),
+  ctx.db.from('tp_driver_subscriptions').select('price_slug,status,trial_ends_at,current_period_end,trial_used,payment_failed_at,stripe_subscription_id,stripe_customer_id').eq('user_id',ctx.user.id).maybeSingle(),
   ctx.db.from('tp_driver_pilot_access').select('enabled,pro_access,checkout_enabled').eq('user_id',ctx.user.id).maybeSingle(),
   ctx.db.from('tp_subscription_grants').select('plan,enabled').eq('user_id',ctx.user.id).maybeSingle(),
   ctx.db.from('tp_plan_policies').select('slug,published_config'),
@@ -37,8 +61,9 @@ export async function GET(req:NextRequest){
   ctx.db.from('tp_driver_trial_history').select('first_trial_at,plan').eq('user_id',ctx.user.id).maybeSingle()
  ]);
  if(runtime.error||catalog.error||assignment.error||subscription.error||pilot.error||grant.error||policies.error||launches.error||trialHistory.error)return reply({error:'Catálogo no disponible'},503);
+ const settledStatus=await reconcileOverdueSubscription(ctx.db,ctx.user.id,subscription.data);
  const isPilot=pilot.data?.enabled===true;
- const status=subscription.data?.status;
+ const status=settledStatus||subscription.data?.status;
  const pastDueSince=Date.parse(subscription.data?.payment_failed_at||'');
  const gracePeriodActive=status==='past_due'&&Number.isFinite(pastDueSince)&&Date.now()<pastDueSince+72*3600000;
  const paidTier=(status==='active'||status==='trialing'||gracePeriodActive)
@@ -69,7 +94,7 @@ export async function GET(req:NextRequest){
   complimentary_plan:gifted,can_manage_subscription:!!subscription.data?.status && !['inactive','canceled','incomplete_expired'].includes(subscription.data.status),
   pilot_access:isPilot,effective_plan:effectivePlan,pro_access:!restrictionsEnabled||effectivePlan==='pro',
   plus_access:!restrictionsEnabled||['plus','pro'].includes(effectivePlan),
-  audience:assignment.data?.audience||'standard',plans:catalog.data,subscription:subscription.data, payment_grace_until:gracePeriodActive?new Date(pastDueSince+72*3600000).toISOString():null,
+  audience:assignment.data?.audience||'standard',plans:catalog.data,subscription:subscription.data?{...subscription.data,status}:null, payment_grace_until:gracePeriodActive?new Date(pastDueSince+72*3600000).toISOString():null,
   trial_used:trialAlreadyUsed,trial_available:availableTrial,trial_used_at:trialHistory.data?.first_trial_at||null,
   feature_status:restrictionsEnabled?featureStatus:null,
   policy:policyConfig,features:restrictionsEnabled?featureAccess:null,
