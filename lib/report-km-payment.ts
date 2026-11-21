@@ -28,8 +28,8 @@ export function attachKmPayment(rows:SharedReportRow[],profile:KmPaymentProfile,
  if(!canShowRate&&!canShowAmount)return rows;
  if(profile.payment_mode!=='km')return rows;
  return rows.map(row=>{
-  const price=rateForRoute(profile,row.routeType);
-  const amount=price!==null&&row.km!==null&&Number.isFinite(row.km)&&row.km>=0
+  const price=row.paymentAmountHidden?null:rateForRoute(profile,row.routeType);
+  const amount=!row.paymentAmountHidden&&price!==null&&row.km!==null&&Number.isFinite(row.km)&&row.km>=0
    ?cents(row.km*price):null;
   return {...row,kmRate:canShowRate?price:null,kmAmount:canShowAmount?amount:null};
  });
