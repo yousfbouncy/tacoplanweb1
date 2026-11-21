@@ -40,7 +40,7 @@ export default function DriverPlansClient(){
     <h2 className="text-xl font-bold">{tier==='free'?'Gratis':tier==='plus'?'Plus':'Pro'}</h2>
     <p className="text-2xl font-semibold">{p?price(p.monthly_cents)+'/mes':'0 €'}</p>
     <p>{tier==='free'?'Jornadas y descansos; historial según las condiciones del plan Gratis':tier==='plus'?'AutoStart, dietas y pluses; historial 12 meses':'Acceso completo con estimación de nómina e informes PDF'}</p>
-    {p&&<button className="w-full rounded bg-blue-700 p-3 text-white disabled:opacity-40" disabled={busy||!info?.billing_enabled} onClick={()=>void request('checkout',tier,'month')}>Elegir mensual · {info.trial_available&&p.trial_days>0?p.trial_days+' días de prueba disponibles':'sin nueva prueba'}</button>}
+    {p&&<button className="w-full rounded bg-blue-700 p-3 text-white disabled:opacity-40" disabled={busy||!info?.billing_enabled} onClick={()=>void request('checkout',tier,'month')}>Elegir mensual · {info?.trial_available&&p.trial_days>0?p.trial_days+' días de prueba disponibles':'sin nueva prueba'}</button>}
     {p&&<button className="w-full rounded border border-blue-700 p-3 font-semibold text-blue-700 disabled:opacity-40" disabled={busy||!info?.billing_enabled} onClick={()=>void request('checkout',tier,'month',true)}>Contratar y pagar ahora (sin prueba gratuita)</button>}
     {p?.annual_cents!=null&&<button className="w-full rounded border p-3 disabled:opacity-40" disabled={busy||!info?.billing_enabled} onClick={()=>void request('checkout',tier,'year')}>Anual {price(p.annual_cents)}</button>}
    </section>;
