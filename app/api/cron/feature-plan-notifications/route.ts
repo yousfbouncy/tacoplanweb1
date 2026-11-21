@@ -1,20 +1,20 @@
 import {NextRequest,NextResponse} from 'next/server';
 import {adminDatabase} from '@/lib/admin-users';
-import {validatePlanConfig,type FeatureKey} from '@/lib/plan-policy';
+import {validatePlanConfig,FEATURE_KEYS,type FeatureKey} from '@/lib/plan-policy';
 import {calculateTimedFreeFeatures,trialEligibility,type LaunchMap} from '@/lib/feature-entitlements';
 import {dueMoment,featureNotice,FEATURE_LABELS} from '@/lib/feature-plan-notifications';
 export const dynamic='force-dynamic';
 export const maxDuration=60;
 const json=(x:unknown,status=200)=>NextResponse.json(x,{status,headers:{'Cache-Control':'no-store'}});
-type Candidate={userId:string;feature:FeatureKey;key:string;title:string;body:string;tokens:string[];daysLeft:number;batch?:Candidate[]};
+type Candidate={userId:string;feature:FeatureKey|'policy';key:string;title:string;body:string;tokens:string[];daysLeft:number;batch?:Candidate[]};
 const isToken=(x:unknown):x is string=>typeof x==='string'&&/^(ExponentPushToken|ExpoPushToken)\[[^\]]+\]$/.test(x);
 export async function GET(req:NextRequest){
  const secret=process.env.CRON_SECRET;
  if(!secret||req.headers.get('authorization')!=='Bearer '+secret)return json({error:'No autorizado'},401);
  const db=adminDatabase();if(!db)return json({error:'Database unavailable'},503);
- const [runtime,policy,launches,profiles,subs,history,grants,pilots,tokens,events]=await Promise.all([
+ const [runtime,policy,launches,profiles,subs,history,grants,pilots,tokens,events,noticesRuntime,catalog]=await Promise.all([
   db.from('tp_subscription_runtime').select('restrictions_enabled,billing_enabled').eq('id',1).single(),
-  db.from('tp_plan_policies').select('published_config').eq('slug','free').single(),
+  db.from('tp_plan_policies').select('published_config,published_at,version').eq('slug','free').single(),
   db.from('tp_free_feature_launches').select('feature_key,first_started_at'),
   db.from('profiles').select('id,created_at,notifications_enabled,push_reminders_enabled').range(0,999),
   db.from('tp_driver_subscriptions').select('user_id,status,trial_used,trial_ends_at').range(0,999),
@@ -22,9 +22,11 @@ export async function GET(req:NextRequest){
   db.from('tp_subscription_grants').select('user_id,enabled,plan').range(0,999),
   db.from('tp_driver_pilot_access').select('user_id,enabled,pro_access').range(0,999),
   db.from('push_tokens').select('user_id,expo_push_token,notifications_enabled').eq('notifications_enabled',true).range(0,1999),
-  db.from('tp_feature_notification_events').select('user_id,feature_key,event_key').range(0,4999)
+  db.from('tp_feature_notification_events').select('user_id,feature_key,event_key').range(0,4999),
+  db.from('tp_feature_notification_runtime').select('activated_at').eq('id',1).single(),
+  db.from('tp_subscription_price_catalog').select('trial_days').in('plan',['plus','pro'])
  ]);
- const results=[runtime,policy,launches,profiles,subs,history,grants,pilots,tokens,events];
+ const results=[runtime,policy,launches,profiles,subs,history,grants,pilots,tokens,events,noticesRuntime,catalog];
  if(results.some(r=>r.error)){console.error('Feature reminder source failure',results.filter(r=>r.error).map(r=>r.error?.message));return json({error:'No se pudieron comprobar todos los permisos'},503);}
  if(runtime.data?.restrictions_enabled!==true)return json({ok:true,skipped:'restrictions_disabled'});
  const free=validatePlanConfig('free',policy.data?.published_config);
@@ -41,6 +43,10 @@ export async function GET(req:NextRequest){
  }
  const dispatched=new Set((events.data||[]).map(e=>e.user_id+'|'+e.feature_key+'|'+e.event_key));
  const now=Date.now();
+ const publication=Date.parse(policy.data?.published_at||'');
+ const activated=Date.parse(noticesRuntime.data?.activated_at||'');
+ const publishedRecently=Number.isFinite(publication)&&Number.isFinite(activated)&&publication>=activated&&now-publication>=0&&now-publication<=72*3600000;
+ const advertisedTrialDays=Math.max(0,...(catalog.data||[]).map(p=>Number(p.trial_days)||0));
  const notices:Candidate[]=[];
  for(const profile of profiles.data||[]){
   if(profile.notifications_enabled===false||profile.push_reminders_enabled===false)continue;
@@ -49,7 +55,7 @@ export async function GET(req:NextRequest){
   const grant=byGrant.get(profile.id),pilot=byPilot.get(profile.id);
   if(grant?.enabled===true||pilot?.enabled===true&&pilot.pro_access===true)continue;
   const status=calculateTimedFreeFeatures(free,launchMap,profile.created_at,now);
-  const trialAvailable=runtime.data.billing_enabled===true&&trialEligibility(sub||null,used.has(profile.id),1);
+  const trialAvailable=runtime.data.billing_enabled===true&&trialEligibility(sub||null,used.has(profile.id),advertisedTrialDays);
   const userNotices:Candidate[]=[];
   for(const [key,feature] of Object.entries(status.feature_status)){
    if(!feature.limited||!feature.expires_at)continue;
@@ -65,6 +71,28 @@ export async function GET(req:NextRequest){
    userNotices.push({userId:profile.id,feature:key as FeatureKey,key:eventKey,
     title:msg.title,body:msg.body,tokens:Array.from(new Set(byTokens.get(profile.id)||[])),daysLeft:days});
   }
+  // Announce the complete published Free plan once, including unlimited
+  // functions, finite windows, and the true remaining trial eligibility.
+  const announcementKey='v'+String(policy.data?.version||0);
+  if(publishedRecently&&!dispatched.has(profile.id+'|policy|'+announcementKey)){
+   const available=FEATURE_KEYS.filter(key=>status.features[key]).map(key=>{
+    const days=status.feature_status[key];
+    return FEATURE_LABELS[key]+(days.limited?' ('+days.days_left+' días restantes)':'');
+   });
+   const expired=FEATURE_KEYS.filter(key=>status.feature_status[key].expired).map(key=>FEATURE_LABELS[key]);
+   const blocked=FEATURE_KEYS.filter(key=>!status.features[key]&&!status.feature_status[key].expired).map(key=>FEATURE_LABELS[key]);
+   const parts=[
+    'Gratis incluye: '+(available.join(', ')||'acceso básico'),
+    expired.length?'Ya finalizaron: '+expired.join(', '):'',
+    blocked.length?'No incluidas: '+blocked.join(', '):'',
+    trialAvailable?'Aún tienes una prueba gratuita de '+advertisedTrialDays+' días de Plus o Pro.':'Consulta Plus o Pro si necesitas funciones adicionales.'
+   ].filter(Boolean);
+   const notice:Candidate={userId:profile.id,feature:'policy',key:announcementKey,
+    title:'Tus funciones disponibles en Tacoplan',body:parts.join('. ')+'.',
+    tokens:Array.from(new Set(byTokens.get(profile.id)||[])),daysLeft:0};
+   notices.push({...notice,batch:[notice,...userNotices]});
+   continue;
+  }
   // One message per driver per day avoids flooding drivers when several free
   // limits are published simultaneously.
   if(userNotices.length){
@@ -72,7 +100,7 @@ export async function GET(req:NextRequest){
    const primary=userNotices[0];
    if(userNotices.length===1)notices.push(primary);
    else {
-    const details=userNotices.map(x=>FEATURE_LABELS[x.feature]+': '+(x.daysLeft===0?'plazo terminado':x.daysLeft+' días restantes')).join(' · ');
+    const details=userNotices.map(x=>FEATURE_LABELS[x.feature as FeatureKey]+': '+(x.daysLeft===0?'plazo terminado':x.daysLeft+' días restantes')).join(' · ');
     notices.push({...primary,batch:userNotices,title:'Tus funciones gratuitas en Tacoplan',
      body:details+'. '+(trialAvailable?'Tienes una prueba gratuita de Plus o Pro disponible.':'Consulta los planes Plus y Pro para seguir usando las funciones.')});
    }
