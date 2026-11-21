@@ -49,7 +49,7 @@ export async function GET(req:NextRequest){
   const grant=byGrant.get(profile.id),pilot=byPilot.get(profile.id);
   if(grant?.enabled===true||pilot?.enabled===true&&pilot.pro_access===true)continue;
   const status=calculateTimedFreeFeatures(free,launchMap,profile.created_at,now);
-  const trialAvailable=runtime.data.billing_enabled===true&&trialEligibility(sub,used.has(profile.id),1);
+  const trialAvailable=runtime.data.billing_enabled===true&&trialEligibility(sub||null,used.has(profile.id),1);
   const userNotices:Candidate[]=[];
   for(const [key,feature] of Object.entries(status.feature_status)){
    if(!feature.limited||!feature.expires_at)continue;
