@@ -73,3 +73,14 @@ END;
 $$;
 REVOKE ALL ON FUNCTION public.tp_publish_plan_policy(text,integer) FROM public,anon,authenticated;
 GRANT EXECUTE ON FUNCTION public.tp_publish_plan_policy(text,integer) TO service_role;
+
+-- Newly published plan notices start only after this feature was installed.
+-- This avoids sending old policy announcements retroactively.
+CREATE TABLE IF NOT EXISTS public.tp_feature_notification_runtime (
+ id integer PRIMARY KEY CHECK(id=1),
+ activated_at timestamptz NOT NULL DEFAULT now()
+);
+ALTER TABLE public.tp_feature_notification_runtime ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON public.tp_feature_notification_runtime FROM public,anon,authenticated;
+INSERT INTO public.tp_feature_notification_runtime(id) VALUES(1)
+ON CONFLICT(id) DO NOTHING;
