@@ -19,9 +19,11 @@ export async function verifyPaidInvoice(invoiceId:string,subscriptionId:string,c
  const inv=await getStripeJson('invoices/'+encodeURIComponent(invoiceId));
  const linkedSub=inv.parent?.subscription_details?.subscription||inv.subscription;
  if(inv.id!==invoiceId||inv.customer!==customerId||linkedSub!==subscriptionId||
-    inv.status!=='paid'||inv.paid!==true||!(Number(inv.amount_paid)>0)||Number(inv.amount_remaining)!==0)
+    inv.status!=='paid'||typeof inv.amount_paid!=='number'||inv.amount_paid<=0||inv.amount_remaining!==0)
    return null;
- return {id:inv.id,paid_at:new Date(((inv.status_transitions?.paid_at as number|undefined)||Math.floor(Date.now()/1000))*1000).toISOString()};
+ const paidAt=inv.status_transitions?.paid_at;
+ if(typeof paidAt!=='number'||!Number.isFinite(paidAt)||paidAt<=0)return null;
+ return {id:inv.id,paid_at:new Date(paidAt*1000).toISOString()};
 }
 export async function verifiedLatestPayment(sub:StripeDriverSubscription):Promise<PaidInvoiceEvidence|null>{
  if(typeof sub.latest_invoice!=='string')return null;
