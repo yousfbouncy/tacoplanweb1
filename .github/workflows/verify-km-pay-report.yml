@@ -1,0 +1,22 @@
+name: Verify kilometer-based monthly reports
+on:
+  push:
+    branches:
+      - fix/driver-pdf-km-pay-20261121
+  workflow_dispatch:
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.14.0'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Typecheck web and reports
+        run: npx tsc --noEmit
+      - name: Kilometer remuneration regression tests
+        run: node --experimental-strip-types --test tests/report-km-payment.test.mjs
