@@ -8,7 +8,7 @@ const reply=(data:unknown,status=200)=>NextResponse.json(data,{status,headers:{'
 async function reconcileOverdueSubscription(db:ReturnType<typeof adminDatabase>,userId:string,record:{
  status?:string|null;stripe_subscription_id?:string|null;stripe_customer_id?:string|null;first_paid_at?:string|null;
 } | null){
- if(!db||!['past_due','active'].includes(record?.status||'')||!record?.stripe_subscription_id||
+ if(!db||!['past_due','active','incomplete'].includes(record?.status||'')||!record?.stripe_subscription_id||
     !record.stripe_customer_id||!process.env.STRIPE_SECRET_KEY)return null;
  try{
   const remote=await getDriverStripeSubscription(record.stripe_subscription_id);
