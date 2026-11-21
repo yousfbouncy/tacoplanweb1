@@ -3,7 +3,7 @@ import {useEffect,useState} from 'react';
 import Link from 'next/link';
 import {supabase} from '@/lib/supabase';
 type Plan={slug:string;monthly_cents:number;annual_cents:number|null;trial_days:number};
-type Data={trial_used?:boolean;trial_available?:boolean;trial_used_at?:string|null;feature_status?:Record<string,{expires_at:string|null;days_left:number|null;expired:boolean;limited:boolean}>|null;policy?:{history_days:number|null;trial_days:number;duration_days:number|null}|null;billing_enabled:boolean;restrictions_enabled?:boolean;all_features_unlocked?:boolean;complimentary_plan?:'plus'|'pro'|null;can_manage_subscription?:boolean;pilot_access?:boolean;pro_access?:boolean;effective_plan?:'free'|'plus'|'pro';audience:string;plans:Plan[];subscription:{status:string}|null};
+type Data={trial_activity?:{disabled:boolean;experienced:boolean;first_jornada_date:string|null;last_jornada_date:string|null;distinct_jornada_days:number;days_last30:number;days_using:number;mode:string;reason:string};trial_used?:boolean;trial_available?:boolean;trial_used_at?:string|null;feature_status?:Record<string,{expires_at:string|null;days_left:number|null;expired:boolean;limited:boolean}>|null;policy?:{history_days:number|null;trial_days:number;duration_days:number|null}|null;billing_enabled:boolean;restrictions_enabled?:boolean;all_features_unlocked?:boolean;complimentary_plan?:'plus'|'pro'|null;can_manage_subscription?:boolean;pilot_access?:boolean;pro_access?:boolean;effective_plan?:'free'|'plus'|'pro';audience:string;plans:Plan[];subscription:{status:string}|null};
 export default function DriverPlansClient(){
  const [info,setInfo]=useState<Data|null>(null),[busy,setBusy]=useState(false),[error,setError]=useState(''),[needsLogin,setNeedsLogin]=useState(false);
  const request=async(action?:'checkout'|'portal',plan?:string,interval?:'month'|'year',skipTrial=false)=>{
@@ -29,7 +29,12 @@ export default function DriverPlansClient(){
    <p className="font-semibold">{info.all_features_unlocked?'Tacoplan gratis · todas las funciones disponibles':('Plan actual: '+(info.effective_plan==='pro'?'Pro':info.effective_plan==='plus'?'Plus':'Gratis'))}</p>
    <p>{'Suscripción registrada: '+(info.subscription?.status||'Sin suscripción')+' · '}{info.billing_enabled?'Contratación disponible':'Contratación desactivada'}</p>
    {info.complimentary_plan?<p>Acceso gratuito de administración: {info.complimentary_plan.toUpperCase()}</p>:null}
-   <p>{info.trial_used?'Prueba gratuita ya utilizada. Puedes contratar directamente sin repetirla.':info.trial_available?'Tu prueba gratuita de Plus/Pro sigue disponible si decides activarla.':'No hay prueba gratuita disponible actualmente.'}</p>
+   {info.trial_activity?.first_jornada_date?<div className="rounded-lg border border-blue-200 bg-white p-3">
+     <p className="font-bold">Tu antigüedad en Tacoplan</p>
+     <p>Registras jornadas desde el {new Date(info.trial_activity.first_jornada_date+'T12:00:00').toLocaleDateString('es-ES')}.</p>
+     <p>Llevas {info.trial_activity.days_using} días utilizando Tacoplan y tienes {info.trial_activity.distinct_jornada_days} días con jornadas registradas ({info.trial_activity.days_last30} en los últimos 30 días).</p>
+    </div>:null}
+   <p className="font-semibold">{info.trial_used?'Tu prueba gratuita ya fue utilizada. La contratación será directa.':info.trial_activity?.disabled?info.trial_activity.reason+' Puedes contratar directamente sin prueba gratuita.':info.trial_available?'Tu prueba gratuita de Plus/Pro sigue disponible si decides activarla.':'No hay prueba gratuita disponible actualmente.'}</p>
    {info.effective_plan==='free'&&info.feature_status&&Object.entries(info.feature_status).filter(([,f])=>f.limited).map(([key,f])=><p key={key}>{({diets:'Dietas y pluses',auto:'AutoStart',manual:'Actividades',reports:'Informes',notify:'Notificaciones',trip:'Jornadas',widget:'Widgets'} as Record<string,string>)[key]||key}: {f.expired?'Plazo gratuito finalizado':`${f.days_left} días gratuitos restantes`}</p>)}
    {!info.restrictions_enabled?<p>Las restricciones por plan todavía no están activadas. No se bloquea ninguna función.</p>:null}
   </div>}
@@ -40,7 +45,7 @@ export default function DriverPlansClient(){
     <h2 className="text-xl font-bold">{tier==='free'?'Gratis':tier==='plus'?'Plus':'Pro'}</h2>
     <p className="text-2xl font-semibold">{p?price(p.monthly_cents)+'/mes':'0 €'}</p>
     <p>{tier==='free'?'Jornadas y descansos; historial según las condiciones del plan Gratis':tier==='plus'?'AutoStart, dietas y pluses; historial 12 meses':'Acceso completo con estimación de nómina e informes PDF'}</p>
-    {p&&<button className="w-full rounded bg-blue-700 p-3 text-white disabled:opacity-40" disabled={busy||!info?.billing_enabled} onClick={()=>void request('checkout',tier,'month')}>Elegir mensual · {info?.trial_available&&p.trial_days>0?p.trial_days+' días de prueba disponibles':'sin nueva prueba'}</button>}
+    {p&&<button className="w-full rounded bg-blue-700 p-3 text-white disabled:opacity-40" disabled={busy||!info?.billing_enabled} onClick={()=>void request('checkout',tier,'month')}>Elegir mensual · {info?.trial_available&&p.trial_days>0?p.trial_days+' días de prueba disponibles':'pago directo, sin prueba'}</button>}
     {p&&<button className="w-full rounded border border-blue-700 p-3 font-semibold text-blue-700 disabled:opacity-40" disabled={busy||!info?.billing_enabled} onClick={()=>void request('checkout',tier,'month',true)}>Contratar y pagar ahora (sin prueba gratuita)</button>}
     {p?.annual_cents!=null&&<button className="w-full rounded border p-3 disabled:opacity-40" disabled={busy||!info?.billing_enabled} onClick={()=>void request('checkout',tier,'year')}>Anual {price(p.annual_cents)}</button>}
    </section>;
