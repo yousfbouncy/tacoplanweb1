@@ -1,0 +1,26 @@
+name: Verify nocturnity report fields
+on:
+  push:
+    branches:
+      - feature/nocturnidad-report-2026
+    paths:
+      - .github/workflows/verify-night-report.yml
+      - lib/report-sharing.ts
+      - lib/report-night-work.ts
+      - lib/selected-report-pdf.ts
+      - components/driver-report-manager.tsx
+      - components/company-report.tsx
+      - app/api/company-report/**
+  workflow_dispatch:
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npx tsc --noEmit
+      - run: npm test --if-present
