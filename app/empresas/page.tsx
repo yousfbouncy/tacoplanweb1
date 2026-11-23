@@ -11,7 +11,7 @@ export const metadata:Metadata={
  robots:{index:true,follow:true}
 };
 
-function Stat({label,value,icon:Icon}:{label:string;value:string;icon:typeof Truck}){
+function Stat({label,value,icon:Icon}:{label:string;value:string;icon:React.ComponentType<{className?:string}>}){
  return <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm"><Icon className="mb-2 h-4 w-4 text-blue-600"/><div className="text-xl font-black text-slate-900">{value}</div><div className="mt-1 text-xs font-medium text-slate-500">{label}</div></div>;
 }
 function Window({title,subtitle,children}:{title:string;subtitle:string;children:React.ReactNode}){
@@ -73,10 +73,10 @@ function AdminPreview(){
   <div className="space-y-2 px-3 pb-4">
    <p className="py-1 text-xs font-bold text-slate-800">Gestión de personal y permisos</p>
    {[
-    ['Conductores','Registro de jornadas y actividad',Truck],
-    ['Tráfico','Viajes, seguimiento y revisiones',Route],
-    ['RRHH','Dietas, pluses y liquidaciones',Wallet],
-   ].map(([title,description,Icon])=><div key={title as string} className="flex items-center gap-3 rounded-lg border border-slate-100 bg-white p-3"><span className="rounded-lg bg-blue-50 p-2"><Icon className="h-4 w-4 text-blue-700"/></span><div><p className="text-xs font-bold text-slate-800">{title as string}</p><p className="mt-0.5 text-[11px] text-slate-500">{description as string}</p></div><CheckCircle2 className="ml-auto h-4 w-4 text-sky-500"/></div>)}
+    {title:'Conductores',description:'Registro de jornadas y actividad',icon:Truck},
+    {title:'Tráfico',description:'Viajes, seguimiento y revisiones',icon:Route},
+    {title:'RRHH',description:'Dietas, pluses y liquidaciones',icon:Wallet},
+   ].map(({title,description,icon:Icon})=><div key={title} className="flex items-center gap-3 rounded-lg border border-slate-100 bg-white p-3"><span className="rounded-lg bg-blue-50 p-2"><Icon className="h-4 w-4 text-blue-700"/></span><div><p className="text-xs font-bold text-slate-800">{title}</p><p className="mt-0.5 text-[11px] text-slate-500">{description}</p></div><CheckCircle2 className="ml-auto h-4 w-4 text-sky-500"/></div>)}
    <div className="rounded-lg bg-slate-100 px-3 py-2 text-center text-[11px] font-medium text-slate-700">Configuración de condiciones, accesos y permisos</div>
   </div>
  </Window>;
