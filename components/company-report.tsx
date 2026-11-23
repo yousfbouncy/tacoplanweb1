@@ -155,6 +155,7 @@ export function CompanyReport({token}:{token:string}){
        </div>
       </button>
       {isOpen?<div className="border-t border-[#2d466a] bg-[#101d34] p-4 sm:p-5"><div className="grid grid-cols-2 gap-4 sm:grid-cols-3">{fields.map(f=><div key={f}><p className="text-xs text-slate-400">{t(label[f])}</p><p className="mt-1 break-words text-sm font-semibold text-slate-100">{labelValue(r,f)}</p></div>)}</div>
+       {allowed('notes')&&r.notes?.trim()?<div className="mt-4 rounded-xl border border-[#304968] p-3"><p className="text-xs font-bold text-blue-200">{t('Descripción de la jornada')}</p><p className="mt-2 whitespace-pre-wrap break-words text-sm text-slate-100">{r.notes}</p></div>:null}
        {allowed('pluses')&&r.plusItems.length>0?<div className="mt-4 rounded-xl border border-[#304968] p-3"><p className="text-xs font-bold text-blue-200">{t("Conceptos registrados")}</p>{r.plusItems.map((x,k)=><div key={k} className="mt-2 flex justify-between gap-2 text-xs"><span>{x.concept}</span>{allowed('plus_amount')&&x.amount!==null?<span className="font-semibold">{money(x.amount)}</span>:null}</div>)}</div>:null}
       </div>:null}
      </article>;
