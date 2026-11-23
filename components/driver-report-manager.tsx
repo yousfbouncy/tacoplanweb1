@@ -187,12 +187,10 @@ export function DriverReportManager({name}:{name:string}){
      const message=shareText(onlineUrl);
      const pdf=buildSelectedReportPdf(report,reportLocale);
      const file=new File([pdf],'Tacoplan-'+from+'-'+to+'.pdf',{type:'application/pdf'});
-     // Some Android share targets discard text when a PDF is attached.
-     // Offer a reliable copy + PDF flow rather than claiming the message was delivered.
-     if(/Android/i.test(navigator.userAgent)){
-      setPreparedShare({message,file});
-      setInfo(t('Android: copia primero el mensaje y comparte después el PDF. Pega el texto en WhatsApp u otra conversación.'));
-     }else if(navigator.share&&navigator.canShare?.({files:[file]})){
+     // Use the same native share sheet for Android and iOS:
+     // PDF attachment, report period, explanatory text and expiring private link.
+     // The recipient app ultimately controls whether it displays the text with a file.
+     if(navigator.share&&navigator.canShare?.({files:[file]})){
       try{await navigator.share({files:[file],title:t('Informe de Tacoplan'),text:message});setInfo(t('Informe preparado para compartir.'));}
       catch(e:unknown){if(e instanceof Error&&e.name==='AbortError')setInfo(t('Has cancelado la opción de compartir.'));else{setPreparedShare({message,file});setInfo(t('Comparte el PDF y copia el mensaje completo desde aquí.'));}}
      }else{setPreparedShare({message,file});setInfo(t('Copia el mensaje completo y comparte el PDF desde aquí.'));}
@@ -237,7 +235,7 @@ export function DriverReportManager({name}:{name:string}){
    </div>
    {preparedShare?<div className="rounded-xl border border-blue-300 bg-blue-50 p-4 text-slate-900">
     <p className="text-sm font-bold text-blue-900">{t('Compartir informe con mensaje completo')}</p>
-    <p className="mt-1 text-xs leading-relaxed text-slate-700">{t('En Android, WhatsApp puede omitir el texto al adjuntar un PDF. Copia el mensaje, comparte el archivo y pega el texto en el chat. El enlace privado caduca a los 7 días.')}</p>
+    <p className="mt-1 text-xs leading-relaxed text-slate-700">{t('Si la aplicación de destino no admite compartir el texto junto con el PDF, copia el mensaje y compártelo por separado. El enlace privado caduca a los 7 días.')}</p>
     <div className="mt-3 flex flex-col gap-2 sm:flex-row">
      <button type="button" onClick={()=>void copyPreparedMessage()} className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-blue-700 px-4 py-3 text-sm font-bold text-white"><Copy className="h-4 w-4"/>{shareCopied?t('Mensaje copiado ✓'):t('1. Copiar mensaje')}</button>
      <button type="button" onClick={()=>void sharePreparedFile()} className="flex flex-1 items-center justify-center gap-2 rounded-lg border border-blue-700 bg-white px-4 py-3 text-sm font-bold text-blue-800"><Share2 className="h-4 w-4"/>{t('2. Compartir PDF')}</button>
