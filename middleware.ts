@@ -23,7 +23,7 @@ async function isDeveloper(req:NextRequest):Promise<boolean>{
 }
 export async function middleware(req:NextRequest){
  const path=req.nextUrl.pathname;
- if(path==='/empresas/en-desarrollo'||path==='/empresas/acceso')return NextResponse.next();
+ if(path==='/empresas'||path==='/empresas/en-desarrollo'||path==='/empresas/acceso')return NextResponse.next();
  // Keep driver integrations and signed Stripe events available.
  if(['/api/empresas/stripe-webhook','/api/empresas/mobile-config','/api/empresas/native-activate','/api/empresas/username-login'].includes(path))
   return NextResponse.next();
@@ -31,8 +31,8 @@ export async function middleware(req:NextRequest){
  if(path.startsWith('/api/empresas/'))
   return NextResponse.json({error:'Tacoplan para Empresas está en desarrollo. Acceso restringido al desarrollador.'},{status:403,headers:{'Cache-Control':'no-store'}});
  const url=req.nextUrl.clone();
- url.pathname='/empresas/en-desarrollo';
+ url.pathname='/empresas';
  url.search='';
- return NextResponse.rewrite(url,{headers:{'Cache-Control':'no-store'}});
+ return NextResponse.redirect(url,307);
 }
 export const config={matcher:['/empresas/:path*','/demo-empresas/:path*','/api/empresas/:path*']};
