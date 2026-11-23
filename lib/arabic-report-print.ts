@@ -18,6 +18,7 @@ export function printArabicReport(report:SharedReportData,existingPopup?:Window|
      ...(fields.has('start_end')?[row('بداية العمل',(item.date||'')+' '+(item.startTime||'')),row('نهاية العمل',(item.endDate||item.date||'')+' '+(item.endTime||''))]:[]),
      ...(fields.has('locations')?[row('الانطلاق',item.start||'—'),row('الوجهة',item.end||'—')]:[]),
      ...(fields.has('route_type')?[row(tr('RUTA: '),item.routeType||'—')]:[]),
+     ...(fields.has('notes')&&item.notes?.trim()?[row('وصف يوم العمل',item.notes.trim())]:[]),
      ...(fields.has('driving')?[row(tr('Conducción: '),minutes(item.driving))]:[]),
      ...(fields.has('availability')?[row(tr('Disponibilidad: '),minutes(item.availability))]:[]),
      ...(fields.has('working')?[row('مدة العمل',minutes(item.working))]:[]),
