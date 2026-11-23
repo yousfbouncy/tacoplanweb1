@@ -124,7 +124,7 @@ export function DriverReportManager({name}:{name:string}){
    'Con Tacoplan para Empresas, actualmente en desarrollo, Tráfico y RRHH podrán consultar los registros autorizados de sus conductores, hacer seguimiento de las jornadas y gestionar dietas e informes desde una misma plataforma, sin solicitarlos individualmente.',
    '',
    '🌐 tacoplan.es/empresas'
-  ].join('\\n');
+  ].join('\n');
  };
  const action=async(kind:'download'|'share'|'link')=>{
   if(busy)return;
