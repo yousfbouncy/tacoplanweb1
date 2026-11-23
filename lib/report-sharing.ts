@@ -22,7 +22,7 @@ export const REPORT_FIELD_OPTIONS=[
 ] as const;
 export type ReportField=typeof REPORT_FIELD_OPTIONS[number]['key'];
 export const ALL_REPORT_FIELDS=REPORT_FIELD_OPTIONS.map(v=>v.key);
-export const DEFAULT_REPORT_FIELDS:ReportField[]=['start_end','locations','route_type','diet_type','diet_pct','driving','availability','day_flags','pluses'];
+export const DEFAULT_REPORT_FIELDS:ReportField[]=['driver_name','start_end','locations','route_type','driving','availability','night_work','working','diet_type','diet_pct','day_flags','pluses','rest'];
 export const DEFAULT_KM_REPORT_FIELDS:ReportField[]=['start_end','locations','route_type','driving','availability','day_flags','pluses','km','km_rate','km_amount'];
 export type SharedReportRow={
  shiftId?:string;nightMinutes?:number|null;nightEstimated?:boolean;
