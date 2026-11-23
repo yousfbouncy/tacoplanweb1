@@ -94,6 +94,38 @@ export function DriverReportManager({name}:{name:string}){
    nightPremiumMonthly:night.nightPremiumMonthly,nightPremiumEstimate:night.nightPremiumEstimate,
    generatedAt:new Date().toISOString()};
  };
+ const createSevenDayShareLink=async()=>{
+  const jwt=await token();
+  const res=await fetch('/api/driver/report-shares',{
+   method:'POST',
+   headers:{'Content-Type':'application/json',Authorization:'Bearer '+jwt},
+   body:JSON.stringify({action:'create',from,to,fields,days:7})
+  });
+  const result=await res.json();
+  if(!res.ok)throw Error(result.error||t('No se pudo generar el enlace del informe online.'));
+  const link=new URL(result.url,window.location.origin);
+  link.searchParams.set('lang',reportLocale);
+  setFreshLink(link.toString());
+  await loadGrants();
+  return link.toString();
+ };
+ const shareText=(url:string)=>{
+  const fmt=(date:string)=>date.split('-').reverse().join('/');
+  return [
+   '📋 *Informe de actividad*',
+   '📅 Periodo: '+fmt(from)+' – '+fmt(to),
+   '',
+   'Informe generado automáticamente con *Tacoplan*, la libreta digital para conductores.',
+   '',
+   '🔗 *Consultar informe online (disponible durante 7 días):*',
+   url,
+   '',
+   '🚛 *¿Tus conductores también utilizan Tacoplan?*',
+   'Con Tacoplan para Empresas, actualmente en desarrollo, Tráfico y RRHH podrán consultar los registros autorizados de sus conductores, hacer seguimiento de las jornadas y gestionar dietas e informes desde una misma plataforma, sin solicitarlos individualmente.',
+   '',
+   '🌐 tacoplan.es/empresas'
+  ].join('\\n');
+ };
  const action=async(kind:'download'|'share'|'link')=>{
   if(busy)return;
   if(reportRestricted){setError(t('Para generar informes necesitas el plan Pro. Puedes seguir gestionando tus enlaces anteriores.'));return;}
@@ -116,12 +148,14 @@ export function DriverReportManager({name}:{name:string}){
       setInfo(t('Se abrió el informe en árabe. Utiliza Imprimir para guardarlo como PDF y compartirlo.'));
     }else if(kind==='download'){saveReportPdf(report,reportLocale);setInfo(t('PDF generado con las fechas y campos seleccionados.'));}
     else{
+     const onlineUrl=await createSevenDayShareLink();
+     const message=shareText(onlineUrl);
      const pdf=buildSelectedReportPdf(report,reportLocale);
      const file=new File([pdf],'Tacoplan-'+from+'-'+to+'.pdf',{type:'application/pdf'});
      if(navigator.share&&navigator.canShare?.({files:[file]})){
-      try{await navigator.share({files:[file],title:t('Informe de Tacoplan'),text:t('Informe del periodo seleccionado.')});setInfo(t('Informe preparado para compartir.'));}
-      catch(e:unknown){if(e instanceof Error&&e.name==='AbortError')setInfo(t('Has cancelado la opción de compartir.'));else{saveReportPdf(report,reportLocale);setInfo(t('Se ha descargado el PDF para que puedas enviarlo.'));}}
-     }else{saveReportPdf(report,reportLocale);setInfo(t('Se ha descargado el PDF para compartirlo por WhatsApp o correo.'));}
+      try{await navigator.share({files:[file],title:t('Informe de Tacoplan'),text:message});setInfo(t('Informe preparado para compartir.'));}
+      catch(e:unknown){if(e instanceof Error&&e.name==='AbortError')setInfo(t('Has cancelado la opción de compartir.'));else{saveReportPdf(report,reportLocale);setInfo(t('PDF descargado. Copia el enlace del informe online y acompáñalo del mensaje al enviarlo.'));}}
+     }else{saveReportPdf(report,reportLocale);setInfo(t('PDF descargado. Copia el enlace del informe online y acompáñalo del mensaje al enviarlo.'));}
     }
    }
   }catch(e:unknown){if(arabicPrintTab&&!arabicPrintTab.closed)arabicPrintTab.close();setError(e instanceof Error?e.message:t('No se pudo generar el informe'));}
