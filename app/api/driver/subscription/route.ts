@@ -25,6 +25,19 @@ async function reconcileOverdueSubscription(db:ReturnType<typeof adminDatabase>,
   return evidence;
  }catch(err){console.error('Payment reconciliation failed',err instanceof Error?err.message:'unknown');return null;}
 }
+// A previously stored customer may have been deleted in Stripe. Verify it
+// before reusing it in Checkout; never overwrite an active subscription.
+async function reusableStripeCustomer(customerId:string):Promise<boolean>{
+ const key=process.env.STRIPE_SECRET_KEY;
+ if(!key)throw Error('Stripe no está configurado');
+ const response=await fetch('https://api.stripe.com/v1/customers/'+encodeURIComponent(customerId),{
+  headers:{Authorization:'Bearer '+key},cache:'no-store'
+ });
+ if(response.status===404)return false;
+ if(!response.ok)throw Error('No se ha podido verificar el cliente en Stripe');
+ const customer=await response.json();
+ return customer?.id===customerId&&customer?.deleted!==true;
+}
 async function stripe(path:string,params:URLSearchParams){
  const key=process.env.STRIPE_SECRET_KEY;
  if(!key)throw Error('Stripe no está configurado');
@@ -180,8 +193,19 @@ export async function POST(req:NextRequest){
  if(!body.skip_trial && trialAvailable)form.set('subscription_data[trial_period_days]',String(price.trial_days));
  form.set('success_url',req.nextUrl.origin+'/planes?subscription=success');
  form.set('cancel_url',req.nextUrl.origin+'/planes?subscription=cancel');
- if(sub.data?.stripe_customer_id)form.set('customer',sub.data.stripe_customer_id);
- else if(ctx.user.email)form.set('customer_email',ctx.user.email);
+ if(sub.data?.stripe_customer_id){
+  try{
+   if(await reusableStripeCustomer(sub.data.stripe_customer_id)){
+    form.set('customer',sub.data.stripe_customer_id);
+   }else{
+    // Missing/deleted Stripe customer: let Stripe create a new one on checkout.
+    // Webhook will persist the new ID after successful subscription verification.
+    if(ctx.user.email)form.set('customer_email',ctx.user.email);
+   }
+  }catch{
+   return reply({error:'No se ha podido verificar la cuenta de pago. Inténtalo más tarde.'},503);
+  }
+ }else if(ctx.user.email)form.set('customer_email',ctx.user.email);
  try{const session=await stripe('checkout/sessions',form);if(!session.url)throw Error('No URL');return reply({url:session.url});}
  catch(err){console.error('Tacoplan checkout failed',err instanceof Error?err.message:'unknown');return reply({error:'No se pudo iniciar el pago'},503);}
 }
