@@ -16,7 +16,20 @@ export default function DriverPlansClient(){
    if(!res.ok)throw Error(j.error||'Servicio no disponible');
    if(j.url){window.location.assign(j.url);return;}
    setInfo(j);
-  }catch(e){setError(e instanceof Error?e.message:'Error de conexión');}finally{setBusy(false);}
+  }catch(e){
+   setError(e instanceof Error?e.message:'Error de conexión');
+   // A failed direct checkout must not leave Pro/Plus at 0 € with disabled
+   // buttons: always reload the real catalog, preserving the error message.
+   if(action==='checkout'){
+    try{
+     const {data}=await supabase.auth.getSession();
+     if(data.session){
+      const response=await fetch('/api/driver/subscription',{headers:{Authorization:'Bearer '+data.session.access_token}});
+      if(response.ok)setInfo(await response.json());
+     }
+    }catch{}
+   }
+  }finally{setBusy(false);}
  };
  // Only the explicit notification action opens Pro Checkout; no charge without Stripe confirmation.
  useEffect(()=>{
