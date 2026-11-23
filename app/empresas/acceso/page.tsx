@@ -12,7 +12,7 @@ export default function AccesoDesarrollador(){
    const response=await fetch('/api/admin/login',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify({password})});
    const data=await response.json();
    if(!response.ok)throw Error(data.error||'Acceso denegado');
-   router.replace('/empresas');router.refresh();
+   router.replace('/empresas/panel');router.refresh();
   }catch(e){setError(e instanceof Error?e.message:'Error de acceso');}
   finally{setBusy(false);setPassword('');}
  }
