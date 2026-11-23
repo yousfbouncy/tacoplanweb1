@@ -47,6 +47,8 @@ export function DriverReportManager({name}:{name:string}){
  const [busy,setBusy]=useState(false),[error,setError]=useState(''),[info,setInfo]=useState('');
  const [grants,setGrants]=useState<Grant[]>([]),[linksOpen,setLinksOpen]=useState(false);
  const [freshLink,setFreshLink]=useState<string|null>(null);
+ const [preparedShare,setPreparedShare]=useState<{message:string;file:File}|null>(null);
+ const [shareCopied,setShareCopied]=useState(false);
  const [reportRestricted,setReportRestricted]=useState(false);
  useEffect(()=>{
   let mounted=true;
@@ -126,12 +128,45 @@ export function DriverReportManager({name}:{name:string}){
    '🌐 tacoplan.es/empresas'
   ].join('\n');
  };
+ const copyPreparedMessage=async()=>{
+  if(!preparedShare)return;
+  try{
+   if(navigator.clipboard?.writeText)await navigator.clipboard.writeText(preparedShare.message);
+   else {
+    const area=document.createElement('textarea');
+    area.value=preparedShare.message;area.setAttribute('readonly','');
+    area.style.position='fixed';area.style.opacity='0';document.body.appendChild(area);
+    area.select();
+    const copied=document.execCommand('copy');document.body.removeChild(area);
+    if(!copied)throw Error('No se pudo copiar');
+   }
+   setShareCopied(true);setInfo(t('Mensaje copiado. Comparte el PDF y pega el mensaje en el chat.'));
+  }catch{setError(t('No se ha podido copiar automáticamente. Mantén pulsado el mensaje para copiarlo.'));}
+ };
+ const sharePreparedFile=async()=>{
+  if(!preparedShare)return;
+  try{
+   if(navigator.share&&navigator.canShare?.({files:[preparedShare.file]})){
+    await navigator.share({files:[preparedShare.file],title:t('Informe de Tacoplan')});
+    setInfo(t('PDF preparado. Pega el mensaje copiado en el chat del destinatario.'));
+   }else{
+    const url=URL.createObjectURL(preparedShare.file);
+    const anchor=document.createElement('a');anchor.href=url;anchor.download=preparedShare.file.name;
+    document.body.appendChild(anchor);anchor.click();anchor.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),30000);
+    setInfo(t('PDF descargado. Adjúntalo y pega el mensaje copiado en el chat.'));
+   }
+  }catch(e:unknown){
+   if(e instanceof Error&&e.name==='AbortError')setInfo(t('Has cancelado la opción de compartir.'));
+   else setError(t('No se pudo abrir el menú para compartir el PDF.'));
+  }
+ };
  const action=async(kind:'download'|'share'|'link')=>{
   if(busy)return;
   if(reportRestricted){setError(t('Para generar informes necesitas el plan Pro. Puedes seguir gestionando tus enlaces anteriores.'));return;}
   // Opening synchronously is important: Safari blocks tabs opened after await.
   const arabicPrintTab=reportLocale==='ar'&&kind!=='link'?window.open('','_blank'):null;
-  setBusy(true);setError('');setInfo('');
+  setBusy(true);setError('');setInfo('');setPreparedShare(null);setShareCopied(false);
   try{
    if(kind==='link'){
     validate();const jwt=await token();
@@ -152,10 +187,15 @@ export function DriverReportManager({name}:{name:string}){
      const message=shareText(onlineUrl);
      const pdf=buildSelectedReportPdf(report,reportLocale);
      const file=new File([pdf],'Tacoplan-'+from+'-'+to+'.pdf',{type:'application/pdf'});
-     if(navigator.share&&navigator.canShare?.({files:[file]})){
+     // Some Android share targets discard text when a PDF is attached.
+     // Offer a reliable copy + PDF flow rather than claiming the message was delivered.
+     if(/Android/i.test(navigator.userAgent)){
+      setPreparedShare({message,file});
+      setInfo(t('Android: copia primero el mensaje y comparte después el PDF. Pega el texto en WhatsApp u otra conversación.'));
+     }else if(navigator.share&&navigator.canShare?.({files:[file]})){
       try{await navigator.share({files:[file],title:t('Informe de Tacoplan'),text:message});setInfo(t('Informe preparado para compartir.'));}
-      catch(e:unknown){if(e instanceof Error&&e.name==='AbortError')setInfo(t('Has cancelado la opción de compartir.'));else{saveReportPdf(report,reportLocale);setInfo(t('PDF descargado. Copia el enlace del informe online y acompáñalo del mensaje al enviarlo.'));}}
-     }else{saveReportPdf(report,reportLocale);setInfo(t('PDF descargado. Copia el enlace del informe online y acompáñalo del mensaje al enviarlo.'));}
+      catch(e:unknown){if(e instanceof Error&&e.name==='AbortError')setInfo(t('Has cancelado la opción de compartir.'));else{setPreparedShare({message,file});setInfo(t('Comparte el PDF y copia el mensaje completo desde aquí.'));}}
+     }else{setPreparedShare({message,file});setInfo(t('Copia el mensaje completo y comparte el PDF desde aquí.'));}
     }
    }
   }catch(e:unknown){if(arabicPrintTab&&!arabicPrintTab.closed)arabicPrintTab.close();setError(e instanceof Error?e.message:t('No se pudo generar el informe'));}
@@ -195,6 +235,15 @@ export function DriverReportManager({name}:{name:string}){
    <div><button type="button" onClick={()=>{setLinksOpen(!linksOpen);if(!linksOpen)void loadGrants();}} className="flex w-full items-center justify-between rounded-xl border border-slate-200 p-3 text-left font-semibold text-slate-900" >{t('Gestionar enlaces de empresa')} ({grants.filter(g=>!g.revoked_at&&new Date(g.expires_at).getTime()>Date.now()).length} {t('activos')}){linksOpen?<ChevronUp className="h-5 w-5"/>:<ChevronDown className="h-5 w-5"/>}</button>
     {linksOpen?<div className="divide-y rounded-xl border border-slate-200">{!grants.length?<p className="p-4 text-sm text-slate-500">{t('Todavía no hay enlaces creados.')}</p>:grants.map(g=>{const active=!g.revoked_at&&new Date(g.expires_at).getTime()>Date.now();return <div key={g.id} className="flex flex-wrap items-center justify-between gap-3 p-3"><div><p className="text-sm font-bold text-slate-900">{g.date_from} → {g.date_to}</p><p className="mt-1 text-xs text-slate-500">{active?t('Activo hasta')+' ' +new Date(g.expires_at).toLocaleDateString(locale==='ar'?'ar':locale==='fr'?'fr-FR':locale==='en'?'en-GB':'es-ES'):g.revoked_at?t('Desactivado'):t('Caducado')} · {g.fields.length} {t('campos autorizados')}</p></div>{active?<button type="button" onClick={()=>void revoke(g.id)} disabled={busy} className="flex items-center gap-1 rounded-lg border border-red-200 px-3 py-2 text-xs font-bold text-red-700"><Trash2 className="h-4 w-4"/>{t('Desactivar')}</button>:null}</div>;})}</div>:null}
    </div>
+   {preparedShare?<div className="rounded-xl border border-blue-300 bg-blue-50 p-4 text-slate-900">
+    <p className="text-sm font-bold text-blue-900">{t('Compartir informe con mensaje completo')}</p>
+    <p className="mt-1 text-xs leading-relaxed text-slate-700">{t('En Android, WhatsApp puede omitir el texto al adjuntar un PDF. Copia el mensaje, comparte el archivo y pega el texto en el chat. El enlace privado caduca a los 7 días.')}</p>
+    <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+     <button type="button" onClick={()=>void copyPreparedMessage()} className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-blue-700 px-4 py-3 text-sm font-bold text-white"><Copy className="h-4 w-4"/>{shareCopied?t('Mensaje copiado ✓'):t('1. Copiar mensaje')}</button>
+     <button type="button" onClick={()=>void sharePreparedFile()} className="flex flex-1 items-center justify-center gap-2 rounded-lg border border-blue-700 bg-white px-4 py-3 text-sm font-bold text-blue-800"><Share2 className="h-4 w-4"/>{t('2. Compartir PDF')}</button>
+    </div>
+    <details className="mt-3"><summary className="cursor-pointer text-xs font-semibold text-blue-800">{t('Ver el mensaje completo')}</summary><textarea readOnly value={preparedShare.message} rows={9} onFocus={e=>e.currentTarget.select()} className="mt-2 w-full resize-y rounded-lg border border-blue-200 bg-white p-3 text-xs text-slate-800"/></details>
+   </div>:null}
    {error?<p role="alert" className="rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</p>:null}
    {info?<p role="status" className="rounded-xl bg-green-50 p-3 text-sm text-green-800">{info}</p>:null}
    <p className="text-xs leading-relaxed text-slate-500">{t('Cualquiera que tenga el enlace podrá consultar los campos autorizados durante su vigencia. Evita compartirlo públicamente. Puedes desactivarlo en cualquier momento. Los informes son orientativos, no documentos oficiales del tacógrafo.')}</p>
