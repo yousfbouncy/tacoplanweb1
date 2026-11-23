@@ -198,8 +198,20 @@ export async function POST(req:NextRequest){
    if(await reusableStripeCustomer(sub.data.stripe_customer_id)){
     form.set('customer',sub.data.stripe_customer_id);
    }else{
-    // Missing/deleted Stripe customer: let Stripe create a new one on checkout.
-    // Webhook will persist the new ID after successful subscription verification.
+    // Clear ONLY the stale reference for an inactive/cancelled subscription:
+    // payment webhooks reject replacement customers if the old ID remains.
+    if(!['canceled','inactive','incomplete_expired'].includes(sub.data.status||'')){
+     return reply({error:'La referencia de pago necesita revisión antes de contratar.'},409);
+    }
+    const cleared=await db.from('tp_driver_subscriptions').update({
+     stripe_customer_id:null,stripe_subscription_id:null,updated_at:new Date().toISOString()
+    }).eq('user_id',userId).eq('stripe_customer_id',sub.data.stripe_customer_id)
+      .eq('status',sub.data.status).select('user_id');
+    if(cleared.error||!cleared.data?.length){
+     return reply({error:'No se ha podido actualizar la referencia antigua de pago.'},503);
+    }
+    // Preserve trial_used/history and account access. Stripe assigns a new
+    // customer ID on Checkout, safely recorded by the subscription webhook.
     if(ctx.user.email)form.set('customer_email',ctx.user.email);
    }
   }catch{
