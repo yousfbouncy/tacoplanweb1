@@ -18,16 +18,17 @@ export const REPORT_FIELD_OPTIONS=[
  {key:'km',label:'Kilómetros'},
  {key:'km_rate',label:'Tarifa por kilómetro (€/km)'},
  {key:'km_amount',label:'Importe por kilometraje (€)'},
- {key:'rest',label:'Descanso anterior'}
+ {key:'rest',label:'Descanso anterior'},
+ {key:'notes',label:'Descripción de la jornada'}
 ] as const;
 export type ReportField=typeof REPORT_FIELD_OPTIONS[number]['key'];
 export const ALL_REPORT_FIELDS=REPORT_FIELD_OPTIONS.map(v=>v.key);
-export const DEFAULT_REPORT_FIELDS:ReportField[]=['driver_name','start_end','locations','route_type','driving','availability','night_work','working','diet_type','diet_pct','day_flags','pluses','rest'];
-export const DEFAULT_KM_REPORT_FIELDS:ReportField[]=['start_end','locations','route_type','driving','availability','day_flags','pluses','km','km_rate','km_amount'];
+export const DEFAULT_REPORT_FIELDS:ReportField[]=['driver_name','start_end','locations','route_type','driving','availability','night_work','working','diet_type','diet_pct','day_flags','pluses','rest','notes'];
+export const DEFAULT_KM_REPORT_FIELDS:ReportField[]=['start_end','locations','route_type','driving','availability','day_flags','pluses','km','km_rate','km_amount','notes'];
 export type SharedReportRow={
  shiftId?:string;nightMinutes?:number|null;nightEstimated?:boolean;
  kmRate?:number|null;kmAmount?:number|null;paymentAmountHidden?:boolean;
- date:string;start:string|null;end:string|null;routeType:string|null;
+ date:string;start:string|null;end:string|null;routeType:string|null;notes:string|null;
  startTime:string|null;endTime:string|null;endDate:string|null;
  dayFlag:string|null;dayExtra:number|null;plusItems:{concept:string;amount:number|null}[];
  driving:number|null;availability:number|null;working:number|null;dietType:string|null;dietPct:number|null;
@@ -47,7 +48,7 @@ export function parseAmount(v:unknown):number|null{
 }
 export type RawReportJornada={
  id?:string;fecha_inicio:string|null;created_at:string;fecha_fin:string|null;hora_inicio:string|null;hora_fin:string|null;
- lugar_inicio:string|null;lugar_fin:string|null;tipo_ruta:string|null;
+ lugar_inicio:string|null;lugar_fin:string|null;tipo_ruta:string|null;observaciones:string|null;
  conduccion_min:number|null;tacho_driving_min:number|null;tacho_available_min:number|null;duracion_jornada_min:number|null;
  dieta_manual_tipo:string|null;dieta_modo:string|null;dieta_manual_pct:number|null;dieta_percent:number|null;
  dieta_importe_eur:string|null;diet_base_eur:number|null;dietas_items:unknown;
@@ -55,7 +56,7 @@ export type RawReportJornada={
  day_flag:string|null;day_extra_eur:string|null;plus_items:unknown;
  report_hide_amounts:boolean|null;report_hide_pluses:boolean|null;
 };
-export const REPORT_DB_COLUMNS='id,fecha_inicio,fecha_fin,hora_inicio,hora_fin,day_flag,day_extra_eur,plus_items,dietas_items,report_hide_amounts,report_hide_pluses,created_at,lugar_inicio,lugar_fin,tipo_ruta,conduccion_min,tacho_driving_min,tacho_available_min,duracion_jornada_min,dieta_manual_tipo,dieta_modo,dieta_manual_pct,dieta_percent,dieta_importe_eur,diet_base_eur,km_total,descanso_anterior_min';
+export const REPORT_DB_COLUMNS='id,fecha_inicio,fecha_fin,hora_inicio,hora_fin,day_flag,day_extra_eur,plus_items,dietas_items,report_hide_amounts,report_hide_pluses,created_at,lugar_inicio,lugar_fin,tipo_ruta,observaciones,conduccion_min,tacho_driving_min,tacho_available_min,duracion_jornada_min,dieta_manual_tipo,dieta_modo,dieta_manual_pct,dieta_percent,dieta_importe_eur,diet_base_eur,km_total,descanso_anterior_min';
 export function mapReportRow(j:RawReportJornada):SharedReportRow{
  const dietItem=Array.isArray(j.dietas_items)?j.dietas_items.find(x=>x&&typeof x==='object'&&x.tipo):null;
  const plusItems=Array.isArray(j.plus_items)&&!j.report_hide_pluses
@@ -69,6 +70,7 @@ export function mapReportRow(j:RawReportJornada):SharedReportRow{
   kmRate:null,kmAmount:null,paymentAmountHidden:j.report_hide_amounts===true,
   date:j.fecha_inicio||j.created_at.slice(0,10),
   start:j.lugar_inicio,end:j.lugar_fin,routeType:j.tipo_ruta,
+  notes:typeof j.observaciones==='string'&&j.observaciones.trim()?j.observaciones.trim().slice(0,3000):null,
   startTime:time(j.hora_inicio),endTime:time(j.hora_fin),endDate:j.fecha_fin,
   dayFlag:j.day_flag,dayExtra:j.report_hide_amounts||j.report_hide_pluses?null:parseAmount(j.day_extra_eur),plusItems,
   driving:j.conduccion_min??(j.tacho_driving_min&&j.tacho_driving_min>0?j.tacho_driving_min:null),
@@ -88,7 +90,7 @@ export function redactRows(rows:SharedReportRow[],fields:ReportField[]):SharedRe
   nightEstimated:show('night_work')?r.nightEstimated:false,
   date:r.date,
   start:show('locations')?r.start:null,end:show('locations')?r.end:null,
-  routeType:show('route_type')?r.routeType:null,
+  routeType:show('route_type')?r.routeType:null,notes:show('notes')?r.notes:null,
   startTime:show('start_end')?r.startTime:null,endTime:show('start_end')?r.endTime:null,endDate:show('start_end')?r.endDate:null,
   dayFlag:show('day_flags')?r.dayFlag:null,
   dayExtra:show('plus_amount')?r.dayExtra:null,
@@ -121,6 +123,7 @@ export function labelValue(r:SharedReportRow,key:ReportField):string{
  case 'km_rate':return r.kmRate==null?'Sin tarifa configurada':money(r.kmRate)+'/km';
  case 'km_amount':return r.kmAmount==null?'Sin tarifa o km':money(r.kmAmount);
  case 'rest':return r.rest==null?'—':hours(r.rest);
+ case 'notes':return r.notes||'—';
  default:return '—';
  }
 }
