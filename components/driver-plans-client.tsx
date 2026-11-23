@@ -10,7 +10,7 @@ export default function DriverPlansClient(){
   setError('');setNeedsLogin(false);setBusy(true);
   try{
    const {data}=await supabase.auth.getSession();
-   if(!data.session){setNeedsLogin(true);throw Error('Debes iniciar sesión en esta web para consultar los planes.');}
+   if(!data.session){setNeedsLogin(true);throw Error('Debes iniciar sesión para continuar con la contratación.');}
    const res=await fetch('/api/driver/subscription',{method:action?'POST':'GET',headers:{Authorization:'Bearer '+data.session.access_token,...(action?{'Content-Type':'application/json'}:{})},...(action?{body:JSON.stringify({action,plan,interval,skip_trial:skipTrial})}:{})});
    const j=await res.json();
    if(!res.ok)throw Error(j.error||'Servicio no disponible');
@@ -18,13 +18,18 @@ export default function DriverPlansClient(){
    setInfo(j);
   }catch(e){setError(e instanceof Error?e.message:'Error de conexión');}finally{setBusy(false);}
  };
- useEffect(()=>{void request();},[]);
+ // Only the explicit notification action opens Pro Checkout; no charge without Stripe confirmation.
+ useEffect(()=>{
+  const selected=new URLSearchParams(window.location.search).get('checkout');
+  if(selected==='pro') void request('checkout','pro','month',true);
+  else void request();
+ },[]);
  const price=(c:number)=>(c/100).toLocaleString('es-ES',{style:'currency',currency:'EUR'});
  const chosen=(tier:'plus'|'pro')=>info?.plans.find(p=>p.slug===(info.audience==='founder'?(tier==='plus'?'plus_existing':'pro_founder'):info.audience==='existing'?tier+'_existing':tier));
  return <main className="mx-auto max-w-5xl space-y-7 px-4 py-12">
   <h1 className="text-3xl font-bold">Planes Tacoplan</h1>
   <p>La duración de la prueba gratuita depende del plan y aparece antes de contratar. Consulta el precio y la fecha de renovación antes de confirmar.</p>
-  {error&&<div role="alert" className="rounded border border-red-500 p-3 text-red-700"><p>{error}</p>{needsLogin&&<Link href="/login?next=%2Fplanes" className="mt-3 inline-block rounded bg-blue-700 px-4 py-2 font-semibold text-white">Iniciar sesión para ver planes</Link>}</div>}
+  {error&&<div role="alert" className="rounded border border-red-500 p-3 text-red-700"><p>{error}</p>{needsLogin&&<Link href={new URLSearchParams(window.location.search).get("checkout")==="pro"?"/login?next=%2Fplanes%3Fcheckout%3Dpro":"/login?next=%2Fplanes"} className="mt-3 inline-block rounded bg-blue-700 px-4 py-2 font-semibold text-white">Iniciar sesión para ver planes</Link>}</div>}
   {info&&<div role="status" className="space-y-2 rounded-xl border border-blue-100 bg-blue-50 p-4 text-sm text-blue-900">
    <p className="font-semibold">{info.all_features_unlocked?'Tacoplan gratis · todas las funciones disponibles':('Plan actual: '+(info.effective_plan==='pro'?'Pro':info.effective_plan==='plus'?'Plus':'Gratis'))}</p>
    <p>{'Suscripción registrada: '+(info.subscription?.status||'Sin suscripción')+' · '}{info.billing_enabled?'Contratación disponible':'Contratación desactivada'}</p>
