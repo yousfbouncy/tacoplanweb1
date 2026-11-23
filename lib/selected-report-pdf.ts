@@ -154,9 +154,10 @@ export function buildSelectedReportPdf(report:SharedReportData,locale:PdfReportL
   ];
   cells.forEach((cell,index)=>{
    const xx=48+index*129;
-   text(xx,y-13,cell.label,7,true,'0.38 0.46 0.59');
-   text(xx,y-28,String(cell.count),12,true);
-   if(fields.includes('diet_amount'))text(xx,y-41,money(cell.amount),7,false,'0.14 0.40 0.31');
+   const ink=index===3?'1 1 1':'0.38 0.46 0.59';
+   text(xx,y-13,cell.label,7,true,ink);
+   text(xx,y-28,String(cell.count),12,true,index===3?'1 1 1':'0.04 0.12 0.26');
+   if(fields.includes('diet_amount'))text(xx,y-41,money(cell.amount),7,false,index===3?'1 1 1':'0.14 0.40 0.31');
   });
   y-=tableH+11;
   if(unknown>0){text(38,y,tx('Sin tipo identificado: ')+unknown,7,false,'0.41 0.48 0.59');y-=13;}
