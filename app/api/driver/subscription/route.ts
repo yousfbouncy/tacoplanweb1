@@ -50,6 +50,12 @@ async function stripe(path:string,params:URLSearchParams){
  }
  return j as {url?:string;id:string};
 }
+// Limited November 2026 offer; never affects existing subscriptions or other accounts.
+const decemberOfferUsers=new Set(["d4f06f43-7a92-4782-99c6-d591855eb107","a10b1967-c535-41e2-9b59-d2a42bcc57d2","aa2dc77c-99b5-4cd0-8984-868873d0245c","1877f655-bb65-4b32-a197-049207c0aa69","835cd3d7-7ab9-45e4-8f40-6b099e1e3dbd","074a6b56-43a5-490c-a747-5d44e2a7b91d","248a1d49-1bff-4575-b2cc-03f9cfa9f1ab","6e2d5d6e-a061-4b32-b009-43cb8c8a932c"]);
+const decemberOfferEnd=Date.parse('2026-12-01T00:00:00+01:00');
+function decemberOffer(userId:string){
+ return decemberOfferUsers.has(userId)&&Date.now()<decemberOfferEnd-48*3600000;
+}
 type TrialActivity={first_jornada_date:string|null;last_jornada_date:string|null;distinct_jornada_days:number;days_last30:number;activity_span_days:number|null};
 function assessTrial(activity:TrialActivity|null,mode:string|undefined){
  const activeDays=Number(activity?.distinct_jornada_days||0);
@@ -131,7 +137,7 @@ export async function GET(req:NextRequest){
   pilot_access:isPilot,effective_plan:effectivePlan,pro_access:!restrictionsEnabled||effectivePlan==='pro',
   plus_access:!restrictionsEnabled||['plus','pro'].includes(effectivePlan),
   audience:assignment.data?.audience||'standard',plans:catalog.data,subscription:subscription.data?{...subscription.data,status,first_paid_at:subscription.data.first_paid_at||verifiedPayment?.paid_at||null}:null, payment_grace_until:gracePeriodActive?new Date(pastDueSince+72*3600000).toISOString():null,
-  trial_used:trialAlreadyUsed,trial_available:availableTrial,trial_activity:trialCheck,trial_used_at:trialHistory.data?.first_trial_at||null,
+  trial_used:trialAlreadyUsed,trial_available:availableTrial, december_offer_until:decemberOffer(ctx.user.id)&&!['active','trialing','past_due','unpaid','incomplete'].includes(status||'')?new Date(decemberOfferEnd).toISOString():null,trial_activity:trialCheck,trial_used_at:trialHistory.data?.first_trial_at||null,
   feature_status:restrictionsEnabled?featureStatus:null,
   policy:policyConfig,features:restrictionsEnabled?featureAccess:null,
   free_plan_expires_at:freeExpiry,free_plan_expired:freeExpired,
@@ -190,7 +196,9 @@ export async function POST(req:NextRequest){
  form.set('subscription_data[metadata][tp_driver_id]',userId);
  form.set('subscription_data[metadata][tp_price_slug]',slug);
  const trialAvailable=!trialCheck.disabled&&trialEligibility(sub.data,!!trialHistory.data,price.trial_days);
- if(!body.skip_trial && trialAvailable)form.set('subscription_data[trial_period_days]',String(price.trial_days));
+ if(decemberOffer(userId))form.set('subscription_data[trial_end]',String(Math.floor(decemberOfferEnd/1000)));
+ else if(decemberOfferUsers.has(userId)&&Date.now()<decemberOfferEnd)return reply({error:'La oferta de diciembre ha cerrado. Vuelve a partir del 1 de diciembre para contratar.'},409);
+ else if(!body.skip_trial && trialAvailable)form.set('subscription_data[trial_period_days]',String(price.trial_days));
  form.set('success_url',req.nextUrl.origin+'/planes?subscription=success');
  form.set('cancel_url',req.nextUrl.origin+'/planes?subscription=cancel');
  if(sub.data?.stripe_customer_id){
