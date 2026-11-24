@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { adminDatabase, authorizedAdmin, sameOrigin } from '@/lib/admin-users';
 
 export const dynamic = 'force-dynamic';
-const ALLOWED = ['plus', 'pro', 'plus_existing', 'pro_existing', 'pro_founder'] as const;
+const ALLOWED = ['pro', 'pro_existing', 'pro_founder'] as const;
 const noStore = { 'Cache-Control': 'private, no-store' };
 function json(value: unknown, status = 200) { return NextResponse.json(value, { status, headers: noStore }); }
 function dbFor(req: NextRequest) {
@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
   const db = ctx.db!;
   try {
     const [catalog, flags, profiles, devices] = await Promise.all([
-      db.from('tp_subscription_price_catalog').select('*').order('slug'),
+      db.from('tp_subscription_price_catalog').select('*').neq('plan','plus').order('slug'),
       db.from('tp_subscription_runtime').select('billing_enabled,restrictions_enabled').eq('id', 1).single(),
       db.from('profiles').select('id,display_name,name,created_at').order('created_at', { ascending: true }).limit(5000),
       db.from('app_user_devices').select('user_id,last_seen_at').limit(5000),

@@ -7,8 +7,8 @@ type Plan={slug:string;plan:string;audience:string;monthly_cents:number;annual_c
 type User={id:string;name:string;joinedAt:string;recordedDays30:number;lastSeenAt:string|null;eligibility:string;reason:string};
 type Payload={plans:Plan[];control:{billing_enabled:boolean;restrictions_enabled:boolean};users:User[];summary:{registered:number;recording30:number;eligibleVerified:number;eligiblePending:number}};
 const labels:Record<string,string>={
- free:'Gratis',plus:'Plus · general',pro:'Pro · general',
- plus_existing:'Plus · actuales (50 %)',pro_existing:'Pro · actuales',pro_founder:'Pro · primeros 50 fundadores',
+ free:'Gratis',pro:'Pro · general',
+ pro_existing:'Pro · actuales',pro_founder:'Pro · primeros 50 fundadores',
 };
 const money=(n:number|null)=>n===null?'Sin definir':(n/100).toFixed(2).replace('.',',')+' €';
 const inputMoney=(n:number|null)=>n===null?'':(n/100).toFixed(2);
@@ -79,7 +79,7 @@ export default function AdminPlansPage(){
     <h2 className="text-xl font-bold">Precios editables</h2>
     <p className="mb-4 text-sm text-slate-500">Importes en euros. El anual se cobra una vez al año, no cada mes. Los días de prueba se gestionan en el editor de reglas superior y se aplican a nuevas contrataciones.</p>
     <div className="overflow-x-auto"><table className="w-full min-w-[690px] text-left text-sm"><thead><tr className="border-b text-slate-500"><th className="p-2">Modalidad</th><th className="p-2">Mensual</th><th className="p-2">Anual</th><th className="p-2">Prueba</th><th className="p-2">Acción</th></tr></thead>
-    <tbody>{payload.plans.map(plan=><tr key={plan.slug} className="border-b last:border-0">
+    <tbody>{payload.plans.filter(plan=>plan.plan!=='plus').map(plan=><tr key={plan.slug} className="border-b last:border-0">
      <td className="p-2 font-semibold">{labels[plan.slug]||plan.slug}</td>
      {plan.slug==='free'?<><td className="p-2">Gratis</td><td className="p-2">Gratis</td></>:<>
       <td className="p-2"><input aria-label={'Precio mensual '+plan.slug} className="w-28 rounded border p-2" inputMode="decimal" value={editing[plan.slug]?.month??''} onChange={e=>edit(plan.slug,'month',e.target.value)}/><span> €</span></td>

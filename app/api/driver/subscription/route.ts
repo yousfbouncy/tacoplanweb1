@@ -165,7 +165,7 @@ export async function POST(req:NextRequest){
   try{const session=await stripe('billing_portal/sessions',params);return reply({url:session.url});}catch{return reply({error:'Portal no disponible'},503);}
  }
  if(body.action!=='checkout'||!['plus','pro'].includes(body.plan||'')||!['month','year'].includes(body.interval||''))return reply({error:'Plan o periodo inválido'},400);
- if(body.plan==='plus')return reply({error:'El plan Plus ya no está disponible para nuevas contrataciones. Elige Pro en tacoplan.es/planes.'},409);
+ if(body.plan==='plus')return reply({error:'Este plan ya no está disponible para nuevas contrataciones. Elige Pro en tacoplan.es/planes.'},409);
  if(runtime.data?.billing_enabled!==true)return reply({error:'Contratación en preparación, sin cobros activados'},503);
  if(body.skip_trial!==undefined && typeof body.skip_trial!=='boolean')return reply({error:'Opción de prueba inválida'},400);
  if(['active','trialing','past_due','unpaid','incomplete'].includes(sub.data?.status||''))return reply({error:'Gestiona tu suscripción existente desde el portal'},409);

@@ -39,14 +39,14 @@ export default function DriverPlansClient(){
   else void request();
  },[]);
  const price=(c:number)=>(c/100).toLocaleString('es-ES',{style:'currency',currency:'EUR'});
- const chosen=(tier:'plus'|'pro')=>info?.plans.find(p=>p.slug===(info.audience==='founder'?(tier==='plus'?'plus_existing':'pro_founder'):info.audience==='existing'?tier+'_existing':tier));
+ const chosen=(tier:'pro')=>info?.plans.find(p=>p.slug===(info.audience==='founder'?'pro_founder':info.audience==='existing'?'pro_existing':tier));
  return <main className="mx-auto max-w-5xl space-y-7 px-4 py-12">
   <h1 className="text-3xl font-bold">Planes Tacoplan</h1>
   <p>La duración de la prueba gratuita depende del plan y aparece antes de contratar. Consulta el precio y la fecha de renovación antes de confirmar.</p>
   {busy&&<p role="status" aria-live="polite">Cargando, espera a que termine la operación…</p>}
   {error&&<div role="alert" className="rounded border border-red-500 p-3 text-red-700"><p>{error}</p>{needsLogin&&<Link href={directCheckout?"/login?next=%2Fplanes%3Fcheckout%3Dpro":"/login?next=%2Fplanes"} className="mt-3 inline-block rounded bg-blue-700 px-4 py-2 font-semibold text-white">Iniciar sesión para ver planes</Link>}</div>}
   {info&&<div role="status" className="space-y-2 rounded-xl border border-blue-100 bg-blue-50 p-4 text-sm text-blue-900">
-   <p className="font-semibold">{info.all_features_unlocked?'Tacoplan gratis · todas las funciones disponibles':('Plan actual: '+(info.effective_plan==='pro'?'Pro':info.effective_plan==='plus'?'Plus':'Gratis'))}</p>
+   <p className="font-semibold">{info.all_features_unlocked?'Tacoplan gratis · todas las funciones disponibles':('Plan actual: '+(info.effective_plan==='pro'?'Pro':info.effective_plan==='plus'?'Plan anterior':'Gratis'))}</p>
    <p>{'Suscripción registrada: '+(info.subscription?.status||'Sin suscripción')+' · '}{info.billing_enabled?'Contratación disponible':'Contratación desactivada'}</p>
    {info.complimentary_plan?<p>Acceso gratuito de administración: {info.complimentary_plan.toUpperCase()}</p>:null}
    {info.trial_activity?.first_jornada_date?<div className="rounded-lg border border-blue-200 bg-white p-3">
@@ -54,7 +54,7 @@ export default function DriverPlansClient(){
      <p>Registras jornadas desde el {new Date(info.trial_activity.first_jornada_date+'T12:00:00').toLocaleDateString('es-ES')}.</p>
      <p>Llevas {info.trial_activity.days_using} días utilizando Tacoplan y tienes {info.trial_activity.distinct_jornada_days} días con jornadas registradas ({info.trial_activity.days_last30} en los últimos 30 días).</p>
     </div>:null}
-   <p className="font-semibold">{info.december_offer_until?'Oferta especial: activa tu suscripción sin coste hoy. Primer cobro el 1 de diciembre; puedes cancelar antes sin coste.':info.trial_used?'Tu prueba gratuita ya fue utilizada. La contratación será directa.':info.trial_activity?.disabled?info.trial_activity.reason+' Puedes contratar directamente sin prueba gratuita.':info.trial_available?'Tu prueba gratuita de Plus/Pro sigue disponible si decides activarla.':'No hay prueba gratuita disponible actualmente.'}</p>
+   <p className="font-semibold">{info.december_offer_until?'Oferta especial: activa tu suscripción sin coste hoy. Primer cobro el 1 de diciembre; puedes cancelar antes sin coste.':info.trial_used?'Tu prueba gratuita ya fue utilizada. La contratación será directa.':info.trial_activity?.disabled?info.trial_activity.reason+' Puedes contratar directamente sin prueba gratuita.':info.trial_available?'Tu prueba gratuita de Pro sigue disponible si decides activarla.':'No hay prueba gratuita disponible actualmente.'}</p>
    {info.effective_plan==='free'&&info.feature_status&&Object.entries(info.feature_status).filter(([,f])=>f.limited).map(([key,f])=><p key={key}>{({diets:'Dietas y pluses',auto:'AutoStart',manual:'Actividades',reports:'Informes',notify:'Notificaciones',trip:'Jornadas',widget:'Widgets'} as Record<string,string>)[key]||key}: {f.expired?'Plazo gratuito finalizado':`${f.days_left} días gratuitos restantes`}</p>)}
    {!info.restrictions_enabled?<p>Las restricciones por plan todavía no están activadas. No se bloquea ninguna función.</p>:null}
   </div>}

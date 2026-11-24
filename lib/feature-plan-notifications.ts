@@ -16,8 +16,8 @@ export function dueMoment(daysLeft:number,elapsedMs:number):ReminderMoment|null{
 export function featureNotice(feature:FeatureKey,moment:ReminderMoment,daysLeft:number,trialAvailable:boolean){
  const label=FEATURE_LABELS[feature];
  const endings=trialAvailable
-  ?' Si todavía no has usado tu prueba gratuita de Plus o Pro, puedes utilizarla.'
-  :' Consulta los planes Plus y Pro para seguir usándola.';
+  ?' Si todavía no has usado tu prueba gratuita de Pro, puedes utilizarla.'
+  :' Consulta el plan Pro para seguir usándola.';
  if(moment==='started')return {
   title:label+' gratis por tiempo limitado',
   body:label+' está disponible temporalmente en el plan Gratis. Te quedan '+daysLeft+' días.'+endings

@@ -10,7 +10,7 @@ type Response={
  catalog:Array<{slug:string;plan:string;trial_days:number}>;
  activeSubscriptions:number;
 };
-const names:Record<PlanSlug,string>={free:'Gratis',plus:'Plus',pro:'Pro'};
+const names:Record<PlanSlug,string>={free:'Gratis',plus:'Plan anterior',pro:'Pro'};
 const featureLabels:Record<FeatureKey,{label:string;description:string}>={
  auto:{label:'AutoStart',description:'Inicio de jornada y conducción automática por GPS'},
  diets:{label:'Dietas y pluses',description:'Registro y consulta de importes'},
@@ -80,8 +80,8 @@ export default function AdminPlanPolicyEditor() {
     <p><strong>Cobros:</strong> {state.runtime.billing_enabled?'activados':'desactivados'}</p>
     <p><strong>Suscripciones en curso:</strong> {state.activeSubscriptions}</p>
    </div>
-   <div role="tablist" aria-label="Seleccionar plan" className="mb-5 grid grid-cols-3 gap-2">
-    {(['free','plus','pro'] as const).map(tier=><button key={tier} type="button" role="tab" aria-selected={selected===tier}
+   <div role="tablist" aria-label="Seleccionar plan" className="mb-5 grid grid-cols-2 gap-2">
+    {(['free','pro'] as const).map(tier=><button key={tier} type="button" role="tab" aria-selected={selected===tier}
       onClick={()=>setSelected(tier)}
       className={'rounded-xl border px-3 py-3 font-semibold '+(selected===tier?'border-blue-600 bg-blue-700 text-white':'border-slate-200 bg-slate-50 text-slate-800')}>{names[tier]}</button>)}
    </div>

@@ -24,7 +24,7 @@ export async function GET(req:NextRequest){
   db.from('push_tokens').select('user_id,expo_push_token,notifications_enabled').eq('notifications_enabled',true).range(0,1999),
   db.from('tp_feature_notification_events').select('user_id,feature_key,event_key').range(0,4999),
   db.from('tp_feature_notification_runtime').select('activated_at').eq('id',1).single(),
-  db.from('tp_subscription_price_catalog').select('trial_days').in('plan',['plus','pro']),
+  db.from('tp_subscription_price_catalog').select('trial_days').eq('plan','pro'),
   db.from('tp_driver_trial_overrides').select('user_id,trial_mode').range(0,999),
   db.from('user_notifications').select('user_id').eq('title','Tu periodo de prueba ha finalizado').range(0,999)
  ]);
@@ -112,7 +112,7 @@ export async function GET(req:NextRequest){
     'Gratis incluye: '+(available.join(', ')||'acceso básico'),
     expired.length?'Ya finalizaron: '+expired.join(', '):'',
     blocked.length?'No incluidas: '+blocked.join(', '):'',
-    trialAvailable?'Aún tienes una prueba gratuita de '+advertisedTrialDays+' días de Plus o Pro.':'Consulta Plus o Pro si necesitas funciones adicionales.'
+    trialAvailable?'Aún tienes una prueba gratuita de '+advertisedTrialDays+' días de Pro.':'Consulta Pro si necesitas funciones adicionales.'
    ].filter(Boolean);
    const notice:Candidate={userId:profile.id,feature:'policy',key:announcementKey,
     title:'Tus funciones disponibles en Tacoplan',body:parts.join('. ')+'.',
@@ -129,7 +129,7 @@ export async function GET(req:NextRequest){
    else {
     const details=userNotices.map(x=>FEATURE_LABELS[x.feature as FeatureKey]+': '+(x.daysLeft===0?'plazo terminado':x.daysLeft+' días restantes')).join(' · ');
     notices.push({...primary,batch:userNotices,title:'Tus funciones gratuitas en Tacoplan',
-     body:details+'. '+(trialAvailable?'Tienes una prueba gratuita de Plus o Pro disponible.':'Consulta los planes Plus y Pro para seguir usando las funciones.')});
+     body:details+'. '+(trialAvailable?'Tienes una prueba gratuita de Pro disponible.':'Consulta el plan Pro para seguir usando las funciones.')});
    }
   }
  }
