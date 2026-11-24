@@ -15,6 +15,7 @@ export default function DriverPlansClient(){
    const j=await res.json();
    if(!res.ok)throw Error(j.error||'Servicio no disponible');
    if(j.url){window.location.assign(j.url);return;}
+   if(action)throw Error('No se ha recibido el enlace de Stripe. Inténtalo de nuevo.');
    setInfo(j);
   }catch(e){
    setError(e instanceof Error?e.message:'Error de conexión');
@@ -42,6 +43,7 @@ export default function DriverPlansClient(){
  return <main className="mx-auto max-w-5xl space-y-7 px-4 py-12">
   <h1 className="text-3xl font-bold">Planes Tacoplan</h1>
   <p>La duración de la prueba gratuita depende del plan y aparece antes de contratar. Consulta el precio y la fecha de renovación antes de confirmar.</p>
+  {busy&&<p role="status" aria-live="polite">Cargando, espera a que termine la operación…</p>}
   {error&&<div role="alert" className="rounded border border-red-500 p-3 text-red-700"><p>{error}</p>{needsLogin&&<Link href={directCheckout?"/login?next=%2Fplanes%3Fcheckout%3Dpro":"/login?next=%2Fplanes"} className="mt-3 inline-block rounded bg-blue-700 px-4 py-2 font-semibold text-white">Iniciar sesión para ver planes</Link>}</div>}
   {info&&<div role="status" className="space-y-2 rounded-xl border border-blue-100 bg-blue-50 p-4 text-sm text-blue-900">
    <p className="font-semibold">{info.all_features_unlocked?'Tacoplan gratis · todas las funciones disponibles':('Plan actual: '+(info.effective_plan==='pro'?'Pro':info.effective_plan==='plus'?'Plus':'Gratis'))}</p>
