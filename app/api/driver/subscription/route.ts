@@ -90,7 +90,7 @@ export async function GET(req:NextRequest){
  const ctx=await identify(req);if(!ctx)return reply({error:'Inicia sesión'},401);
  const [runtime,catalog,assignment,subscription,pilot,grant,policies,launches,trialHistory]=await Promise.all([
   ctx.db.from('tp_subscription_runtime').select('billing_enabled,restrictions_enabled').eq('id',1).single(),
-  ctx.db.from('tp_subscription_price_catalog').select('slug,plan,audience,monthly_cents,annual_cents,trial_days'),
+  ctx.db.from('tp_subscription_price_catalog').select('slug,plan,audience,monthly_cents,annual_cents,trial_days').neq('plan','plus'),
   ctx.db.from('tp_driver_price_entitlements').select('audience').eq('user_id',ctx.user.id).maybeSingle(),
   ctx.db.from('tp_driver_subscriptions').select('price_slug,status,trial_ends_at,current_period_end,trial_used,payment_failed_at,stripe_subscription_id,stripe_customer_id,first_paid_at,last_paid_invoice_id').eq('user_id',ctx.user.id).maybeSingle(),
   ctx.db.from('tp_driver_pilot_access').select('enabled,pro_access,checkout_enabled').eq('user_id',ctx.user.id).maybeSingle(),
@@ -165,6 +165,7 @@ export async function POST(req:NextRequest){
   try{const session=await stripe('billing_portal/sessions',params);return reply({url:session.url});}catch{return reply({error:'Portal no disponible'},503);}
  }
  if(body.action!=='checkout'||!['plus','pro'].includes(body.plan||'')||!['month','year'].includes(body.interval||''))return reply({error:'Plan o periodo inválido'},400);
+ if(body.plan==='plus')return reply({error:'El plan Plus ya no está disponible para nuevas contrataciones. Elige Pro en tacoplan.es/planes.'},409);
  if(runtime.data?.billing_enabled!==true)return reply({error:'Contratación en preparación, sin cobros activados'},503);
  if(body.skip_trial!==undefined && typeof body.skip_trial!=='boolean')return reply({error:'Opción de prueba inválida'},400);
  if(['active','trialing','past_due','unpaid','incomplete'].includes(sub.data?.status||''))return reply({error:'Gestiona tu suscripción existente desde el portal'},409);
