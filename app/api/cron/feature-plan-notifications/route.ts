@@ -6,27 +6,29 @@ import {dueMoment,featureNotice,FEATURE_LABELS} from '@/lib/feature-plan-notific
 export const dynamic='force-dynamic';
 export const maxDuration=60;
 const json=(x:unknown,status=200)=>NextResponse.json(x,{status,headers:{'Cache-Control':'no-store'}});
-type Candidate={userId:string;feature:FeatureKey|'policy';key:string;title:string;body:string;tokens:string[];daysLeft:number;batch?:Candidate[]};
+type Candidate={userId:string;feature:FeatureKey|'policy'|'trial';key:string;title:string;body:string;tokens:string[];daysLeft:number;batch?:Candidate[]};
 const isToken=(x:unknown):x is string=>typeof x==='string'&&/^(ExponentPushToken|ExpoPushToken)\[[^\]]+\]$/.test(x);
 export async function GET(req:NextRequest){
  const secret=process.env.CRON_SECRET;
  if(!secret||req.headers.get('authorization')!=='Bearer '+secret)return json({error:'No autorizado'},401);
  const db=adminDatabase();if(!db)return json({error:'Database unavailable'},503);
- const [runtime,policy,launches,profiles,subs,history,grants,pilots,tokens,events,noticesRuntime,catalog]=await Promise.all([
+ const [runtime,policy,launches,profiles,subs,history,grants,pilots,tokens,events,noticesRuntime,catalog,overrides,manualTrialNotices]=await Promise.all([
   db.from('tp_subscription_runtime').select('restrictions_enabled,billing_enabled').eq('id',1).single(),
   db.from('tp_plan_policies').select('published_config,published_at,version').eq('slug','free').single(),
   db.from('tp_free_feature_launches').select('feature_key,first_started_at'),
   db.from('profiles').select('id,created_at,notifications_enabled,push_reminders_enabled').range(0,999),
-  db.from('tp_driver_subscriptions').select('user_id,status,trial_used,trial_ends_at').range(0,999),
+  db.from('tp_driver_subscriptions').select('user_id,status,trial_used,trial_ends_at,first_paid_at,payment_failed_at').range(0,999),
   db.from('tp_driver_trial_history').select('user_id').range(0,999),
   db.from('tp_subscription_grants').select('user_id,enabled,plan').range(0,999),
   db.from('tp_driver_pilot_access').select('user_id,enabled,pro_access').range(0,999),
   db.from('push_tokens').select('user_id,expo_push_token,notifications_enabled').eq('notifications_enabled',true).range(0,1999),
   db.from('tp_feature_notification_events').select('user_id,feature_key,event_key').range(0,4999),
   db.from('tp_feature_notification_runtime').select('activated_at').eq('id',1).single(),
-  db.from('tp_subscription_price_catalog').select('trial_days').in('plan',['plus','pro'])
+  db.from('tp_subscription_price_catalog').select('trial_days').in('plan',['plus','pro']),
+  db.from('tp_driver_trial_overrides').select('user_id,trial_mode').range(0,999),
+  db.from('user_notifications').select('user_id').eq('title','Tu periodo de prueba ha finalizado').range(0,999)
  ]);
- const results=[runtime,policy,launches,profiles,subs,history,grants,pilots,tokens,events,noticesRuntime,catalog];
+ const results=[runtime,policy,launches,profiles,subs,history,grants,pilots,tokens,events,noticesRuntime,catalog,overrides,manualTrialNotices];
  if(results.some(r=>r.error)){console.error('Feature reminder source failure',results.filter(r=>r.error).map(r=>r.error?.message));return json({error:'No se pudieron comprobar todos los permisos'},503);}
  if(runtime.data?.restrictions_enabled!==true)return json({ok:true,skipped:'restrictions_disabled'});
  const free=validatePlanConfig('free',policy.data?.published_config);
@@ -48,14 +50,39 @@ export async function GET(req:NextRequest){
  const publishedRecently=Number.isFinite(publication)&&Number.isFinite(activated)&&publication>=activated&&now-publication>=0&&now-publication<=72*3600000;
  const advertisedTrialDays=Math.max(0,...(catalog.data||[]).map(p=>Number(p.trial_days)||0));
  const notices:Candidate[]=[];
+ const overrideByUser=new Map((overrides.data||[]).map(x=>[x.user_id,x.trial_mode]));
+ const manualTrialUsers=new Set((manualTrialNotices.data||[]).map(x=>x.user_id));
+ // Use the same workday-based trial rule as checkout, not account creation.
+ const eligibleProfiles=(profiles.data||[]).filter(p=>{
+  const sub=bySub.get(p.id),grant=byGrant.get(p.id),pilot=byPilot.get(p.id);
+  const grace=sub?.status==='past_due'&&!!sub.first_paid_at&&now-Date.parse(sub.payment_failed_at||'')<72*3600000;
+  return p.notifications_enabled!==false&&p.push_reminders_enabled!==false&&!['active','trialing'].includes(sub?.status||'')&&!grace&&!grant?.enabled&&!(pilot?.enabled&&pilot.pro_access);
+ });
+ const experienced=new Set<string>();
+ for(let i=0;i<eligibleProfiles.length;i+=20){
+  const batch=await Promise.all(eligibleProfiles.slice(i,i+20).map(async p=>({id:p.id,result:await db.rpc('tp_driver_trial_activity',{p_user_id:p.id})})));
+  for(const {id,result} of batch){
+   if(result.error)return json({error:'No se pudo comprobar la antigüedad de jornadas'},503);
+   const activity=result.data?.[0];
+   if(Number(activity?.distinct_jornada_days||0)>=2&&Number(activity?.activity_span_days||0)>=30)experienced.add(id);
+  }
+ }
  for(const profile of profiles.data||[]){
   if(profile.notifications_enabled===false||profile.push_reminders_enabled===false)continue;
   const sub=bySub.get(profile.id);
-  if(['active','trialing'].includes(sub?.status||''))continue;
+  if(['active','trialing'].includes(sub?.status||'')||(sub?.status==='past_due'&&sub.first_paid_at&&now-Date.parse(sub.payment_failed_at||'')<72*3600000))continue;
   const grant=byGrant.get(profile.id),pilot=byPilot.get(profile.id);
   if(grant?.enabled===true||pilot?.enabled===true&&pilot.pro_access===true)continue;
   const status=calculateTimedFreeFeatures(free,launchMap,profile.created_at,now);
-  const trialAvailable=runtime.data.billing_enabled===true&&trialEligibility(sub||null,used.has(profile.id),advertisedTrialDays);
+  const trialMode=overrideByUser.get(profile.id);
+  const activityExpired=experienced.has(profile.id)&&trialMode!=='allowed';
+  const trialDisabled=trialMode==='disabled'||activityExpired;
+  const trialAvailable=runtime.data.billing_enabled===true&&!trialDisabled&&trialEligibility(sub||null,used.has(profile.id),advertisedTrialDays);
+  if(runtime.data.billing_enabled===true&&activityExpired&&!sub?.first_paid_at&&!manualTrialUsers.has(profile.id)&&!dispatched.has(profile.id+'|trial|activity_30_days')){
+   notices.push({userId:profile.id,feature:'trial',key:'activity_30_days',title:'Tu periodo de prueba ha finalizado',
+    body:'Han pasado al menos 30 días desde que comenzaste a registrar jornadas en Tacoplan. Consulta los planes disponibles para seguir disfrutando de todas las funciones. Tu historial y tus jornadas se conservarán.',
+    tokens:Array.from(new Set(byTokens.get(profile.id)||[])),daysLeft:0});
+  }
   const userNotices:Candidate[]=[];
   for(const [key,feature] of Object.entries(status.feature_status)){
    if(!feature.limited||!feature.expires_at)continue;
@@ -123,16 +150,20 @@ export async function GET(req:NextRequest){
   const inbox=await db.from('user_notifications').insert({
    user_id:n.userId,type:'system',title:n.title,body:n.body,
    button_text:'Ver planes',button_url:'https://tacoplan.es/planes',
-   data:{source:'feature_limit',feature:n.feature,event:n.key}
+   data:{source:n.feature==='trial'?'trial_activity':'feature_limit',feature:n.feature,event:n.key,button_text:'Ver planes',button_url:'https://tacoplan.es/planes'}
   });
-  if(!inbox.error)internal++;
+  if(inbox.error){
+   for(const c of claimed)await db.from('tp_feature_notification_events').delete().eq('user_id',c.userId).eq('feature_key',c.feature).eq('event_key',c.key);
+   return json({error:'No se pudo guardar el aviso',internal,accepted,failed,skipped},503);
+  }
+  internal++;
   let pushState='no_token';
   if(n.tokens.length){
    try{
     const push=await fetch('https://exp.host/--/api/v2/push/send',{
      method:'POST',headers:{'Content-Type':'application/json','Accept':'application/json'},
      body:JSON.stringify(n.tokens.map(to=>({to,title:n.title,body:n.body,sound:'default',
-      data:{type:'plan',feature:n.feature,url:'https://tacoplan.es/planes'}})))
+      data:{type:'plan',feature:n.feature,url:'https://tacoplan.es/planes',button_text:'Ver planes',button_url:'https://tacoplan.es/planes'}})))
     });
     if(!push.ok)throw Error('Expo push HTTP '+push.status);
     const j=await push.json();
