@@ -51,7 +51,7 @@ async function stripe(path:string,params:URLSearchParams){
  return j as {url?:string;id:string};
 }
 // Limited November 2026 offer; never affects existing subscriptions or other accounts.
-const decemberOfferUsers=new Set(["d4f06f43-7a92-4782-99c6-d591855eb107","a10b1967-c535-41e2-9b59-d2a42bcc57d2","aa2dc77c-99b5-4cd0-8984-868873d0245c","1877f655-bb65-4b32-a197-049207c0aa69","835cd3d7-7ab9-45e4-8f40-6b099e1e3dbd","074a6b56-43a5-490c-a747-5d44e2a7b91d","248a1d49-1bff-4575-b2cc-03f9cfa9f1ab","6e2d5d6e-a061-4b32-b009-43cb8c8a932c"]);
+const decemberOfferUsers=new Set(["d4f06f43-7a92-4782-99c6-d591855eb107","a10b1967-c535-41e2-9b59-d2a42bcc57d2","aa2dc77c-99b5-4cd0-8984-868873d0245c","1877f655-bb65-4b32-a197-049207c0aa69","835cd3d7-7ab9-45e4-8f40-6b099e1e3dbd","074a6b56-43a5-490c-a747-5d44e2a7b91d","248a1d49-1bff-4575-b2cc-03f9cfa9f1ab","6e2d5d6e-a061-4b32-b009-43cb8c8a932c","5332e4f1-70d1-4487-886b-12b2b1f80629"]);
 const decemberOfferEnd=Date.parse('2026-12-01T00:00:00+01:00');
 function decemberOffer(userId:string){
  return decemberOfferUsers.has(userId)&&Date.now()<decemberOfferEnd-48*3600000;
