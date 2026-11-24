@@ -77,6 +77,7 @@ export function CompanyReport({token}:{token:string}){
   requestAnimationFrame(()=>document.getElementById('company-history')?.scrollIntoView({behavior:'smooth',block:'start'}));
  };
  const clearDiet=()=>{setDietFilter(null);setPage(1);setOpened(null);};
+ const trackVisit=(event:'website_click'|'enterprise_click')=>{void fetch('/api/company-report/'+encodeURIComponent(token)+'/visit',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({event}),keepalive:true,referrerPolicy:'no-referrer'}).catch(()=>{});};
  const download=()=>{if(!report)return;const data={...report,from,to,rows:filteredRows,generatedAt:new Date().toISOString()};if(locale==='ar')printArabicReport(data);else saveReportPdf(data,locale);};
  const periodLabel=(r:SharedReportData['rows'][number])=>{
   const start=date(r.date)+(r.startTime?' '+r.startTime:' · Sin hora');
@@ -85,7 +86,7 @@ export function CompanyReport({token}:{token:string}){
  };
  return <main className="min-h-screen bg-[#081224] px-3 py-6 text-white sm:px-6 sm:py-10"><div className="mx-auto max-w-5xl space-y-5">
   <header className="rounded-2xl border border-[#29456a] bg-gradient-to-br from-[#122a4e] to-[#09172d] p-5 sm:p-8">
-   <TacoplanBrand compact />
+   <a href="https://tacoplan.es/" target="_blank" rel="noopener noreferrer" onClick={()=>trackVisit('website_click')}><TacoplanBrand compact /></a>
    <h1 className="mt-4 text-2xl font-extrabold sm:text-3xl">{t("Informe de actividad")}</h1>
    <p className="mt-2 text-sm text-slate-300">{t("Historial compartido por el conductor. Solo puedes consultar los datos autorizados.")}</p>
    {report?<p className="mt-3 text-xs text-blue-200" >{t('Periodo autorizado')}: {date(report.from)} – {date(report.to)} · {t('Acceso hasta')} {new Date(expires).toLocaleString(locale==='ar'?'ar':locale==='fr'?'fr-FR':locale==='en'?'en-GB':'es-ES')}</p>:null}
@@ -162,6 +163,7 @@ export function CompanyReport({token}:{token:string}){
     })}
     <div className="flex items-center justify-between gap-3 px-2 py-2 text-xs text-slate-300"><span >{filteredRows.length} {t('jornadas')} · {t('Página')} {Math.min(page,pages)} {t('de')} {pages}</span><div className="flex gap-2"><button className="rounded-lg border border-[#3a5579] px-3 py-2 disabled:opacity-30" disabled={page<=1} onClick={()=>{setPage(page-1);setOpened(null);}}>{t("Anterior")}</button><button className="rounded-lg border border-[#3a5579] px-3 py-2 disabled:opacity-30" disabled={page>=pages} onClick={()=>{setPage(page+1);setOpened(null);}}>{t("Siguiente")}</button></div></div>
    </section>
+   <div className="rounded-xl border border-[#315078] bg-[#12233f] p-4 text-sm"><p className="font-semibold">Tacoplan para Empresas</p><p className="mt-1 text-slate-300">Digitaliza la gestión de jornadas, tráfico y recursos humanos.</p><a href="https://tacoplan.es/empresas" target="_blank" rel="noopener noreferrer" onClick={()=>trackVisit('enterprise_click')} className="mt-3 inline-block rounded-lg bg-blue-600 px-4 py-2 font-semibold text-white">Conocer Tacoplan para Empresas</a></div>
    <div className="flex items-start gap-3 rounded-xl border border-[#315078] bg-[#12233f] p-4 text-xs leading-relaxed text-slate-300"><ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-blue-400"/>{t("La empresa solo puede consultar los campos y fechas autorizados. Los domingos y festivos proceden de las marcas guardadas, no de un calendario automático. El informe no sustituye al tacógrafo ni acredita cumplimiento legal.")}</div>
   </>:null}
  </div></main>;

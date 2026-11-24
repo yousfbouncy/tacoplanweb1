@@ -13,7 +13,7 @@ export async function GET(req:NextRequest,{params}:{params:{token:string}}){
  const db=adminDatabase();if(!db)return json({error:'Servicio no disponible'},503);
  const hash=createHash('sha256').update(token).digest('hex');
  const {data:share,error:shareError}=await db.from('driver_report_shares')
-  .select('user_id,date_from,date_to,fields,expires_at,revoked_at')
+  .select('id,user_id,date_from,date_to,fields,expires_at,revoked_at')
   .eq('token_hash',hash).maybeSingle();
  if(shareError){console.error('company share lookup',shareError);return json({error:'No se pudo comprobar el enlace'},500);}
  if(!share)return json({error:'Enlace no encontrado'},404);
@@ -46,6 +46,8 @@ export async function GET(req:NextRequest,{params}:{params:{token:string}}){
    resultRows=attachKmPayment(resultRows,payment.data as KmPaymentProfile,fields);
   }
  }
+ const tracked=await db.from('driver_report_access_events').insert({share_id:share.id,event_type:'open'});
+ if(tracked.error)console.error('report access metric',tracked.error.code);
  return json({
   report:{title:'Informe de actividad · Tacoplan',driverName,from:share.date_from,to:share.date_to,
   fields:fields as ReportField[],rows:redactRows(resultRows,fields as ReportField[]),paymentMode,
