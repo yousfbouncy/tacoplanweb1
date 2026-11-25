@@ -8,7 +8,7 @@ export async function GET(req:NextRequest){
  try{
  const shares: {id:string;user_id:string;date_from:string;date_to:string;created_at:string;expires_at:string;revoked_at:string|null}[]=[];
  for(let offset=0;;offset+=1000){const r=await db.from('driver_report_shares').select('id,user_id,date_from,date_to,created_at,expires_at,revoked_at').order('created_at',{ascending:false}).order('id').range(offset,offset+999);if(r.error)throw r.error;shares.push(...(r.data||[]));if((r.data||[]).length<1000)break;}
- const users=[...new Set(shares.map(s=>s.user_id))];
+ const users=Array.from(new Set(shares.map(s=>s.user_id)));
  const names=new Map<string,string>();
  for(let i=0;i<users.length;i+=100){const r=await db.from('profiles').select('id,display_name,name').in('id',users.slice(i,i+100));if(r.error)throw r.error;for(const p of r.data||[])names.set(p.id,p.display_name||p.name||'Usuario');}
  const counts=new Map<string,{opens:number;websiteClicks:number;enterpriseClicks:number;lastOpen:string|null}>();
