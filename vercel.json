@@ -7,6 +7,10 @@
     {
       "path": "/api/cron/overdue-driver-subscriptions",
       "schedule": "0 14 * * *"
+    },
+    {
+      "path": "/api/cron/automatic-emails",
+      "schedule": "0 10 * * *"
     }
   ]
 }

@@ -227,6 +227,6 @@ export async function POST(req:NextRequest){
    return reply({error:'No se ha podido verificar la cuenta de pago. Inténtalo más tarde.'},503);
   }
  }else if(ctx.user.email)form.set('customer_email',ctx.user.email);
- try{const session=await stripe('checkout/sessions',form);if(!session.url)throw Error('No URL');return reply({url:session.url});}
+ try{const session=await stripe('checkout/sessions',form);if(!session.url)throw Error('No URL');if(session.id){try{const log=await db.from('tp_email_checkout_attempts').upsert({session_id:session.id,user_id:userId},{onConflict:'session_id',ignoreDuplicates:true});if(log.error)console.warn('Checkout analytics unavailable');}catch{console.warn('Checkout analytics unavailable');}}return reply({url:session.url});}
  catch(err){console.error('Tacoplan checkout failed',err instanceof Error?err.message:'unknown');return reply({error:'No se pudo iniciar el pago'},503);}
 }
