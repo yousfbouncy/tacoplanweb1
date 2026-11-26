@@ -2,6 +2,7 @@ begin;
 create table public.tp_referral_config (
  id boolean primary key default true check(id),
  enabled boolean not null default false,
+ active_since timestamptz,
  monthly_cents integer not null default 100 check(monthly_cents>=0),
  annual_cents integer not null default 500 check(annual_cents>=0),
  min_referrals integer not null default 5 check(min_referrals>0),
@@ -81,9 +82,9 @@ create policy referral_bonus_owner on public.tp_referral_bonuses for select to a
 create schema if not exists tp_referral_private;
 revoke all on schema tp_referral_private from public,anon,authenticated;
 create function tp_referral_private.capture_signup() returns trigger
-language plpgsql security definer set search_path='' as $
+language plpgsql security definer set search_path='' as $signup$
 begin
- if exists(select 1 from public.tp_referral_config where id and enabled) then
+ if exists(select 1 from public.tp_referral_config where id and enabled and active_since is not null and new.created_at >= active_since) then
   insert into public.tp_referral_attributions(referred_user_id,referrer_user_id)
   select new.id,c.user_id from public.tp_referral_codes c
   where c.code=upper(trim(coalesce(new.raw_user_meta_data->>'referral_code','')))
@@ -91,7 +92,7 @@ begin
   on conflict(referred_user_id) do nothing;
  end if;
  return new;
-end; $;
+end; $signup$;
 revoke all on function tp_referral_private.capture_signup() from public,anon,authenticated;
 create trigger tp_referral_signup after insert on auth.users for each row execute function tp_referral_private.capture_signup();
 -- Verified invoice evidence is separate from withdrawable rewards. No reward is
@@ -109,4 +110,47 @@ create table public.tp_referral_invoice_evidence (
 alter table public.tp_referral_invoice_evidence enable row level security;
 revoke all on public.tp_referral_invoice_evidence from public,anon,authenticated;
 grant select,insert,update on public.tp_referral_invoice_evidence to service_role;
+-- One-time choice for new social signups, including an explicit skip.
+create table public.tp_referral_onboarding_choices (
+ user_id uuid primary key references auth.users(id),
+ decided_at timestamptz not null default now(),
+ skipped boolean not null
+);
+alter table public.tp_referral_onboarding_choices enable row level security;
+revoke all on public.tp_referral_onboarding_choices from public,anon,authenticated;
+grant select,insert on public.tp_referral_onboarding_choices to service_role;
+create function public.tp_referral_onboarding(p_user uuid,p_action text,p_code text default null) returns text
+language plpgsql security definer set search_path='' as $onboarding$
+declare
+ v_referrer uuid;
+ v_started timestamptz;
+begin
+ if p_action not in ('check','claim','skip') then return 'invalid'; end if;
+ -- Only trusted service callers may invoke this function. Serialize decisions.
+ perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(p_user::text,0));
+ select active_since into v_started from public.tp_referral_config where id and enabled;
+ if v_started is null then return 'disabled'; end if;
+ if exists(select 1 from public.tp_referral_attributions where referred_user_id=p_user)
+ or exists(select 1 from public.tp_referral_onboarding_choices where user_id=p_user) then return 'settled'; end if;
+ if not exists(select 1 from auth.users u where u.id=p_user and u.created_at>=v_started
+   and u.created_at>=now()-interval '7 days'
+   and (u.raw_app_meta_data->>'provider') in ('google','apple'))
+ or exists(select 1 from public.profiles p where p.id=p_user and p.onboarding_completed is true)
+ or exists(select 1 from public.jornadas j where j.user_id=p_user)
+ or exists(select 1 from public.tp_driver_subscriptions s where s.user_id=p_user and (s.first_paid_at is not null or s.stripe_subscription_id is not null))
+ then return 'ineligible'; end if;
+ if p_action='check' then return 'eligible'; end if;
+ if p_action='claim' then
+  select c.user_id into v_referrer from public.tp_referral_codes c
+  where c.code=upper(trim(coalesce(p_code,''))) and c.user_id<>p_user;
+  if v_referrer is null then return 'invalid_code'; end if;
+  insert into public.tp_referral_attributions(referred_user_id,referrer_user_id)
+  values(p_user,v_referrer) on conflict(referred_user_id) do nothing;
+ end if;
+ insert into public.tp_referral_onboarding_choices(user_id,skipped) values(p_user,p_action='skip')
+ on conflict(user_id) do nothing;
+ return 'settled';
+end; $onboarding$;
+revoke all on function public.tp_referral_onboarding(uuid,text,text) from public,anon,authenticated;
+grant execute on function public.tp_referral_onboarding(uuid,text,text) to service_role;
 commit;
