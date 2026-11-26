@@ -6,6 +6,10 @@ create table public.tp_referral_config (
  annual_cents integer not null default 500 check(annual_cents>=0),
  min_referrals integer not null default 5 check(min_referrals>0),
  min_payout_cents integer not null default 1000 check(min_payout_cents>0),
+ milestone_count integer not null default 50 check(milestone_count>0),
+ milestone_cents integer not null default 5000 check(milestone_cents>=0),
+ loyalty_min_count integer not null default 50 check(loyalty_min_count>0),
+ loyalty_cents integer not null default 200 check(loyalty_cents>=0),
  hold_days integer not null default 30 check(hold_days>=30)
 );
 insert into public.tp_referral_config(id) values(true);
@@ -55,4 +59,22 @@ create policy referral_code_owner on public.tp_referral_codes for select to auth
 create policy referral_attribution_owner on public.tp_referral_attributions for select to authenticated using(referrer_user_id=(select auth.uid()) or referred_user_id=(select auth.uid()));
 create policy referral_reward_owner on public.tp_referral_rewards for select to authenticated using(exists(select 1 from public.tp_referral_attributions a where a.referred_user_id=tp_referral_rewards.referred_user_id and a.referrer_user_id=(select auth.uid())));
 create policy referral_payout_owner on public.tp_referral_payouts for select to authenticated using(user_id=(select auth.uid()));
+create table public.tp_referral_bonuses (
+ id uuid primary key default gen_random_uuid(),
+ referrer_user_id uuid not null references public.tp_referral_codes(user_id),
+ referred_user_id uuid references public.tp_referral_attributions(referred_user_id),
+ kind text not null check(kind in ('milestone','loyalty')),
+ amount_cents integer not null check(amount_cents>0),
+ qualified_at timestamptz not null,
+ status text not null default 'available' check(status in ('available','void','reserved','paid')),
+ payout_id uuid references public.tp_referral_payouts(id),
+ check((kind='milestone' and referred_user_id is null) or (kind='loyalty' and referred_user_id is not null))
+);
+create unique index tp_referral_one_milestone on public.tp_referral_bonuses(referrer_user_id) where kind='milestone';
+create unique index tp_referral_one_loyalty on public.tp_referral_bonuses(referred_user_id) where kind='loyalty';
+alter table public.tp_referral_bonuses enable row level security;
+revoke all on public.tp_referral_bonuses from public,anon,authenticated;
+grant select on public.tp_referral_bonuses to authenticated;
+grant select,insert,update,delete on public.tp_referral_bonuses to service_role;
+create policy referral_bonus_owner on public.tp_referral_bonuses for select to authenticated using(referrer_user_id=(select auth.uid()));
 commit;
