@@ -1,5 +1,6 @@
 import {NextRequest,NextResponse} from 'next/server';
 import {adminDatabase} from '@/lib/admin-users';
+import {renderEmail} from '@/lib/email-template';
 import {emailReady,unsubscribeToken} from '@/lib/automatic-email';
 export const dynamic='force-dynamic';
 export const maxDuration=60;
@@ -31,8 +32,8 @@ export async function GET(req:NextRequest){
   const id=String(claim.data);
   try{
    const url='https://www.tacoplan.es/api/email/unsubscribe?token='+encodeURIComponent(unsubscribeToken(c.user_id));
-   const body=(r.commercial?'Comunicación comercial de Tacoplan\n\n':'')+r.body+'\n\n'+(['offer','checkout_abandoned','trial_ended','payment_failed','trial_ending'].includes(c.rule_key)?'Consulta tu cuenta y los planes: https://www.tacoplan.es/planes\n':'https://www.tacoplan.es\n')+'\nEquipo Tacoplan'+(r.commercial?'\n\nDejar de recibir correos comerciales: '+url:'');
-   const res=await fetch('https://api.resend.com/emails',{method:'POST',headers:{Authorization:'Bearer '+process.env.RESEND_API_KEY,'Content-Type':'application/json','Idempotency-Key':id},body:JSON.stringify({from:process.env.TP_EMAIL_FROM,to:[user.email],subject:r.subject,text:body,...(r.commercial?{headers:{'List-Unsubscribe':'<'+url+'>','List-Unsubscribe-Post':'List-Unsubscribe=One-Click'}}:{})})});
+   const message=renderEmail(r,url);
+   const res=await fetch('https://api.resend.com/emails',{method:'POST',headers:{Authorization:'Bearer '+process.env.RESEND_API_KEY,'Content-Type':'application/json','Idempotency-Key':id},body:JSON.stringify({from:process.env.TP_EMAIL_FROM,to:[user.email],subject:r.subject,...message,...(r.commercial?{headers:{'List-Unsubscribe':'<'+url+'>','List-Unsubscribe-Post':'List-Unsubscribe=One-Click'}}:{})})});
    const result=await res.json();
    if(!res.ok||!result.id){await db.from('tp_email_dispatches').update({status:'failed',error_code:'provider_http_'+res.status,updated_at:new Date().toISOString()}).eq('id',id);failed++;continue;}
    const saved=await db.from('tp_email_dispatches').update({status:'accepted',provider_id:result.id,updated_at:new Date().toISOString()}).eq('id',id);
