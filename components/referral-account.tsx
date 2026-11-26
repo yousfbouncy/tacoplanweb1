@@ -22,7 +22,7 @@ export function ReferralAccount(){
   return()=>{alive=false;};
  },[user]);
  if(loading)return <p>Cargando cuenta…</p>;
- if(!user)return <div className="mt-8 rounded-2xl border p-6"><h2 className="text-xl font-bold">Tu cuenta de recomendaciones</h2><p className="my-3">Inicia sesión con tu cuenta de Tacoplan para consultar el estado del programa.</p><Link className="font-bold text-blue-600 underline" href="/login?next=%2Finvita-y-gana">Iniciar sesión</Link></div>;
+ if(!user)return <div className="mt-8 rounded-2xl border p-6"><h2 className="text-xl font-bold">Tu cuenta de recomendaciones</h2><p className="my-3">Inicia sesión con tu cuenta de Tacoplan para consultar el estado del programa.</p><Link className="font-bold text-blue-600 underline" href="/mi-tacoplan">Iniciar sesión</Link></div>;
  if(error)return <p className="mt-8" role="status">{error}</p>;
  if(!data)return <p className="mt-8">Consultando programa…</p>;
  if(!data.enabled)return <p className="mt-8 rounded-xl border p-4">Tu cuenta está conectada. El programa aún no está activo.</p>;
