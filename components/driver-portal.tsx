@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import {useDriverWebLocale} from '@/lib/driver-web-locale';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
+import { ReferralAccount } from '@/components/referral-account';
 import { supabase } from '@/lib/supabase';
 import { DriverDrivingInsights } from '@/components/driver-driving-insights';
 import { DriverReportManager } from '@/components/driver-report-manager';
@@ -144,6 +145,7 @@ export function DriverPortal(){
   </header>
   <div className="grid gap-3 sm:grid-cols-3"><div className="rounded-2xl border bg-white p-4"><p className="text-xs text-slate-500">{t('Cuenta')}</p><p className="mt-1 break-all text-sm font-semibold text-slate-900">{user.email||t('Correo oculto por el proveedor')}</p></div><div className="rounded-2xl border bg-white p-4"><p className="text-xs text-slate-500">{t('Base configurada')}</p><p className="mt-1 text-sm font-semibold text-slate-900">{profile?.base_name||profile?.base_city||t('Sin configurar')}</p></div><div className="rounded-2xl border bg-white p-4"><p className="text-xs text-slate-500">{t('Configuración inicial')}</p><p className="mt-1 text-sm font-semibold text-slate-900">{profile?.onboarding_completed?t('Completada'):t('Pendiente')}</p></div></div>
   {error?<div role="alert" className="rounded-xl bg-red-50 p-4 text-sm text-red-700">{error}</div>:null}
+  <ReferralAccount/>
   <DriverDrivingInsights jornadas={jornadas} name={displayName} base={profile?.base_name||profile?.base_city||t('No configurada')} reportRows={rows} reportPeriod={period==='all'?t('Todos los registros cargados'):t('Últimos 30 días').replace('30',period)} />
   <DriverReportManager name={displayName} />
   <section className="space-y-4"><div className="flex flex-wrap items-center justify-between gap-3"><h2 className="text-xl font-bold text-slate-900">{t('Resumen de tus registros')}</h2><select aria-label={t('Periodo')} value={period} onChange={e=>setPeriod(e.target.value as Period)} className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm"><option value="7">{t('Últimos 7 días')}</option><option value="14">{t('Últimos 14 días')}</option><option value="30">{t('Últimos 30 días')}</option><option value="all">{t('Todos los registros cargados')}</option></select></div>
