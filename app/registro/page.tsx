@@ -89,6 +89,7 @@ export default function RegistroPage() {
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [status, setStatus] = useState<'form' | 'email_sent' | 'success'>('form');
+  const [referralCode, setReferralCode] = useState('');
   const [returnTo, setReturnTo] = useState<string | null>(null);
   const [debug, setDebug] = useState(false);
   const [debugErrorRaw, setDebugErrorRaw] = useState<string | null>(null);
@@ -102,6 +103,8 @@ export default function RegistroPage() {
     const params = new URLSearchParams(window.location.search);
     const rt = params.get('return_to') ?? params.get('redirect_to') ?? params.get('redirect');
     setReturnTo(rt);
+    const ref=(params.get('ref')||'').trim().toUpperCase();
+    if(/^[A-Z0-9]{12}$/.test(ref))setReferralCode(ref);
     setDebug(params.get('debug') === '1');
   }, []);
 
@@ -137,6 +140,7 @@ export default function RegistroPage() {
           data: {
             nombre: formData.nombre,
             full_name: formData.nombre,
+            ...(/^[A-Z0-9]{12}$/.test(referralCode)?{referral_code:referralCode}:{}),
           },
           emailRedirectTo,
         },
@@ -215,6 +219,7 @@ export default function RegistroPage() {
           data: {
             nombre: formData.nombre,
             full_name: formData.nombre,
+            ...(/^[A-Z0-9]{12}$/.test(referralCode)?{referral_code:referralCode}:{}),
           },
           emailRedirectTo,
         },
@@ -342,6 +347,7 @@ export default function RegistroPage() {
 
             {status === 'form' ? (
               <form onSubmit={handleSubmit} className="space-y-4">
+                <div><Label htmlFor="referral">Código de invitación (opcional)</Label><Input id="referral" value={referralCode} maxLength={12} pattern="[A-Z0-9]{12}" onChange={e=>setReferralCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ""))} disabled={loading}/></div>
                 <div>
                   <Label htmlFor="nombre">Nombre Completo</Label>
                   <Input
