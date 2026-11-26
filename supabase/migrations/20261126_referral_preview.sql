@@ -77,4 +77,36 @@ revoke all on public.tp_referral_bonuses from public,anon,authenticated;
 grant select on public.tp_referral_bonuses to authenticated;
 grant select,insert,update,delete on public.tp_referral_bonuses to service_role;
 create policy referral_bonus_owner on public.tp_referral_bonuses for select to authenticated using(referrer_user_id=(select auth.uid()));
+-- Immutable registration attribution: only accepted during insertion of a new auth user.
+create schema if not exists tp_referral_private;
+revoke all on schema tp_referral_private from public,anon,authenticated;
+create function tp_referral_private.capture_signup() returns trigger
+language plpgsql security definer set search_path='' as $
+begin
+ if exists(select 1 from public.tp_referral_config where id and enabled) then
+  insert into public.tp_referral_attributions(referred_user_id,referrer_user_id)
+  select new.id,c.user_id from public.tp_referral_codes c
+  where c.code=upper(trim(coalesce(new.raw_user_meta_data->>'referral_code','')))
+   and c.user_id<>new.id
+  on conflict(referred_user_id) do nothing;
+ end if;
+ return new;
+end; $;
+revoke all on function tp_referral_private.capture_signup() from public,anon,authenticated;
+create trigger tp_referral_signup after insert on auth.users for each row execute function tp_referral_private.capture_signup();
+-- Verified invoice evidence is separate from withdrawable rewards. No reward is
+-- released until refund/dispute and continuity verification has been completed.
+create table public.tp_referral_invoice_evidence (
+ invoice_id text primary key,
+ referred_user_id uuid not null references public.tp_referral_attributions(referred_user_id),
+ stripe_subscription_id text not null,
+ stripe_customer_id text not null,
+ paid_at timestamptz not null,
+ amount_paid_cents integer not null check(amount_paid_cents>0),
+ currency text not null,
+ observed_at timestamptz not null default now()
+);
+alter table public.tp_referral_invoice_evidence enable row level security;
+revoke all on public.tp_referral_invoice_evidence from public,anon,authenticated;
+grant select,insert,update on public.tp_referral_invoice_evidence to service_role;
 commit;
