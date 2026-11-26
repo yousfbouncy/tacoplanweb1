@@ -120,6 +120,7 @@ export function Navbar() {
                 Planes
               </Link>
             ) : null}
+            <Link href="/invita-y-gana" className="text-slate-100 hover:text-sky-300 transition">Invita y gana</Link>
             <Link href="/empresas" className="text-slate-100 hover:text-sky-300 transition">Empresas</Link>
             <Link href="/empleados/login" className="text-slate-100 hover:text-sky-300 transition">Acceso empleados</Link>
             <Link href="/contacto" className="text-slate-100 hover:text-sky-300 transition">
@@ -186,6 +187,7 @@ export function Navbar() {
                 Planes
               </Link>
             ) : null}
+            <Link href="/invita-y-gana" className="block text-slate-100 hover:text-sky-300" onClick={() => setMobileMenuOpen(false)}>Invita y gana</Link>
             <Link href="/empresas" className="block text-slate-100 hover:text-sky-300" onClick={() => setMobileMenuOpen(false)}>Empresas</Link>
             <Link href="/empleados/login" className="block text-slate-100 hover:text-sky-300" onClick={() => setMobileMenuOpen(false)}>Acceso empleados</Link>
             <Link
