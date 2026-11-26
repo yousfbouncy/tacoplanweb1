@@ -103,6 +103,20 @@ export async function POST(req:NextRequest){
       const update=await db.from('tp_driver_subscriptions').update(patch)
        .eq('user_id',existing.user_id).eq('stripe_subscription_id',subscriptionId);
       if(update.error)throw update.error;
+      // Isolated referral capture; no balances are released by this hook.
+      // Keep existing subscription handling independent of referral rollout.
+      if(process.env.TP_REFERRAL_CAPTURE_ENABLED==='true'){
+       const cfg=await db.from('tp_referral_config').select('enabled').eq('id',true).single();
+       if(cfg.error)throw cfg.error;
+       if(cfg.data.enabled&&remote.metadata?.tp_driver_id===existing.user_id&&remote.customer===o.customer&&o.currency==='eur'&&Number.isSafeInteger(o.amount_paid)&&o.amount_paid>0){
+        const attribution=await db.from('tp_referral_attributions').select('referred_user_id').eq('referred_user_id',existing.user_id).maybeSingle();
+        if(attribution.error)throw attribution.error;
+        if(attribution.data){
+         const result=await db.from('tp_referral_invoice_evidence').upsert({invoice_id:evidence.id,referred_user_id:existing.user_id,stripe_subscription_id:subscriptionId,stripe_customer_id:o.customer,paid_at:evidence.paid_at,amount_paid_cents:o.amount_paid,currency:o.currency},{onConflict:'invoice_id',ignoreDuplicates:true});
+         if(result.error)throw result.error;
+        }
+       }
+      }
      }
     }
    }
