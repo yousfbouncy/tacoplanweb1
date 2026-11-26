@@ -1,5 +1,6 @@
 'use client';
 import { useState } from 'react';
+import { ReferralAccount } from '@/components/referral-account';
 
 export default function ReferralPage() {
   const [monthly, setMonthly] = useState(5);
@@ -52,6 +53,7 @@ export default function ReferralPage() {
           <p className="mt-3 text-sm">{count >= 5 && reward >= 10 ? 'La simulación alcanza ambos mínimos de retirada.' : 'Para retirar necesitarás al menos 5 referidos confirmados y 10 € de saldo disponible.'}</p>
         </div>
       </section>
+      <ReferralAccount/>
       <section className="mt-8 rounded-2xl border p-6">
         <h2 className="text-xl font-bold">Condiciones previstas</h2>
         <ul className="mt-4 list-disc space-y-2 pl-5 text-sm">
