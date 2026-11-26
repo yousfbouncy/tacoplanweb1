@@ -18,7 +18,7 @@ export default function ReferralPage() {
         <p className="text-sm font-semibold tracking-widest text-sky-300">TACOPLAN · PROGRAMA DE RECOMENDACIONES</p>
         <h1 className="mt-4 text-4xl font-bold sm:text-5xl">Invita y gana</h1>
         <p className="mt-4 max-w-xl text-lg text-slate-200">Comparte Tacoplan con otros conductores y consigue recompensas cuando contraten Pro.</p>
-        <p className="mt-6 inline-block rounded-full bg-white/10 px-4 py-2 text-sm">Próximamente · programa aún no disponible</p>
+        <p className="mt-6 inline-block rounded-full bg-white/10 px-4 py-2 text-sm">Modo de pruebas · sin pagos de recompensas</p>
       </section>
       <section className="my-8 grid gap-4 sm:grid-cols-3">
         {[
@@ -57,7 +57,7 @@ export default function ReferralPage() {
       <section className="mt-8 rounded-2xl border p-6">
         <h2 className="text-xl font-bold">Condiciones previstas</h2>
         <ul className="mt-4 list-disc space-y-2 pl-5 text-sm">
-          <li>Disponible para cuentas gratuitas y Pro cuando se active el programa.</li>
+          <li>Disponible para cuentas gratuitas y Pro cuando el programa esté habilitado. Durante las pruebas no se generan comisiones reales.</li>
           <li>Comisión inicial única por cliente nuevo; no se remunera el registro, la prueba gratuita ni cada renovación. Los premios adicionales tienen sus propios requisitos.</li>
           <li>Premio de captación único de 50 € al alcanzar 50 clientes confirmados; los mensuales deben haber realizado el segundo pago. Los anuales deben haber pagado su año y superar los 30 días de validación.</li>
           <li>Fidelidad: una vez que 50 clientes hayan completado 12 meses continuos pagados sin devolución, se abonan 2 € por cada cliente elegible, incluidos los primeros 50 y los siguientes que cumplan. Una sola vez por cliente.</li>
@@ -65,7 +65,7 @@ export default function ReferralPage() {
           <li>Retirada por transferencia, previa revisión, con un mínimo acumulado de 5 referidos y 10 € disponibles.</li>
           <li>Importes y requisitos provisionales, sujetos a condiciones definitivas y revisión fiscal. No se garantizan ingresos.</li>
         </ul>
-        <button disabled className="mt-6 rounded-xl bg-slate-200 px-5 py-3 font-semibold text-slate-600 cursor-not-allowed">Participación aún no disponible</button>
+        <button disabled className="mt-6 rounded-xl bg-slate-200 px-5 py-3 font-semibold text-slate-600 cursor-not-allowed">Retiradas aún no disponibles</button>
       </section>
     </div>
   );
