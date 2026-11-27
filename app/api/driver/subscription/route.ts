@@ -133,14 +133,15 @@ export async function GET(req:NextRequest){
  const featureAccess=tier==='free'?limitedFree?.features||null:policyConfig?.features||null;
  const featureStatus=tier==='free'?limitedFree?.feature_status||null:null;
  const trialAlreadyUsed=!!trialHistory.data||subscription.data?.trial_used===true||subscription.data?.status==='trialing'||!!subscription.data?.trial_ends_at;
- const availableTrial=!trialCheck.disabled&&trialEligibility(subscription.data,!!trialHistory.data,Math.max(0,...(catalog.data||[]).map(x=>x.trial_days||0)));
+ const standardTrialEnd=Date.parse(ctx.user.created_at)+30*86400000;
+ const availableTrial=standardTrialEnd-Date.now()>=172800000&&!trialCheck.disabled&&trialEligibility(subscription.data,!!trialHistory.data,30);
  let offer:Awaited<ReturnType<typeof loadOffer>>;try{offer=await loadOffer(ctx.db,ctx.user.id);}catch{return reply({error:'No se pudo verificar la promoción'},503);}
  const canCheckout=runtime.data?.billing_enabled===true;
  return reply({billing_enabled:canCheckout,restrictions_enabled:restrictionsEnabled,all_features_unlocked:!restrictionsEnabled,
   complimentary_plan:gifted,can_manage_subscription:!!subscription.data?.status && !['inactive','canceled','incomplete_expired'].includes(subscription.data.status),
   pilot_access:isPilot,effective_plan:effectivePlan,pro_access:!restrictionsEnabled||effectivePlan==='pro',
   plus_access:!restrictionsEnabled||['plus','pro'].includes(effectivePlan),
-  audience:assignment.data?.audience||'standard',plans:catalog.data,subscription:subscription.data?{...subscription.data,status,first_paid_at:subscription.data.first_paid_at||verifiedPayment?.paid_at||null}:null, payment_grace_until:gracePeriodActive?new Date(pastDueSince+72*3600000).toISOString():null,
+  audience:assignment.data?.audience||'standard',plans:catalog.data?.map(p=>({...p,trial_days:availableTrial?Math.ceil((standardTrialEnd-Date.now())/86400000):0})),subscription:subscription.data?{...subscription.data,status,first_paid_at:subscription.data.first_paid_at||verifiedPayment?.paid_at||null}:null, payment_grace_until:gracePeriodActive?new Date(pastDueSince+72*3600000).toISOString():null,
   trial_used:trialAlreadyUsed,trial_available:availableTrial, december_offer_until:offer.eligible&&!['active','trialing','past_due','unpaid','incomplete','paused'].includes(status||'')?offer.eligible.first_charge_at:null,trial_activity:trialCheck,trial_used_at:trialHistory.data?.first_trial_at||null,
   feature_status:restrictionsEnabled?featureStatus:null,
   policy:policyConfig,features:restrictionsEnabled?featureAccess:null,
@@ -200,13 +201,14 @@ export async function POST(req:NextRequest){
  form.set('metadata[tp_driver_id]',userId);form.set('metadata[tp_price_slug]',slug);
  form.set('subscription_data[metadata][tp_driver_id]',userId);
  form.set('subscription_data[metadata][tp_price_slug]',slug);
- const trialAvailable=!trialCheck.disabled&&trialEligibility(sub.data,!!trialHistory.data,price.trial_days);
+ const standardTrialEnd=Date.parse(ctx.user.created_at)+30*86400000;
+ const trialAvailable=standardTrialEnd-Date.now()>=172800000&&!trialCheck.disabled&&trialEligibility(sub.data,!!trialHistory.data,30);
  let offer:Awaited<ReturnType<typeof loadOffer>>;try{offer=await loadOffer(db,userId);}catch{return reply({error:'No se pudo verificar la promoción'},503);}
  if(offer.eligible){
   form.set('subscription_data[trial_end]',String(Math.floor(Date.parse(offer.eligible.first_charge_at)/1000)));
   form.set('metadata[tp_offer_id]',offer.eligible.id);form.set('subscription_data[metadata][tp_offer_id]',offer.eligible.id);
  }else if(offer.closed)return reply({error:'La oferta ha cerrado. Consulta las condiciones antes de contratar.'},409);
- else if(!body.skip_trial && trialAvailable)form.set('subscription_data[trial_period_days]',String(price.trial_days));
+ else if(!body.skip_trial && trialAvailable)form.set('subscription_data[trial_end]',String(Math.floor(standardTrialEnd/1000)));
  form.set('success_url',req.nextUrl.origin+'/planes?subscription=success');
  form.set('cancel_url',req.nextUrl.origin+'/planes?subscription=cancel');
  if(sub.data?.stripe_customer_id){
