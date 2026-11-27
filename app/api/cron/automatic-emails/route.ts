@@ -6,12 +6,16 @@ export const dynamic='force-dynamic';
 export const maxDuration=60;
 const reply=(v:unknown,status=200)=>NextResponse.json(v,{status,headers:{'Cache-Control':'no-store'}});
 export async function GET(req:NextRequest){
- if(!process.env.CRON_SECRET||req.headers.get('authorization')!=='Bearer '+process.env.CRON_SECRET)return reply({error:'No autorizado'},401);
- if(!emailReady())return reply({ok:true,skipped:'email_provider_not_enabled'});
+ const cron=!!process.env.CRON_SECRET&&req.headers.get('authorization')==='Bearer '+process.env.CRON_SECRET;
+ const token=req.nextUrl.searchParams.get('recovery_token')||'';
+ if(!cron&&!/^[a-f0-9-]{36}$/i.test(token))return reply({error:'No autorizado'},401);
  const db=adminDatabase();if(!db)return reply({error:'Database unavailable'},503);
+ if(!cron){const claim=await db.rpc('tp_consume_recovery_dispatch_token',{p_token:token});if(claim.error||claim.data!==true)return reply({error:'No autorizado'},401);}
+ if(!emailReady())return reply({ok:true,skipped:'email_provider_not_enabled'});
  const candidates=await db.rpc('tp_email_candidates');if(candidates.error)return reply({error:'Candidate query failed'},503);
  let accepted=0,failed=0,skipped=0;
  for(const c of candidates.data||[]){
+  if(!cron&&c.rule_key!=='recovery_2027')continue;
   const [account,rule]=await Promise.all([db.auth.admin.getUserById(c.user_id),db.from('tp_email_rules').select('*').eq('key',c.rule_key).maybeSingle()]);
   const user=account.data?.user,r=rule.data;
   if(account.error||rule.error||!user?.email||!user.email_confirmed_at||!r?.enabled){skipped++;continue;}
