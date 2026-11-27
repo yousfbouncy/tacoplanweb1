@@ -32,7 +32,7 @@ export async function GET(req:NextRequest){
   const id=String(claim.data);
   try{
    const url='https://www.tacoplan.es/api/email/unsubscribe?token='+encodeURIComponent(unsubscribeToken(c.user_id));
-   const message=renderEmail(r,url);
+   const message=renderEmail(r,url,c.rule_key==='recovery_2027'?id:undefined);
    const res=await fetch('https://api.resend.com/emails',{method:'POST',headers:{Authorization:'Bearer '+process.env.RESEND_API_KEY,'Content-Type':'application/json','Idempotency-Key':id},body:JSON.stringify({from:process.env.TP_EMAIL_FROM,to:[user.email],subject:r.subject,...message,...(r.commercial?{headers:{'List-Unsubscribe':'<'+url+'>','List-Unsubscribe-Post':'List-Unsubscribe=One-Click'}}:{})})});
    const result=await res.json();
    if(!res.ok||!result.id){await db.from('tp_email_dispatches').update({status:'failed',error_code:'provider_http_'+res.status,updated_at:new Date().toISOString()}).eq('id',id);failed++;continue;}
