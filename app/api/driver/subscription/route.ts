@@ -50,11 +50,14 @@ async function stripe(path:string,params:URLSearchParams){
  }
  return j as {url?:string;id:string};
 }
-// Limited November 2026 offer; never affects existing subscriptions or other accounts.
-const decemberOfferUsers=new Set(["d4f06f43-7a92-4782-99c6-d591855eb107","a10b1967-c535-41e2-9b59-d2a42bcc57d2","aa2dc77c-99b5-4cd0-8984-868873d0245c","1877f655-bb65-4b32-a197-049207c0aa69","835cd3d7-7ab9-45e4-8f40-6b099e1e3dbd","074a6b56-43a5-490c-a747-5d44e2a7b91d","248a1d49-1bff-4575-b2cc-03f9cfa9f1ab","6e2d5d6e-a061-4b32-b009-43cb8c8a932c","5332e4f1-70d1-4487-886b-12b2b1f80629"]);
-const decemberOfferEnd=Date.parse('2026-12-01T00:00:00+01:00');
-function decemberOffer(userId:string){
- return decemberOfferUsers.has(userId)&&Date.now()<decemberOfferEnd-48*3600000;
+// Resolve the offer from the server-side database. Fail closed on lookup errors.
+async function loadOffer(db:NonNullable<ReturnType<typeof adminDatabase>>,userId:string){
+ const {data,error}=await db.from('tp_subscription_offer_users').select('tp_subscription_offers!inner(id,enabled,starts_at,ends_at,first_charge_at)').eq('user_id',userId);
+ if(error)throw Error('No se pudo verificar la promoción');
+ const now=Date.now();
+ const offers=(data||[]).flatMap((row:any)=>Array.isArray(row.tp_subscription_offers)?row.tp_subscription_offers:[row.tp_subscription_offers]).filter((o:any)=>o&&o.enabled&&Date.parse(o.starts_at)<=now&&Date.parse(o.first_charge_at)>now);
+ const eligible=offers.filter((o:any)=>Date.parse(o.ends_at)>now&&Date.parse(o.first_charge_at)-now>=172800000).sort((a:any,b:any)=>Date.parse(b.first_charge_at)-Date.parse(a.first_charge_at))[0];
+ return {eligible:eligible||null,closed:offers.length>0&&!eligible};
 }
 type TrialActivity={first_jornada_date:string|null;last_jornada_date:string|null;distinct_jornada_days:number;days_last30:number;activity_span_days:number|null};
 function assessTrial(activity:TrialActivity|null,mode:string|undefined){
@@ -131,13 +134,14 @@ export async function GET(req:NextRequest){
  const featureStatus=tier==='free'?limitedFree?.feature_status||null:null;
  const trialAlreadyUsed=!!trialHistory.data||subscription.data?.trial_used===true||subscription.data?.status==='trialing'||!!subscription.data?.trial_ends_at;
  const availableTrial=!trialCheck.disabled&&trialEligibility(subscription.data,!!trialHistory.data,Math.max(0,...(catalog.data||[]).map(x=>x.trial_days||0)));
+ let offer:Awaited<ReturnType<typeof loadOffer>>;try{offer=await loadOffer(ctx.db,ctx.user.id);}catch{return reply({error:'No se pudo verificar la promoción'},503);}
  const canCheckout=runtime.data?.billing_enabled===true;
  return reply({billing_enabled:canCheckout,restrictions_enabled:restrictionsEnabled,all_features_unlocked:!restrictionsEnabled,
   complimentary_plan:gifted,can_manage_subscription:!!subscription.data?.status && !['inactive','canceled','incomplete_expired'].includes(subscription.data.status),
   pilot_access:isPilot,effective_plan:effectivePlan,pro_access:!restrictionsEnabled||effectivePlan==='pro',
   plus_access:!restrictionsEnabled||['plus','pro'].includes(effectivePlan),
   audience:assignment.data?.audience||'standard',plans:catalog.data,subscription:subscription.data?{...subscription.data,status,first_paid_at:subscription.data.first_paid_at||verifiedPayment?.paid_at||null}:null, payment_grace_until:gracePeriodActive?new Date(pastDueSince+72*3600000).toISOString():null,
-  trial_used:trialAlreadyUsed,trial_available:availableTrial, december_offer_until:decemberOffer(ctx.user.id)&&!['active','trialing','past_due','unpaid','incomplete'].includes(status||'')?new Date(decemberOfferEnd).toISOString():null,trial_activity:trialCheck,trial_used_at:trialHistory.data?.first_trial_at||null,
+  trial_used:trialAlreadyUsed,trial_available:availableTrial, december_offer_until:offer.eligible&&!gifted&&!(isPilot&&pilot.data?.pro_access)&&!['active','trialing','past_due','unpaid','incomplete','paused'].includes(status||'')?offer.eligible.first_charge_at:null,trial_activity:trialCheck,trial_used_at:trialHistory.data?.first_trial_at||null,
   feature_status:restrictionsEnabled?featureStatus:null,
   policy:policyConfig,features:restrictionsEnabled?featureAccess:null,
   free_plan_expires_at:freeExpiry,free_plan_expired:freeExpired,
@@ -197,8 +201,11 @@ export async function POST(req:NextRequest){
  form.set('subscription_data[metadata][tp_driver_id]',userId);
  form.set('subscription_data[metadata][tp_price_slug]',slug);
  const trialAvailable=!trialCheck.disabled&&trialEligibility(sub.data,!!trialHistory.data,price.trial_days);
- if(decemberOffer(userId))form.set('subscription_data[trial_end]',String(Math.floor(decemberOfferEnd/1000)));
- else if(decemberOfferUsers.has(userId)&&Date.now()<decemberOfferEnd)return reply({error:'La oferta de diciembre ha cerrado. Vuelve a partir del 1 de diciembre para contratar.'},409);
+ let offer:Awaited<ReturnType<typeof loadOffer>>;try{offer=await loadOffer(db,userId);}catch{return reply({error:'No se pudo verificar la promoción'},503);}
+ if(offer.eligible){
+  form.set('subscription_data[trial_end]',String(Math.floor(Date.parse(offer.eligible.first_charge_at)/1000)));
+  form.set('metadata[tp_offer_id]',offer.eligible.id);form.set('subscription_data[metadata][tp_offer_id]',offer.eligible.id);
+ }else if(offer.closed)return reply({error:'La oferta ha cerrado. Consulta las condiciones antes de contratar.'},409);
  else if(!body.skip_trial && trialAvailable)form.set('subscription_data[trial_period_days]',String(price.trial_days));
  form.set('success_url',req.nextUrl.origin+'/planes?subscription=success');
  form.set('cancel_url',req.nextUrl.origin+'/planes?subscription=cancel');
