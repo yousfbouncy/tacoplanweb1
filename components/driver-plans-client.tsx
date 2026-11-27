@@ -38,6 +38,7 @@ export default function DriverPlansClient(){
   if(selected==='pro'){setDirectCheckout(true);void request('checkout','pro','month',true);}
   else void request();
  },[]);
+ const offerDate=info?.december_offer_until?new Date(info.december_offer_until).toLocaleDateString('es-ES',{timeZone:'Europe/Madrid',day:'numeric',month:'long',year:'numeric'}):'';
  const price=(c:number)=>(c/100).toLocaleString('es-ES',{style:'currency',currency:'EUR'});
  const chosen=(tier:'pro')=>info?.plans.find(p=>p.slug===(info.audience==='founder'?'pro_founder':info.audience==='existing'?'pro_existing':tier));
  return <main className="mx-auto max-w-5xl space-y-7 px-4 py-12">
@@ -54,7 +55,7 @@ export default function DriverPlansClient(){
      <p>Registras jornadas desde el {new Date(info.trial_activity.first_jornada_date+'T12:00:00').toLocaleDateString('es-ES')}.</p>
      <p>Llevas {info.trial_activity.days_using} días utilizando Tacoplan y tienes {info.trial_activity.distinct_jornada_days} días con jornadas registradas ({info.trial_activity.days_last30} en los últimos 30 días).</p>
     </div>:null}
-   <p className="font-semibold">{info.december_offer_until?'Oferta especial: activa tu suscripción sin coste hoy. Primer cobro el 1 de diciembre; puedes cancelar antes sin coste.':info.trial_used?'Tu prueba gratuita ya fue utilizada. La contratación será directa.':info.trial_activity?.disabled?info.trial_activity.reason+' Puedes contratar directamente sin prueba gratuita.':info.trial_available?'Tu prueba gratuita de Pro sigue disponible si decides activarla.':'No hay prueba gratuita disponible actualmente.'}</p>
+   <p className="font-semibold">{info.december_offer_until?'Oferta especial: activa tu suscripción sin coste hoy. Primer cobro el '+offerDate+'; puedes cancelar antes sin coste.':info.trial_used?'Tu prueba gratuita ya fue utilizada. La contratación será directa.':info.trial_activity?.disabled?info.trial_activity.reason+' Puedes contratar directamente sin prueba gratuita.':info.trial_available?'Tu prueba gratuita de Pro sigue disponible si decides activarla.':'No hay prueba gratuita disponible actualmente.'}</p>
    {info.effective_plan==='free'&&info.feature_status&&Object.entries(info.feature_status).filter(([,f])=>f.limited).map(([key,f])=><p key={key}>{({diets:'Dietas y pluses',auto:'AutoStart',manual:'Actividades',reports:'Informes',notify:'Notificaciones',trip:'Jornadas',widget:'Widgets'} as Record<string,string>)[key]||key}: {f.expired?'Plazo gratuito finalizado':`${f.days_left} días gratuitos restantes`}</p>)}
    {!info.restrictions_enabled?<p>Las restricciones por plan todavía no están activadas. No se bloquea ninguna función.</p>:null}
   </div>}
@@ -65,9 +66,9 @@ export default function DriverPlansClient(){
     <h2 className="text-xl font-bold">{tier==='free'?'Gratis':'Pro'}</h2>
     <p className="text-2xl font-semibold">{p?price(p.monthly_cents)+'/mes':'0 €'}</p>
     <p>{tier==='free'?'Jornadas y descansos; historial según las condiciones del plan Gratis':'Acceso completo con estimación de nómina e informes PDF'}</p>
-    {p&&<button className="w-full rounded bg-blue-700 p-3 text-white disabled:opacity-40" disabled={busy||!info?.billing_enabled} onClick={()=>void request('checkout',tier,'month')}>Elegir mensual · {info?.december_offer_until?'0 € hoy · primer cobro 1 de diciembre':info?.trial_available&&p.trial_days>0?p.trial_days+' días de prueba disponibles':'pago directo, sin prueba'}</button>}
+    {p&&<button className="w-full rounded bg-blue-700 p-3 text-white disabled:opacity-40" disabled={busy||!info?.billing_enabled} onClick={()=>void request('checkout',tier,'month')}>Elegir mensual · {info?.december_offer_until?'0 € hoy · primer cobro '+offerDate:info?.trial_available&&p.trial_days>0?p.trial_days+' días de prueba disponibles':'pago directo, sin prueba'}</button>}
     {p&&!info?.december_offer_until&&<button className="w-full rounded border border-blue-700 p-3 font-semibold text-blue-700 disabled:opacity-40" disabled={busy||!info?.billing_enabled} onClick={()=>void request('checkout',tier,'month',true)}>Contratar y pagar ahora (sin prueba gratuita)</button>}
-    {p?.annual_cents!=null&&<button className="w-full rounded border p-3 disabled:opacity-40" disabled={busy||!info?.billing_enabled} onClick={()=>void request('checkout',tier,'year')}>Anual {price(p.annual_cents)}{info?.december_offer_until?' · primer cobro 1 de diciembre':''}</button>}
+    {p?.annual_cents!=null&&<button className="w-full rounded border p-3 disabled:opacity-40" disabled={busy||!info?.billing_enabled} onClick={()=>void request('checkout',tier,'year')}>Anual {price(p.annual_cents)}{info?.december_offer_until?' · primer cobro '+offerDate:''}</button>}
    </section>;
   })}
   </div>
