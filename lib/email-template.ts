@@ -7,7 +7,7 @@ const actions:Record<string,{label:string;path:string;tag:string}> = {
  trial_ended:{label:'Ver planes disponibles',path:'/planes',tag:'SIGUE ORGANIZANDO TU TRABAJO'},
  checkout_abandoned:{label:'Consultar mi suscripción',path:'/planes',tag:'CONTINÚA CUANDO QUIERAS'},
  payment_failed:{label:'Revisar mi suscripción',path:'/planes',tag:'AVISO DE PAGO'},
- offer:{label:'Descubrir Tacoplan Pro',path:'/planes',tag:'VENTAJAS PARA CONDUCTORES'},
+ offer:{label:'Activar suscripción',path:'/planes',tag:'VENTAJAS PARA CONDUCTORES'},
  subscribed:{label:'Explorar mi plan',path:'/planes',tag:'SUSCRIPCIÓN ACTIVADA'}
 };
 const escape=(s:string)=>s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
