@@ -14,6 +14,7 @@ export async function GET(req:NextRequest){
  if(!emailReady())return reply({ok:true,skipped:'email_provider_not_enabled'});
  const candidates=await db.rpc('tp_email_candidates');if(candidates.error)return reply({error:'Candidate query failed'},503);
  let accepted=0,failed=0,skipped=0;
+ const providerErrors:string[]=[];
  for(const c of candidates.data||[]){
   if(!cron&&c.rule_key!=='recovery_2027')continue;
   const [account,rule]=await Promise.all([db.auth.admin.getUserById(c.user_id),db.from('tp_email_rules').select('*').eq('key',c.rule_key).maybeSingle()]);
@@ -39,10 +40,10 @@ export async function GET(req:NextRequest){
    const message=renderEmail(r,url,c.rule_key==='recovery_2027'?id:undefined);
    const res=await fetch('https://api.resend.com/emails',{method:'POST',headers:{Authorization:'Bearer '+process.env.RESEND_API_KEY,'Content-Type':'application/json','Idempotency-Key':id},body:JSON.stringify({from:process.env.TP_EMAIL_FROM,to:[user.email],subject:r.subject,...message,...(r.commercial?{headers:{'List-Unsubscribe':'<'+url+'>','List-Unsubscribe-Post':'List-Unsubscribe=One-Click'}}:{})})});
    const result=await res.json();
-   if(!res.ok||!result.id){await db.from('tp_email_dispatches').update({status:'failed',error_code:'provider_http_'+res.status,updated_at:new Date().toISOString()}).eq('id',id);failed++;continue;}
+   if(!res.ok||!result.id){if(!cron)providerErrors.push(String(result.name||'unknown')+': '+String(result.message||'').replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi,'[email]').slice(0,250));await db.from('tp_email_dispatches').update({status:'failed',error_code:'provider_http_'+res.status,updated_at:new Date().toISOString()}).eq('id',id);failed++;continue;}
    const saved=await db.from('tp_email_dispatches').update({status:'accepted',provider_id:result.id,updated_at:new Date().toISOString()}).eq('id',id);
    if(saved.error){failed++;continue;}accepted++;
   }catch{await db.from('tp_email_dispatches').update({status:'failed',error_code:'transport_uncertain_no_retry',updated_at:new Date().toISOString()}).eq('id',id);failed++;}
  }
- return reply({ok:true,accepted,failed,skipped});
+ return reply({ok:true,accepted,failed,skipped,...(!cron?{providerErrors}:{})});
 }
