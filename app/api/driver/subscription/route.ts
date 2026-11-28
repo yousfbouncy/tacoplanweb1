@@ -143,6 +143,7 @@ export async function GET(req:NextRequest){
   plus_access:!restrictionsEnabled||['plus','pro'].includes(effectivePlan),
   audience:assignment.data?.audience||'standard',plans:catalog.data?.map(p=>({...p,trial_days:availableTrial?Math.ceil((standardTrialEnd-Date.now())/86400000):0})),subscription:subscription.data?{...subscription.data,status,first_paid_at:subscription.data.first_paid_at||verifiedPayment?.paid_at||null}:null, payment_grace_until:gracePeriodActive?new Date(pastDueSince+72*3600000).toISOString():null,
   trial_used:trialAlreadyUsed,trial_available:availableTrial, december_offer_until:offer.eligible&&!['active','trialing','past_due','unpaid','incomplete','paused'].includes(status||'')?offer.eligible.first_charge_at:null,trial_activity:trialCheck,trial_used_at:trialHistory.data?.first_trial_at||null,
+  legal_access:!restrictionsEnabled||(policyConfig?.legal_access??(tier!=='free'||(!trialAlreadyUsed&&availableTrial&&!freeExpired))),
   feature_status:restrictionsEnabled?featureStatus:null,
   policy:policyConfig,features:restrictionsEnabled?featureAccess:null,
   free_plan_expires_at:freeExpiry,free_plan_expired:freeExpired,
