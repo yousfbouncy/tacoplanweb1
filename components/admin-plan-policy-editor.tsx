@@ -110,6 +110,15 @@ export default function AdminPlanPolicyEditor() {
         </select>}
      </label>
     </div>
+    <label className="mb-5 block space-y-1 text-sm font-semibold text-slate-700">
+     <span>Estado legal y conducción semanal/bisemanal</span>
+     <select className="w-full rounded-lg border p-3" value={form.legal_access===undefined?'automatic':form.legal_access?'allowed':'blocked'}
+      onChange={e=>{const mode=e.target.value;setForm(old=>{if(!old)return old;const next={...old};if(mode==='automatic')delete next.legal_access;else next.legal_access=mode==='allowed';return next;});}}>
+      <option value="automatic">Automático (regla de prueba actual)</option>
+      <option value="allowed">Permitido</option><option value="blocked">Restringido</option>
+     </select>
+     <span className="block text-xs font-normal text-slate-500">Controla los detalles del estado legal sin eliminar jornadas ni modificar los cobros.</span>
+    </label>
     <h3 className="mb-2 font-bold">Funciones permitidas y límites individuales</h3>
     {selected==='free'&&<p className="mb-3 text-sm text-slate-600">
       Cada función puede estar bloqueada, permitida siempre o gratis durante un número de días.
