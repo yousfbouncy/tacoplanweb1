@@ -1,6 +1,7 @@
 type Rule={key:string;subject:string;body:string;commercial:boolean};
 const actions:Record<string,{label:string;path:string;tag:string}> = {
  recovery_2027:{label:'Activar mi suscripción gratuita',path:'/planes',tag:'VUELVE A TACOPLAN'},
+ referral_registered:{label:'Consultar mis referidos y ganancias',path:'/mi-tacoplan',tag:'INVITA Y GANA · TU CUENTA'},
  welcome:{label:'Descubrir Tacoplan',path:'/',tag:'BIENVENIDO A TACOPLAN'},
  first_journey:{label:'Descubrir cómo funciona',path:'/',tag:'EMPIEZA A TU RITMO'},
  inactive:{label:'Volver a Tacoplan',path:'/',tag:'TU TRABAJO, AL DÍA'},
