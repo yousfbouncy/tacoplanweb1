@@ -5,17 +5,18 @@ const json=(v:unknown,status=200)=>NextResponse.json(v,{status,headers:{'Cache-C
 export async function GET(req:NextRequest){
  if(!authorizedAdmin(req))return json({error:'No autorizado'},401);
  const db=adminDatabase();if(!db)return json({error:'Base de datos no disponible'},503);
- const [config,codes,refs,rewards,bonuses,payouts,evidence]=await Promise.all([
+ const [config,codes,refs,rewards,bonuses,payouts,evidence,groups]=await Promise.all([
  db.from('tp_referral_config').select('*').eq('id',true).single(),
  db.from('tp_referral_codes').select('*',{count:'exact',head:true}),
  db.from('tp_referral_attributions').select('*',{count:'exact',head:true}),
  db.from('tp_referral_rewards').select('id,referred_user_id,status,amount_cents,available_at').order('created_at',{ascending:false}).limit(100),
  db.from('tp_referral_bonuses').select('id,referrer_user_id,kind,status,amount_cents').order('qualified_at',{ascending:false}).limit(100),
  db.from('tp_referral_payouts').select('id,user_id,status,amount_cents,created_at').order('created_at',{ascending:false}).limit(100),
- db.from('tp_referral_invoice_evidence').select('*',{count:'exact',head:true})
+ db.from('tp_referral_invoice_evidence').select('*',{count:'exact',head:true}),
+ db.rpc('tp_referral_admin_groups')
  ]);
- if([config,codes,refs,rewards,bonuses,payouts,evidence].some(r=>r.error))return json({error:'No se pudo consultar el programa; comprueba la migración.'},503);
- return json({config:config.data,codes:codes.count,referrals:refs.count,evidence:evidence.count,rewards:rewards.data,bonuses:bonuses.data,payouts:payouts.data});
+ if([config,codes,refs,rewards,bonuses,payouts,evidence,groups].some(r=>r.error))return json({error:'No se pudo consultar el programa; comprueba la migración.'},503);
+ return json({config:config.data,codes:codes.count,referrals:refs.count,evidence:evidence.count,rewards:rewards.data,bonuses:bonuses.data,payouts:payouts.data,groups:groups.data});
 }
 export async function PATCH(req:NextRequest){
  if(!authorizedAdmin(req))return json({error:'No autorizado'},401);
