@@ -9,7 +9,7 @@ const nextConfig = {
   async headers() {
     return ['http://localhost:8081', 'http://127.0.0.1:8081'].map(origin => ({
       source: '/api/driver/subscription',
-      has: [{ type: 'header', key: 'origin', value: origin.replaceAll('.', '\\\\.') }],
+      has: [{ type: 'header', key: 'origin', value: origin.replaceAll('.', '[.]') }],
       headers: [
         { key: 'Access-Control-Allow-Origin', value: origin },
         { key: 'Access-Control-Allow-Methods', value: 'GET, OPTIONS' },
