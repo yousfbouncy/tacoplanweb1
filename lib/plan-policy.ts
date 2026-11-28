@@ -5,6 +5,8 @@ export type PlanConfig = {
   duration_days: number|null;
   history_days: number|null;
   trial_days: number;
+  /** Undefined preserves the legacy trial-based legal access rule. */
+  legal_access?: boolean;
   features: Record<FeatureKey,boolean>;
   /** Days of introductory Free access. The first launch date is immutable. */
   free_feature_days?: Partial<Record<FeatureKey,number>>;
@@ -26,7 +28,7 @@ const validDays=(x:unknown,max:number)=>x===null||
 export function validatePlanConfig(slug:PlanSlug, value:unknown):PlanConfig|null {
  if(!plainRecord(value)||!plainRecord(value.features))return null;
  const features=value.features as Record<string,unknown>;
- const allowedKeys=['duration_days','features','history_days','trial_days','free_feature_days'];
+ const allowedKeys=['duration_days','features','history_days','trial_days','free_feature_days','legal_access'];
  if(Object.keys(value).some(k=>!allowedKeys.includes(k)))return null;
  if(!['duration_days','features','history_days','trial_days'].every(k=>Object.hasOwn(value,k)))return null;
  if(Object.keys(features).sort().join(',')!==[...FEATURE_KEYS].sort().join(','))return null;
@@ -35,6 +37,7 @@ export function validatePlanConfig(slug:PlanSlug, value:unknown):PlanConfig|null
  if(typeof value.trial_days!=='number'||!Number.isInteger(value.trial_days)||
     value.trial_days<0||value.trial_days>30||(slug==='free'&&value.trial_days!==0))return null;
  if(!FEATURE_KEYS.every(k=>typeof features[k]==='boolean'))return null;
+ if(value.legal_access!==undefined&&typeof value.legal_access!=='boolean')return null;
  const days=value.free_feature_days;
  if(days!==undefined){
   if(!plainRecord(days)||slug!=='free')return null;
@@ -45,6 +48,7 @@ export function validatePlanConfig(slug:PlanSlug, value:unknown):PlanConfig|null
   duration_days:value.duration_days as number|null,
   history_days:value.history_days as number|null,
   trial_days:value.trial_days,
+  ...(typeof value.legal_access==='boolean'?{legal_access:value.legal_access}:{}),
   features:Object.fromEntries(FEATURE_KEYS.map(k=>[k,features[k]])) as Record<FeatureKey,boolean>,
   ...(days?{free_feature_days:Object.fromEntries(Object.entries(days)) as Partial<Record<FeatureKey,number>>}:{}),
  };
